@@ -21,7 +21,7 @@ pub fn execute() -> Result<()> {
     // Add a path to be watched. All files and directories at that path and
     // below will be watched.
     let path = Path::new("/tmp/");
-    watcher.watch(path, RecursiveMode::Recursive)?;
+    let _ = watcher.watch(path, RecursiveMode::Recursive);
 
     println!("Watching directory: {:?}", path);
 
