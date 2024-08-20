@@ -1,6 +1,6 @@
 
-pub mod nodes;
-pub mod triggers;
+mod nodes;
+mod triggers;
 
 fn main() {
     nodes::hello::execute();

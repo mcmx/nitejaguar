@@ -1,6 +1,5 @@
 use notify::{RecommendedWatcher, Result, RecursiveMode, Watcher};
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use serde::{Serialize, Deserialize};
 use serde_json;
@@ -32,8 +31,9 @@ pub fn execute() -> Result<()> {
                     paths: <PathBuf as Clone>::clone(&event.unwrap().paths[0]).into_os_string().into_string().unwrap(),
                     event_type: "Create".to_owned(),
                 };
-                let j = serde_json::to_string(&file_event);
-                println!("{:?}", j)
+                let j = serde_json::to_string(&file_event)
+                    .expect("Error while preparing the JSON");
+                println!("{}", j)
             },
             Err(e) => println!("watch error: {:?}", e),
         }
