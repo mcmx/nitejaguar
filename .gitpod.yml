@@ -1,8 +1,4 @@
-tasks:
-  - name: Build & Run
-    init: cargo build
-    command: cargo run help
 
 vscode:
   extensions:
-    - rust-lang.rust-analyzer
+    - golang.go
