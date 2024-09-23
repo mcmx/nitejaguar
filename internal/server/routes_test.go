@@ -1,39 +1,39 @@
 package server
 
 import (
-	"github.com/gofiber/fiber/v2"
-	"io"
+	"encoding/json"
+	"github.com/labstack/echo/v4"
 	"net/http"
+	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
 func TestHandler(t *testing.T) {
-	// Create a Fiber app for testing
-	app := fiber.New()
-	// Inject the Fiber app into the server
-	s := &FiberServer{App: app}
-	// Define a route in the Fiber app
-	app.Get("/", s.HelloWorldHandler)
-	// Create a test HTTP request
-	req, err := http.NewRequest("GET", "/", nil)
-	if err != nil {
-		t.Fatalf("error creating request. Err: %v", err)
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	resp := httptest.NewRecorder()
+	c := e.NewContext(req, resp)
+	s := &Server{}
+	// Assertions
+	if err := s.HelloWorldHandler(c); err != nil {
+		t.Errorf("handler() error = %v", err)
+		return
 	}
-	// Perform the request
-	resp, err := app.Test(req)
-	if err != nil {
-		t.Fatalf("error making request to server. Err: %v", err)
+	if resp.Code != http.StatusOK {
+		t.Errorf("handler() wrong status code = %v", resp.Code)
+		return
 	}
-	// Your test assertions...
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected status OK; got %v", resp.Status)
+	expected := map[string]string{"message": "Hello World"}
+	var actual map[string]string
+	// Decode the response body into the actual map
+	if err := json.NewDecoder(resp.Body).Decode(&actual); err != nil {
+		t.Errorf("handler() error decoding response body: %v", err)
+		return
 	}
-	expected := "{\"message\":\"Hello World\"}"
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("error reading response body. Err: %v", err)
-	}
-	if expected != string(body) {
-		t.Errorf("expected response body to be %v; got %v", expected, string(body))
+	// Compare the decoded response with the expected value
+	if !reflect.DeepEqual(expected, actual) {
+		t.Errorf("handler() wrong response body. expected = %v, actual = %v", expected, actual)
+		return
 	}
 }

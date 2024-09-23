@@ -1,42 +1,21 @@
 package web
 
 import (
-	"bytes"
-	"fmt"
 	"log"
-
-	"github.com/gofiber/fiber/v2"
+	"net/http"
 )
 
-func HelloWebHandler(c *fiber.Ctx) error {
-	// Parse form data
-	if err := c.BodyParser(c); err != nil {
-		innerErr := c.Status(fiber.StatusBadRequest).SendString("Bad Request")
-		if innerErr != nil {
-			log.Fatalf("Could not send error in HelloWebHandler: %e", innerErr)
-		}
+func HelloWebHandler(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
 	}
 
-	// Get the name from the form data
-	name := c.FormValue("name")
-
-	// Render the component
+	name := r.FormValue("name")
 	component := HelloPost(name)
-	buf := new(bytes.Buffer)
-	err := component.Render(c.Context(), buf)
+	err = component.Render(r.Context(), w)
 	if err != nil {
-		errorString := fmt.Sprintf("Error rendering in HelloWebHandler: %e", err)
-		innerErr := c.Status(fiber.StatusBadRequest).SendString(errorString)
-		if innerErr != nil {
-			log.Fatalf("Could not send error in HelloWebHandler: %e", innerErr)
-		}
-		log.Fatalf(errorString)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Fatalf("Error rendering in HelloWebHandler: %e", err)
 	}
-
-	// Send the response
-	err = c.Status(fiber.StatusOK).SendString(buf.String())
-	if err != nil {
-		log.Fatalf("Could not send OK in HelloWebHandler: %e", err)
-	}
-	return nil
 }

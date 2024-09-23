@@ -1,78 +1,74 @@
 package server
 
 import (
-	"context"
+	"net/http"
+
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/a-h/templ"
-	"github.com/gofiber/contrib/websocket"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/adaptor"
-	"github.com/gofiber/fiber/v2/middleware/filesystem"
-	"net/http"
+	"github.com/coder/websocket"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"nitejaguar/cmd/web"
 )
 
-func (s *FiberServer) RegisterFiberRoutes() {
-	s.App.Get("/", s.HelloWorldHandler)
+func (s *Server) RegisterRoutes() http.Handler {
+	e := echo.New()
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+	fileServer := http.FileServer(http.FS(web.Files))
+	e.GET("/assets/*", echo.WrapHandler(fileServer))
 
-	s.App.Get("/health", s.healthHandler)
+	e.GET("/web", echo.WrapHandler(templ.Handler(web.HelloForm())))
+	e.POST("/hello", echo.WrapHandler(http.HandlerFunc(web.HelloWebHandler)))
 
-	s.App.Get("/websocket", websocket.New(s.websocketHandler))
+	e.GET("/", s.HelloWorldHandler)
 
-	s.App.Use("/assets", filesystem.New(filesystem.Config{
-		Root:       http.FS(web.Files),
-		PathPrefix: "assets",
-		Browse:     false,
-	}))
+	e.GET("/health", s.healthHandler)
 
-	s.App.Get("/web", adaptor.HTTPHandler(templ.Handler(web.HelloForm())))
+	e.GET("/websocket", s.websocketHandler)
 
-	s.App.Post("/hello", func(c *fiber.Ctx) error {
-		return web.HelloWebHandler(c)
-	})
-
+	return e
 }
 
-func (s *FiberServer) HelloWorldHandler(c *fiber.Ctx) error {
-	resp := fiber.Map{
+func (s *Server) HelloWorldHandler(c echo.Context) error {
+	resp := map[string]string{
 		"message": "Hello World",
 	}
 
-	return c.JSON(resp)
+	return c.JSON(http.StatusOK, resp)
 }
 
-func (s *FiberServer) healthHandler(c *fiber.Ctx) error {
-	return c.JSON(s.db.Health())
+func (s *Server) healthHandler(c echo.Context) error {
+	return c.JSON(http.StatusOK, s.db.Health())
 }
 
-func (s *FiberServer) websocketHandler(con *websocket.Conn) {
-	ctx, cancel := context.WithCancel(context.Background())
+func (s *Server) websocketHandler(c echo.Context) error {
+	w := c.Response().Writer
+	r := c.Request()
+	socket, err := websocket.Accept(w, r, nil)
 
-	go func() {
-		for {
-			_, _, err := con.ReadMessage()
-			if err != nil {
-				cancel()
-				log.Println("Receiver Closing", err)
-				break
-			}
-		}
-	}()
+	if err != nil {
+		log.Printf("could not open websocket: %v", err)
+		_, _ = w.Write([]byte("could not open websocket"))
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+
+	defer socket.Close(websocket.StatusGoingAway, "server closing websocket")
+
+	ctx := r.Context()
+	socketCtx := socket.CloseRead(ctx)
 
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			payload := fmt.Sprintf("server timestamp: %d", time.Now().UnixNano())
-			if err := con.WriteMessage(websocket.TextMessage, []byte(payload)); err != nil {
-				log.Printf("could not write to socket: %v", err)
-				return
-			}
-			time.Sleep(time.Second * 2)
+		payload := fmt.Sprintf("server timestamp: %d", time.Now().UnixNano())
+		err := socket.Write(socketCtx, websocket.MessageText, []byte(payload))
+		if err != nil {
+			break
 		}
+		time.Sleep(time.Second * 2)
 	}
+	return nil
 }

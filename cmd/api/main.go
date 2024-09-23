@@ -3,19 +3,13 @@ package main
 import (
 	"fmt"
 	"nitejaguar/internal/server"
-	"os"
-	"strconv"
-
-	_ "github.com/joho/godotenv/autoload"
 )
 
 func main() {
 
-	server := server.New()
+	server := server.NewServer()
 
-	server.RegisterFiberRoutes()
-	port, _ := strconv.Atoi(os.Getenv("PORT"))
-	err := server.Listen(fmt.Sprintf(":%d", port))
+	err := server.ListenAndServe()
 	if err != nil {
 		panic(fmt.Sprintf("cannot start server: %s", err))
 	}
