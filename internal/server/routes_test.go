@@ -2,11 +2,13 @@ package server
 
 import (
 	"encoding/json"
-	"github.com/labstack/echo/v4"
 	"net/http"
 	"net/http/httptest"
+	"nitejaguar/internal/database"
 	"reflect"
 	"testing"
+
+	"github.com/labstack/echo/v4"
 )
 
 func TestHandler(t *testing.T) {
@@ -14,9 +16,9 @@ func TestHandler(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	resp := httptest.NewRecorder()
 	c := e.NewContext(req, resp)
-	s := &Server{}
+	s := &Server{db: database.New()}
 	// Assertions
-	if err := s.HelloWorldHandler(c); err != nil {
+	if err := s.HealthHandler(c); err != nil {
 		t.Errorf("handler() error = %v", err)
 		return
 	}
@@ -24,7 +26,7 @@ func TestHandler(t *testing.T) {
 		t.Errorf("handler() wrong status code = %v", resp.Code)
 		return
 	}
-	expected := map[string]string{"message": "Hello World"}
+	expected := map[string]string{"status": "up"}
 	var actual map[string]string
 	// Decode the response body into the actual map
 	if err := json.NewDecoder(resp.Body).Decode(&actual); err != nil {
@@ -32,7 +34,7 @@ func TestHandler(t *testing.T) {
 		return
 	}
 	// Compare the decoded response with the expected value
-	if !reflect.DeepEqual(expected, actual) {
+	if !reflect.DeepEqual(expected["status"], actual["status"]) {
 		t.Errorf("handler() wrong response body. expected = %v, actual = %v", expected, actual)
 		return
 	}
