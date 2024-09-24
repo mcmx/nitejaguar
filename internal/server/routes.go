@@ -7,19 +7,19 @@ import (
 	"log"
 	"time"
 
+	"nitejaguar/cmd/web"
+
 	"github.com/a-h/templ"
 	"github.com/coder/websocket"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"nitejaguar/cmd/web"
 )
 
 func (s *Server) RegisterRoutes() http.Handler {
 	e := echo.New()
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	fileServer := http.FileServer(http.FS(web.Files))
-	e.GET("/assets/*", echo.WrapHandler(fileServer))
+	e.Static("/assets", "cmd/web/assets")
 
 	e.GET("/", echo.WrapHandler(templ.Handler(web.HelloForm())))
 	e.POST("/hello", echo.WrapHandler(http.HandlerFunc(web.HelloWebHandler)))
