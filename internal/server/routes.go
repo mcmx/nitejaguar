@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"nitejaguar/cmd/web"
+	"nitejaguar/internal/triggers"
+	"nitejaguar/internal/triggers/filechange"
 
 	"github.com/a-h/templ"
 	"github.com/coder/websocket"
@@ -22,7 +24,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 	e.Static("/assets", "cmd/web/assets")
 
 	e.GET("/", echo.WrapHandler(templ.Handler(web.HelloForm())))
-	e.POST("/hello", echo.WrapHandler(http.HandlerFunc(web.HelloWebHandler)))
+	// e.POST("/hello", echo.WrapHandler(http.HandlerFunc(web.HelloWebHandler)))
+	e.POST("/hello", s.TriggerWebHandler)
 
 	// e.GET("/", s.HelloWorldHandler)
 
@@ -40,6 +43,15 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 // 	return c.JSON(http.StatusOK, resp)
 // }
+
+func (s *Server) TriggerWebHandler(c echo.Context) error {
+	myArgs := triggers.TriggerArgs{
+		Id:   "filechange",
+		Name: c.FormValue("name"),
+		Args: []string{"/tmp"},
+	}
+	return c.JSON(http.StatusOK, filechange.Execute(&myArgs))
+}
 
 func (s *Server) HealthHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, s.db.Health())
