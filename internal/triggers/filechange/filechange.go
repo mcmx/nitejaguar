@@ -7,25 +7,41 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-func Execute(data *triggers.TriggerArgs) error {
-	fmt.Println("Executing File Change Trigger with id:", data.Id)
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return err
+type filechange struct {
+	data    *triggers.TriggerArgs
+	watcher *fsnotify.Watcher
+}
+
+func New(data *triggers.TriggerArgs) (triggers.Trigger, error) {
+	s := &filechange{
+		data: data,
 	}
-	defer watcher.Close()
+	fmt.Println("Initializing File Change Trigger with id:", s.data.Id)
+	s.watcher, _ = fsnotify.NewWatcher()
+	return s, nil
+}
+
+func (s *filechange) Execute() error {
+	fmt.Println("Executing File Change Trigger with id:", s.data.Id)
+	defer s.watcher.Close()
 
 	go func() {
 		for {
 			select {
-			case event, ok := <-watcher.Events:
+			case event, ok := <-s.watcher.Events:
 				if !ok {
 					return
 				}
-				if event.Op&fsnotify.Write == fsnotify.Write {
-					fmt.Println("modified file:", event.Name)
+				if event.Op.Has(fsnotify.Write) {
+					fmt.Println("write file:", event.Name)
 				}
-			case err, ok := <-watcher.Errors:
+				if event.Op.Has(fsnotify.Create) {
+					fmt.Println("create file:", event.Name)
+				}
+				if event.Op.Has(fsnotify.Rename) {
+					fmt.Println("rename file:", event.Name)
+				}
+			case err, ok := <-s.watcher.Errors:
 				if !ok {
 					return
 				}
@@ -34,7 +50,7 @@ func Execute(data *triggers.TriggerArgs) error {
 		}
 	}()
 
-	err = watcher.Add(data.Args[0])
+	err := s.watcher.Add(s.data.Args[0])
 	if err != nil {
 		return err
 	}

@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"nitejaguar/cmd/web"
-	"nitejaguar/internal/triggers"
-	"nitejaguar/internal/triggers/filechange"
 
 	"github.com/a-h/templ"
 	"github.com/coder/websocket"
@@ -45,12 +43,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 // }
 
 func (s *Server) TriggerWebHandler(c echo.Context) error {
-	myArgs := triggers.TriggerArgs{
-		Id:   "filechange",
-		Name: c.FormValue("name"),
-		Args: []string{"/tmp"},
-	}
-	return c.JSON(http.StatusOK, filechange.Execute(&myArgs))
+	return c.JSON(http.StatusOK, "Ok")
 }
 
 func (s *Server) HealthHandler(c echo.Context) error {
