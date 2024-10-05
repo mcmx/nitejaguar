@@ -1,5 +1,9 @@
 package triggers
 
+import (
+	"github.com/google/uuid"
+)
+
 type ITrigger interface {
 	Execute() error
 }
@@ -16,7 +20,8 @@ var triggerList = map[string]ITrigger{}
 func New(data *TriggerArgs) (ITrigger, error) {
 	var trigger ITrigger
 	var err error
-	data.Id = "MyFakeID+1"
+	id, _ := uuid.NewV7()
+	data.Id = id.String()
 
 	switch data.TriggerType {
 	case "filechange":
