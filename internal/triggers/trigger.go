@@ -1,31 +1,27 @@
 package triggers
 
 import (
+	"nitejaguar/internal/triggers/common"
+	"nitejaguar/internal/triggers/filechange"
+
 	"github.com/google/uuid"
 )
 
-type ITrigger interface {
+type Trigger interface {
 	Execute() error
 }
 
-type TriggerArgs struct {
-	Id          string
-	TriggerType string
-	Name        string
-	Args        []string
-}
+var triggerList = map[string]Trigger{}
 
-var triggerList = map[string]ITrigger{}
-
-func New(data *TriggerArgs) (ITrigger, error) {
-	var trigger ITrigger
+func New(data *common.TriggerArgs) (Trigger, error) {
+	var trigger Trigger
 	var err error
 	id, _ := uuid.NewV7()
 	data.Id = id.String()
 
 	switch data.TriggerType {
 	case "filechange":
-		trigger, err = newFileChange(data)
+		trigger, err = filechange.New(data)
 		if err != nil {
 			return nil, err
 		}

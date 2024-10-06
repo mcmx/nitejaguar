@@ -1,17 +1,18 @@
-package triggers
+package filechange
 
 import (
 	"fmt"
 
 	"github.com/fsnotify/fsnotify"
+	"nitejaguar/internal/triggers/common"
 )
 
 type filechange struct {
-	data    *TriggerArgs
+	data    *common.TriggerArgs
 	watcher *fsnotify.Watcher
 }
 
-func newFileChange(data *TriggerArgs) (ITrigger, error) {
+func New(data *common.TriggerArgs) (*filechange, error) {
 	s := &filechange{
 		data: data,
 	}

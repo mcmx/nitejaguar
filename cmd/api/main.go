@@ -5,6 +5,7 @@ import (
 	"nitejaguar/internal/database"
 	"nitejaguar/internal/server"
 	"nitejaguar/internal/triggers"
+	"nitejaguar/internal/triggers/common"
 )
 
 func main() {
@@ -12,7 +13,7 @@ func main() {
 	myDb := database.New()
 	// TODO Add a Triggers service
 
-	myArgs := triggers.TriggerArgs{
+	myArgs := common.TriggerArgs{
 		TriggerType: "filechange",
 		Name:        "Test filechange trigger",
 		Args:        []string{"/tmp"},
