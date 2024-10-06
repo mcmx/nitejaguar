@@ -7,27 +7,34 @@ import (
 	"github.com/google/uuid"
 )
 
+type TriggerV struct {
+	Events  chan string
+	trigger Trigger
+}
+
 type Trigger interface {
 	Execute() error
 }
 
-var triggerList = map[string]Trigger{}
+var TriggerList = map[string]*TriggerV{}
 
-func New(data *common.TriggerArgs) (Trigger, error) {
-	var trigger Trigger
+func New(data *common.TriggerArgs) (*TriggerV, error) {
 	var err error
 	id, _ := uuid.NewV7()
 	data.Id = id.String()
+	t := &TriggerV{
+		Events: make(chan string),
+	}
 
 	switch data.TriggerType {
 	case "filechange":
-		trigger, err = filechange.New(data)
+		t.trigger, err = filechange.New(t.Events, data)
 		if err != nil {
 			return nil, err
 		}
-		triggerList[data.Id] = trigger
-		go trigger.Execute()
-		return trigger, nil
+		TriggerList[data.Id] = t
+		go t.trigger.Execute()
+		return t, nil
 	}
 
 	return nil, nil
