@@ -9,12 +9,12 @@ import (
 )
 
 type filechange struct {
-	data    *common.TriggerArgs
+	data    common.TriggerArgs
 	watcher *fsnotify.Watcher
 	events  chan string
 }
 
-func New(events chan string, data *common.TriggerArgs) (*filechange, error) {
+func New(events chan string, data common.TriggerArgs) (*filechange, error) {
 	s := &filechange{
 		data:   data,
 		events: events,

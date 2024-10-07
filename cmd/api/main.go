@@ -18,17 +18,12 @@ func main() {
 		Name:        "Test filechange trigger",
 		Args:        []string{"/tmp"},
 	}
-	go func() {
-		var value string
-		for {
-			for _, t := range triggers.TriggerList {
-				value = <-t.Events
-				fmt.Println("Trigger Result", value)
-			}
-		}
-	}()
 
-	triggers.New(&myArgs)
+	ts := triggers.TriggerService{}
+
+	ts.New(myArgs)
+	go ts.Run()
+	//triggers.New(myArgs)
 
 	server := server.NewServer(myDb)
 

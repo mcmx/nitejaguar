@@ -1,6 +1,7 @@
 package triggers
 
 import (
+	"fmt"
 	"nitejaguar/internal/triggers/common"
 	"nitejaguar/internal/triggers/filechange"
 
@@ -12,13 +13,20 @@ type TriggerV struct {
 	trigger Trigger
 }
 
+type TriggerService struct {
+	TriggerList map[string]*TriggerV
+}
+
 type Trigger interface {
 	Execute() error
 }
 
-var TriggerList = map[string]*TriggerV{}
-
-func New(data *common.TriggerArgs) (*TriggerV, error) {
+// This data is not a pointer, this is intentional
+// to create a copy
+func (ts *TriggerService) New(data common.TriggerArgs) (*TriggerV, error) {
+	if ts.TriggerList == nil {
+		ts.TriggerList = make(map[string]*TriggerV)
+	}
 	var err error
 	id, _ := uuid.NewV7()
 	data.Id = id.String()
@@ -32,10 +40,22 @@ func New(data *common.TriggerArgs) (*TriggerV, error) {
 		if err != nil {
 			return nil, err
 		}
-		TriggerList[data.Id] = t
+		ts.TriggerList[data.Id] = t
 		go t.trigger.Execute()
 		return t, nil
 	}
 
 	return nil, nil
+}
+
+func (ts *TriggerService) Run() {
+	go func() {
+		var value string
+		for {
+			for _, t := range ts.TriggerList {
+				value = <-t.Events
+				fmt.Println("Trigger Result", value)
+			}
+		}
+	}()
 }
