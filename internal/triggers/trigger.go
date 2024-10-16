@@ -49,13 +49,11 @@ func (ts *TriggerService) New(data common.TriggerArgs) (*TriggerV, error) {
 }
 
 func (ts *TriggerService) Run() {
-	go func() {
-		var value string
-		for {
-			for _, t := range ts.TriggerList {
-				value = <-t.Events
-				fmt.Println("Trigger Result", value)
-			}
+	var value string
+	for {
+		for _, t := range ts.TriggerList {
+			value = <-t.Events
+			fmt.Println("Trigger Result", value)
 		}
-	}()
+	}
 }
