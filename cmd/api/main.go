@@ -21,9 +21,8 @@ func main() {
 
 	ts := triggers.TriggerService{}
 
-	ts.New(myArgs)
 	go ts.Run()
-	//triggers.New(myArgs)
+	ts.New(myArgs)
 
 	server := server.NewServer(myDb)
 
