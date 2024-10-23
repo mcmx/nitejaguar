@@ -13,15 +13,21 @@ func main() {
 	myDb := database.New()
 	// TODO Add a Triggers service
 
-	myArgs := common.TriggerArgs{
-		TriggerType: "filechange",
-		Name:        "Test filechange trigger",
-		Args:        []string{"/tmp"},
+	myArgs := common.ActionArgs{
+		ActionName: "filechangeTrigger",
+		ActionType: "trigger",
+		Name:       "Test filechange trigger",
+		Args:       []string{"/tmp"},
 	}
 
 	ts := triggers.TriggerService{}
 
 	go ts.Run()
+	ts.New(myArgs)
+
+	myArgs.Args = []string{"/workspace"}
+	myArgs.Name = "Test filechange trigger 2"
+
 	ts.New(myArgs)
 
 	server := server.NewServer(myDb)

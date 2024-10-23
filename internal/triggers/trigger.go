@@ -4,44 +4,42 @@ import (
 	"fmt"
 	"nitejaguar/internal/triggers/common"
 	"nitejaguar/internal/triggers/filechange"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 type TriggerV struct {
-	Events  chan string
-	trigger Trigger
+	action common.Action
 }
 
 type TriggerService struct {
+	Events      chan string
 	TriggerList map[string]*TriggerV
-}
-
-type Trigger interface {
-	Execute() error
 }
 
 // This data is not a pointer, this is intentional
 // to create a copy
-func (ts *TriggerService) New(data common.TriggerArgs) (*TriggerV, error) {
+func (ts *TriggerService) New(data common.ActionArgs) (*TriggerV, error) {
 	if ts.TriggerList == nil {
 		ts.TriggerList = make(map[string]*TriggerV)
+	}
+	if ts.Events == nil {
+		ts.Events = make(chan string)
 	}
 	var err error
 	id, _ := uuid.NewV7()
 	data.Id = id.String()
-	t := &TriggerV{
-		Events: make(chan string),
-	}
+	t := &TriggerV{}
 
-	switch data.TriggerType {
-	case "filechange":
-		t.trigger, err = filechange.New(t.Events, data)
+	switch data.ActionName {
+	case "filechangeTrigger":
+		t.action, err = filechange.New(ts.Events, data)
 		if err != nil {
 			return nil, err
 		}
 		ts.TriggerList[data.Id] = t
-		go t.trigger.Execute()
+		go t.action.Execute()
 		return t, nil
 	}
 
@@ -51,9 +49,11 @@ func (ts *TriggerService) New(data common.TriggerArgs) (*TriggerV, error) {
 func (ts *TriggerService) Run() {
 	var value string
 	for {
-		for _, t := range ts.TriggerList {
-			value = <-t.Events
+		select {
+		case value = <-ts.Events:
 			fmt.Println("Trigger Result", value)
+		case <-time.After(200 * time.Millisecond):
+			// do nothing
 		}
 	}
 }

@@ -1,12 +1,13 @@
 package common
 
-type TriggerArgs struct {
-	Id          string
-	Name        string
-	TriggerType string
-	Args        []string
+type ActionArgs struct {
+	Id         string
+	Name       string
+	ActionType string
+	ActionName string
+	Args       []string
 }
 
-type Trigger interface {
-	Execute()
+type Action interface {
+	Execute() error
 }
