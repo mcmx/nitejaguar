@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
+	"nitejaguar/internal/actions"
+	"nitejaguar/internal/actions/common"
 	"nitejaguar/internal/database"
 	"nitejaguar/internal/server"
-	"nitejaguar/internal/triggers"
-	"nitejaguar/internal/triggers/common"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 		Args:       []string{"/tmp"},
 	}
 
-	ts := triggers.TriggerService{}
+	ts := actions.TriggerService{}
 
 	go ts.Run()
 	ts.New(myArgs)

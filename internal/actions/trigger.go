@@ -1,28 +1,29 @@
-package triggers
+package actions
 
 import (
 	"fmt"
-	"nitejaguar/internal/triggers/common"
-	"nitejaguar/internal/triggers/filechange"
+	"nitejaguar/internal/actions/common"
+	"nitejaguar/internal/actions/filechange"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-type TriggerV struct {
+type Action struct {
 	action common.Action
 }
 
 type TriggerService struct {
 	Events      chan string
-	TriggerList map[string]*TriggerV
+	TriggerList map[string]*Action
 }
 
-// This data is not a pointer, this is intentional
-// to create a copy
-func (ts *TriggerService) New(data common.ActionArgs) (*TriggerV, error) {
+// New creates a new Action instance and adds it to the TriggerList.
+// It takes a common.ActionArgs object as input, which contains the action name and other relevant data.
+// The function returns a pointer to the newly created Action instance and an error if any occurs.
+func (ts *TriggerService) New(data common.ActionArgs) (*Action, error) {
 	if ts.TriggerList == nil {
-		ts.TriggerList = make(map[string]*TriggerV)
+		ts.TriggerList = make(map[string]*Action)
 	}
 	if ts.Events == nil {
 		ts.Events = make(chan string)
@@ -30,7 +31,7 @@ func (ts *TriggerService) New(data common.ActionArgs) (*TriggerV, error) {
 	var err error
 	id, _ := uuid.NewV7()
 	data.Id = id.String()
-	t := &TriggerV{}
+	t := &Action{}
 
 	switch data.ActionName {
 	case "filechangeTrigger":
