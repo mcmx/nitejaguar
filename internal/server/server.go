@@ -9,6 +9,7 @@ import (
 
 	_ "github.com/joho/godotenv/autoload"
 
+	"nitejaguar/internal/actions"
 	"nitejaguar/internal/database"
 )
 
@@ -16,13 +17,15 @@ type Server struct {
 	port int
 
 	db database.Service
+	ts actions.TriggerService
 }
 
-func NewServer(myDb database.Service) *http.Server {
+func NewServer(myDb database.Service, myTs actions.TriggerService) *http.Server {
 	port, _ := strconv.Atoi(os.Getenv("PORT"))
 	NewServer := &Server{
 		port: port,
 		db:   myDb,
+		ts:   myTs,
 	}
 	fmt.Println("Starting server")
 

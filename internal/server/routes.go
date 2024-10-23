@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"nitejaguar/cmd/web"
+	"nitejaguar/internal/actions/common"
 
 	"github.com/a-h/templ"
 	"github.com/coder/websocket"
@@ -47,6 +48,13 @@ func (s *Server) TriggerWebHandler(c echo.Context) error {
 }
 
 func (s *Server) HealthHandler(c echo.Context) error {
+	myArgs := common.ActionArgs{
+		ActionName: "filechangeTrigger",
+		ActionType: "trigger",
+		Name:       "Test filechange 2 trigger",
+		Args:       []string{"/tmp"},
+	}
+	s.ts.New(myArgs)
 	return c.JSON(http.StatusOK, s.db.Health())
 }
 

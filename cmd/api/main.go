@@ -30,7 +30,7 @@ func main() {
 
 	ts.New(myArgs)
 
-	server := server.NewServer(myDb)
+	server := server.NewServer(myDb, ts)
 
 	err := server.ListenAndServe()
 	if err != nil {
