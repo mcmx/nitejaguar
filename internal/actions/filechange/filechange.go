@@ -15,6 +15,11 @@ type filechange struct {
 	events  chan string
 }
 
+func (t *filechange) Stop() error {
+	fmt.Println("Stopping the filechange trigger")
+	return t.watcher.Close()
+}
+
 func New(events chan string, data common.ActionArgs) (*filechange, error) {
 	s := &filechange{
 		data:   data,
@@ -28,7 +33,7 @@ func New(events chan string, data common.ActionArgs) (*filechange, error) {
 
 func (t *filechange) Execute() error {
 	fmt.Println("Executing File Change Trigger with id:", t.data.Id)
-	defer t.watcher.Close()
+	// defer t.watcher.Close()
 
 	go func() {
 		for {

@@ -10,4 +10,5 @@ type ActionArgs struct {
 
 type Action interface {
 	Execute() error
+	Stop() error
 }

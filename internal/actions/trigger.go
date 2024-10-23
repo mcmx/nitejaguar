@@ -15,15 +15,15 @@ type Action struct {
 
 type TriggerService struct {
 	Events      chan string
-	TriggerList map[string]*Action
+	triggerList map[string]*Action
 }
 
 // New creates a new Action instance and adds it to the TriggerList.
 // It takes a common.ActionArgs object as input, which contains the action name and other relevant data.
 // The function returns a pointer to the newly created Action instance and an error if any occurs.
 func (ts *TriggerService) New(data common.ActionArgs) (*Action, error) {
-	if ts.TriggerList == nil {
-		ts.TriggerList = make(map[string]*Action)
+	if ts.triggerList == nil {
+		ts.triggerList = make(map[string]*Action)
 	}
 	if ts.Events == nil {
 		ts.Events = make(chan string)
@@ -39,12 +39,19 @@ func (ts *TriggerService) New(data common.ActionArgs) (*Action, error) {
 		if err != nil {
 			return nil, err
 		}
-		ts.TriggerList[data.Id] = t
+		ts.triggerList[data.Id] = t
 		go t.action.Execute()
 		return t, nil
 	}
 
 	return nil, nil
+}
+
+func (ts *TriggerService) Stop(id string) {
+	err := ts.triggerList[id].action.Stop()
+	if err != nil {
+		fmt.Println("Error while stopping action:", err)
+	}
 }
 
 func (ts *TriggerService) Run() {

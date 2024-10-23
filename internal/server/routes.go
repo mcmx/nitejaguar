@@ -44,7 +44,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 // }
 
 func (s *Server) TriggerWebHandler(c echo.Context) error {
-	return c.JSON(http.StatusOK, "Ok")
+	return c.JSON(http.StatusOK, "Ok Hello")
 }
 
 func (s *Server) HealthHandler(c echo.Context) error {
