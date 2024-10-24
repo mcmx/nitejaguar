@@ -44,6 +44,9 @@ func (s *Server) RegisterRoutes() http.Handler {
 // }
 
 func (s *Server) TriggerWebHandler(c echo.Context) error {
+	name := c.FormValue("name")
+	fmt.Println("Form value Stopping Trigger:", name)
+	s.ts.Stop(name)
 	return c.JSON(http.StatusOK, "Ok Hello")
 }
 
