@@ -27,8 +27,12 @@ func NewServer(myDb database.Service, myTs actions.TriggerService) *http.Server 
 		db:   myDb,
 		ts:   myTs,
 	}
-	fmt.Println("Starting server")
-
+	if port == 0 {
+		NewServer.port = 8080
+		fmt.Println("No port specified. Using default port 8080")
+	} else {
+		fmt.Printf("Starting server on port %d\n", NewServer.port)
+	}
 	// Declare Server config
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", NewServer.port),
