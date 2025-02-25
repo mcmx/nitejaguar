@@ -29,7 +29,7 @@ build: tailwind templ-install
 
 # Run the application
 run:
-	@go run cmd/api/main.go
+	@go run cmd/api/main.go server -e
 
 # Test the application
 test:
