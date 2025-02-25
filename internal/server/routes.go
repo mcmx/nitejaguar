@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 
 	"fmt"
@@ -12,12 +13,23 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/coder/websocket"
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humaecho"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/mitchellh/mapstructure"
 )
 
 func (s *Server) RegisterRoutes() http.Handler {
 	e := echo.New()
+	config := huma.DefaultConfig(
+		"NiteJaguar API",
+		"1.0.0",
+	)
+	//	config.DocsPath = "/docs"
+
+	api := humaecho.New(e, config)
+
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Static("/assets", "cmd/web/assets")
@@ -28,7 +40,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	// e.GET("/", s.HelloWorldHandler)
 
-	e.GET("/health", s.HealthHandler)
+	huma.Get(api, "/health", s.HealthHandler)
 
 	e.GET("/websocket", s.websocketHandler)
 
@@ -50,7 +62,7 @@ func (s *Server) TriggerWebHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, "Ok Hello")
 }
 
-func (s *Server) HealthHandler(c echo.Context) error {
+func (s *Server) HealthHandler(c context.Context, input *struct{}) (r *struct{}, e error) {
 	myArgs := common.ActionArgs{
 		ActionName: "filechangeTrigger",
 		ActionType: "trigger",
@@ -58,7 +70,8 @@ func (s *Server) HealthHandler(c echo.Context) error {
 		Args:       []string{"/tmp"},
 	}
 	s.ts.New(myArgs)
-	return c.JSON(http.StatusOK, s.db.Health())
+	mapstructure.Decode(s.db.Health(), &r)
+	return r, nil
 }
 
 func (s *Server) websocketHandler(c echo.Context) error {
