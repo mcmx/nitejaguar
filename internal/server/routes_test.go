@@ -1,41 +1,37 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
-	"net/http/httptest"
+	"nitejaguar/internal/actions"
 	"nitejaguar/internal/database"
-	"reflect"
 	"testing"
 
-	"github.com/labstack/echo/v4"
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/humatest"
 )
 
 func TestHandler(t *testing.T) {
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	resp := httptest.NewRecorder()
-	c := e.NewContext(req, resp)
-	s := &Server{db: database.New()}
-	// Assertions
-	if err := s.HealthHandler(c); err != nil {
-		t.Errorf("handler() error = %v", err)
-		return
-	}
-	if resp.Code != http.StatusOK {
+	// req := httptest.NewRequest(http.MethodGet, "/", nil)
+	_, api := humatest.New(t)
+	s := &Server{db: database.New(), ts: actions.TriggerService{}}
+	huma.Get(api, "/health", s.HealthHandler)
+
+	resp := api.Get("/health")
+
+	if resp.Code != http.StatusNoContent {
 		t.Errorf("handler() wrong status code = %v", resp.Code)
 		return
 	}
-	expected := map[string]string{"status": "up"}
-	var actual map[string]string
+	//expected := map[string]string{"status": "up"}
+	//var actual map[string]string
 	// Decode the response body into the actual map
-	if err := json.NewDecoder(resp.Body).Decode(&actual); err != nil {
-		t.Errorf("handler() error decoding response body: %v", err)
-		return
-	}
+	//if err := json.NewDecoder(resp.Body).Decode(&actual); err != nil {
+	//	t.Errorf("handler() error decoding response body: %v", err)
+	//	return
+	//}
 	// Compare the decoded response with the expected value
-	if !reflect.DeepEqual(expected["status"], actual["status"]) {
-		t.Errorf("handler() wrong response body. expected = %v, actual = %v", expected, actual)
-		return
-	}
+	//if !reflect.DeepEqual(expected["status"], actual["status"]) {
+	//	t.Errorf("handler() wrong response body. expected = %v, actual = %v", expected, actual)
+	//	return
+	//}
 }
