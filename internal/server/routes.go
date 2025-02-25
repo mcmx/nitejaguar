@@ -29,6 +29,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	//	config.DocsPath = "/docs"
 
 	api := humaecho.New(e, config)
+	addApiRoutes(api, s)
 
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
@@ -40,11 +41,13 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	// e.GET("/", s.HelloWorldHandler)
 
-	huma.Get(api, "/health", s.HealthHandler)
-
 	e.GET("/websocket", s.websocketHandler)
 
 	return e
+}
+
+func addApiRoutes(api huma.API, s *Server) {
+	huma.Get(api, "/health", s.HealthHandler)
 }
 
 // func (s *Server) HelloWorldHandler(c echo.Context) error {

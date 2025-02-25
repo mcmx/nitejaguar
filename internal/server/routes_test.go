@@ -6,7 +6,6 @@ import (
 	"nitejaguar/internal/database"
 	"testing"
 
-	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/humatest"
 )
 
@@ -14,7 +13,7 @@ func TestHandler(t *testing.T) {
 	// req := httptest.NewRequest(http.MethodGet, "/", nil)
 	_, api := humatest.New(t)
 	s := &Server{db: database.New(), ts: actions.TriggerService{}}
-	huma.Get(api, "/health", s.HealthHandler)
+	addApiRoutes(api, s)
 
 	resp := api.Get("/health")
 
