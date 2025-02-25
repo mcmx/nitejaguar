@@ -20,11 +20,6 @@ var (
 )
 
 func main() {
-	rootCmd := &cobra.Command{
-		Use:   "nitejaguar",
-		Short: "NiteJaguar - A server/client application",
-		Long:  `NiteJaguar is a server/client application that handles triggers and actions.`,
-	}
 
 	serverCmd := &cobra.Command{
 		Use:   "server",
@@ -41,6 +36,15 @@ func main() {
 		Long:  `Start NiteJaguar in client mode to interact with the server.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Println("Client mode not implemented yet")
+		},
+	}
+
+	rootCmd := &cobra.Command{
+		Use:   "nitejaguar",
+		Short: "NiteJaguar - A server/client application",
+		Long:  `NiteJaguar is a server/client application that handles triggers and actions.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			clientCmd.Run(cmd, args) // <-- Here I'm invoking the default command
 		},
 	}
 
