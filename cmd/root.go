@@ -14,8 +14,6 @@ var rootCmd = &cobra.Command{
 	Use:   "nitejaguar",
 	Short: "NiteJaguar - A server/client application",
 	Long:  `NiteJaguar is a server/client application that handles triggers and actions.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
 		clientCmd.Run(cmd, args) // <-- Here I'm invoking the default command
 	},
