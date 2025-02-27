@@ -11,7 +11,7 @@ import (
 )
 
 type filechange struct {
-	Data    common.ActionArgs
+	data    common.ActionArgs
 	watcher *fsnotify.Watcher
 	events  chan string
 }
@@ -23,17 +23,17 @@ func (t *filechange) Stop() error {
 
 func New(events chan string, data common.ActionArgs) (*filechange, error) {
 	s := &filechange{
-		Data:   data,
+		data:   data,
 		events: events,
 	}
-	s.Data.ActionType = "trigger"
-	fmt.Println("Initializing File Change Trigger with id:", s.Data.Id)
+	s.data.ActionType = "trigger"
+	fmt.Println("Initializing File Change Trigger with id:", s.data.Id)
 	s.watcher, _ = fsnotify.NewWatcher()
 	return s, nil
 }
 
 func (t *filechange) Execute() error {
-	fmt.Println("Executing File Change Trigger with id:", t.Data.Id)
+	fmt.Println("Executing File Change Trigger with id:", t.data.Id)
 	// defer t.watcher.Close()
 
 	go func() {
@@ -61,7 +61,7 @@ func (t *filechange) Execute() error {
 		}
 	}()
 
-	err := t.watcher.Add(t.Data.Args[0])
+	err := t.watcher.Add(t.data.Args[0])
 	if err != nil {
 		return err
 	}
@@ -84,13 +84,18 @@ type results struct {
 
 func (t *filechange) sendResult(event string, file string) string {
 	r := &resultData{
-		ActionID:   t.Data.Id,
-		ActionType: t.Data.ActionType,
-		ActionName: t.Data.Name,
+		ActionID:   t.data.Id,
+		ActionType: t.data.ActionType,
+		ActionName: t.data.Name,
 		Results: []results{
 			{File: file, Type: event},
 		},
 	}
 	res, _ := json.Marshal(r)
 	return string(res)
+}
+
+// GetArgs returns the ActionArgs associated with the filechange
+func (t *filechange) GetArgs() common.ActionArgs {
+	return t.data
 }

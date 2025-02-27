@@ -30,8 +30,9 @@ func (ts *TriggerService) New(data common.ActionArgs) (*Action, error) {
 		ts.Events = make(chan string)
 	}
 	var err error
-	id, _ := uuid.NewV7()
-	data.Id = id.String()
+	if data.Id == "" {
+		data.Id = uuid.New().String()
+	}
 	t := &Action{}
 
 	switch data.ActionName {
