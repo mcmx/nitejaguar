@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 
+	"nitejaguar/common"
 	"nitejaguar/internal/actions"
-	"nitejaguar/internal/actions/common"
 	"nitejaguar/internal/database"
 	"nitejaguar/internal/server"
 )

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"nitejaguar/cmd/web"
-	"nitejaguar/internal/actions/common"
+	"nitejaguar/common"
 
 	"github.com/a-h/templ"
 	"github.com/coder/websocket"

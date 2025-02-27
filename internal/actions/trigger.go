@@ -2,7 +2,7 @@ package actions
 
 import (
 	"fmt"
-	"nitejaguar/internal/actions/common"
+	"nitejaguar/common"
 	"nitejaguar/internal/actions/filechange"
 	"time"
 

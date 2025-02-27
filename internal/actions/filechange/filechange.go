@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"encoding/json"
-	"nitejaguar/internal/actions/common"
+	"nitejaguar/common"
 
 	"github.com/fsnotify/fsnotify"
 )
