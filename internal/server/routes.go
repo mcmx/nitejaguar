@@ -8,8 +8,8 @@ import (
 	"log"
 	"time"
 
-	"nitejaguar/cmd/web"
-	"nitejaguar/common"
+	"github.com/mcmx/nitejaguar/cmd/web"
+	"github.com/mcmx/nitejaguar/common"
 
 	"github.com/a-h/templ"
 	"github.com/coder/websocket"

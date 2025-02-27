@@ -1,4 +1,4 @@
-module nitejaguar
+module github.com/mcmx/nitejaguar
 
 go 1.23.0
 

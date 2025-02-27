@@ -4,7 +4,7 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"nitejaguar/cmd/api"
+	"github.com/mcmx/nitejaguar/cmd/api"
 
 	"github.com/spf13/cobra"
 )

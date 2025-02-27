@@ -9,8 +9,8 @@ import (
 
 	_ "github.com/joho/godotenv/autoload"
 
-	"nitejaguar/internal/actions"
-	"nitejaguar/internal/database"
+	"github.com/mcmx/nitejaguar/internal/actions"
+	"github.com/mcmx/nitejaguar/internal/database"
 )
 
 type Server struct {

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log"
 
-	"nitejaguar/common"
-	"nitejaguar/internal/actions"
-	"nitejaguar/internal/database"
-	"nitejaguar/internal/server"
+	"github.com/mcmx/nitejaguar/common"
+	"github.com/mcmx/nitejaguar/internal/actions"
+	"github.com/mcmx/nitejaguar/internal/database"
+	"github.com/mcmx/nitejaguar/internal/server"
 )
 
 var (

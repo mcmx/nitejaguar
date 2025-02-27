@@ -4,7 +4,8 @@ import (
 	"fmt"
 
 	"encoding/json"
-	"nitejaguar/common"
+
+	"github.com/mcmx/nitejaguar/common"
 
 	"github.com/fsnotify/fsnotify"
 )

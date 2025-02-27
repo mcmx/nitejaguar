@@ -2,9 +2,10 @@ package actions
 
 import (
 	"fmt"
-	"nitejaguar/common"
-	"nitejaguar/internal/actions/filechange"
 	"time"
+
+	"github.com/mcmx/nitejaguar/common"
+	"github.com/mcmx/nitejaguar/internal/actions/filechange"
 
 	"github.com/google/uuid"
 )

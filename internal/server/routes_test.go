@@ -2,9 +2,10 @@ package server
 
 import (
 	"net/http"
-	"nitejaguar/internal/actions"
-	"nitejaguar/internal/database"
 	"testing"
+
+	"github.com/mcmx/nitejaguar/internal/actions"
+	"github.com/mcmx/nitejaguar/internal/database"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 )
