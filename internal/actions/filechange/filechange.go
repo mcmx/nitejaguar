@@ -21,39 +21,51 @@ func (t *filechange) Stop() error {
 	return t.watcher.Close()
 }
 
-func New(events chan string, data common.ActionArgs) (*filechange, error) {
+func New(events chan string, data common.ActionArgs) (common.Action, error) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create watcher: %w", err)
+	}
+
 	s := &filechange{
-		data:   data,
-		events: events,
+		data:    data,
+		events:  events,
+		watcher: watcher,
 	}
 	s.data.ActionType = "trigger"
 	fmt.Println("Initializing File Change Trigger with id:", s.data.Id)
-	s.watcher, _ = fsnotify.NewWatcher()
+
 	return s, nil
 }
 
 func (t *filechange) Execute() error {
 	fmt.Println("Executing File Change Trigger with id:", t.data.Id)
-	// defer t.watcher.Close()
 
+	// Start watching in a goroutine
 	go func() {
 		for {
 			select {
 			case event, ok := <-t.watcher.Events:
 				if !ok {
+					fmt.Println("Watcher closed")
 					return
 				}
 				if event.Op.Has(fsnotify.Write) {
 					t.events <- t.sendResult("write", event.Name)
 				}
 				if event.Op.Has(fsnotify.Create) {
+					fmt.Println("Create event:", event.Name)
 					t.events <- t.sendResult("create", event.Name)
 				}
 				if event.Op.Has(fsnotify.Rename) {
 					t.events <- t.sendResult("rename", event.Name)
 				}
+				if event.Op.Has(fsnotify.Remove) {
+					t.events <- t.sendResult("remove", event.Name)
+				}
 			case err, ok := <-t.watcher.Errors:
 				if !ok {
+					fmt.Println("Watcher error closed")
 					return
 				}
 				fmt.Println("error:", err)
@@ -61,13 +73,17 @@ func (t *filechange) Execute() error {
 		}
 	}()
 
+	// Add the path to watch
+	fmt.Println("Adding watcher to:", t.data.Args[0])
 	err := t.watcher.Add(t.data.Args[0])
 	if err != nil {
+		fmt.Println("Error adding watcher:", err)
 		return err
 	}
-	<-make(chan struct{})
 
-	return nil
+	// Keep the Execute method running without blocking
+	select {} // This keeps the method running without consuming resources
+
 }
 
 type resultData struct {

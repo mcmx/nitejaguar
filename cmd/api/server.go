@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/google/uuid"
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions"
 	"github.com/mcmx/nitejaguar/internal/database"
@@ -22,6 +23,9 @@ func RunServer() {
 	go ts.Run()
 
 	// Handle server action if specified
+	enableActions = true
+	actionName = "filechangeTrigger"
+	actionArgs = "/tmp"
 	if enableActions && actionName != "" {
 		args := []string{}
 		if actionArgs != "" {
@@ -36,6 +40,7 @@ func RunServer() {
 		// }
 
 		myArgs := common.ActionArgs{
+			Id:         uuid.New().String(),
 			ActionName: actionName,
 			ActionType: "trigger",
 			Name:       fmt.Sprintf("CLI Trigger: %s", actionName),

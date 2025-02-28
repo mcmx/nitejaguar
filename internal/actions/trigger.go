@@ -10,60 +10,63 @@ import (
 	"github.com/google/uuid"
 )
 
-type Action struct {
-	action common.Action
-}
-
+// TriggerService manages triggers and their events
 type TriggerService struct {
-	Events      chan string
-	triggerList map[string]*Action
+	events   chan string
+	triggers map[string]common.Action
 }
 
 // New creates a new Action instance and adds it to the TriggerList.
 // It takes a common.ActionArgs object as input, which contains the action name and other relevant data.
 // The function returns a pointer to the newly created Action instance and an error if any occurs.
-func (ts *TriggerService) New(data common.ActionArgs) (*Action, error) {
-	if ts.triggerList == nil {
-		ts.triggerList = make(map[string]*Action)
+func (ts *TriggerService) New(data common.ActionArgs) (common.Action, error) {
+	if ts.triggers == nil {
+		ts.triggers = make(map[string]common.Action)
 	}
-	if ts.Events == nil {
-		ts.Events = make(chan string)
+	if ts.events == nil {
+		ts.events = make(chan string)
 	}
-	var err error
+
 	if data.Id == "" {
 		data.Id = uuid.New().String()
 	}
-	t := &Action{}
 
 	switch data.ActionName {
 	case "filechangeTrigger":
-		t.action, err = filechange.New(ts.Events, data)
+		trigger, err := filechange.New(ts.events, data)
 		if err != nil {
 			return nil, err
 		}
-		ts.triggerList[data.Id] = t
-		go t.action.Execute()
-		return t, nil
+		ts.triggers[data.Id] = trigger
+		go trigger.Execute()
+		return trigger, nil
 	}
 
 	return nil, nil
 }
 
 func (ts *TriggerService) Stop(id string) {
-	err := ts.triggerList[id].action.Stop()
+	err := ts.triggers[id].Stop()
 	if err != nil {
 		fmt.Println("Error while stopping action:", err)
 	}
 }
 
 func (ts *TriggerService) Run() {
+	fmt.Println("Starting Trigger Service")
 	var value string
 	for {
 		select {
-		case value = <-ts.Events:
+		case value = <-ts.events:
 			fmt.Println("Trigger Result", value)
 		case <-time.After(200 * time.Millisecond):
 			// do nothing
 		}
+	}
+}
+
+func (ts *TriggerService) ListTriggers() {
+	for k, v := range ts.triggers {
+		fmt.Println("Trigger:", k, v)
 	}
 }
