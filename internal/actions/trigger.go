@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 
 // TriggerService manages triggers and their events
 type TriggerService struct {
-	events   chan string
+	events   chan common.ResultData
 	triggers map[string]common.Action
 }
 
@@ -24,7 +25,7 @@ func (ts *TriggerService) New(data common.ActionArgs) (common.Action, error) {
 		ts.triggers = make(map[string]common.Action)
 	}
 	if ts.events == nil {
-		ts.events = make(chan string)
+		ts.events = make(chan common.ResultData)
 	}
 
 	if data.Id == "" {
@@ -54,11 +55,13 @@ func (ts *TriggerService) Stop(id string) {
 
 func (ts *TriggerService) Run() {
 	fmt.Println("Starting Trigger Service")
-	var value string
+	var value common.ResultData
 	for {
 		select {
 		case value = <-ts.events:
 			fmt.Println("Trigger Result", value)
+			jsonResult, _ := json.Marshal(value)
+			fmt.Println("Trigger Result JSON", string(jsonResult))
 		case <-time.After(200 * time.Millisecond):
 			// do nothing
 		}

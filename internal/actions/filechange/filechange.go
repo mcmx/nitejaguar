@@ -3,8 +3,6 @@ package filechange
 import (
 	"fmt"
 
-	"encoding/json"
-
 	"github.com/mcmx/nitejaguar/common"
 
 	"github.com/fsnotify/fsnotify"
@@ -13,7 +11,7 @@ import (
 type filechange struct {
 	data    common.ActionArgs
 	watcher *fsnotify.Watcher
-	events  chan string
+	events  chan common.ResultData
 }
 
 func (t *filechange) Stop() error {
@@ -21,7 +19,7 @@ func (t *filechange) Stop() error {
 	return t.watcher.Close()
 }
 
-func New(events chan string, data common.ActionArgs) (common.Action, error) {
+func New(events chan common.ResultData, data common.ActionArgs) (common.Action, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create watcher: %w", err)
@@ -86,29 +84,14 @@ func (t *filechange) Execute() error {
 
 }
 
-type resultData struct {
-	ActionID   string    `json:"action_id"`
-	ActionType string    `json:"action_type"`
-	ActionName string    `json:"name"`
-	Results    []results `json:"results"`
-}
-
-type results struct {
-	File string `json:"file"`
-	Type string `json:"type"`
-}
-
-func (t *filechange) sendResult(event string, file string) string {
-	r := &resultData{
+func (t *filechange) sendResult(eventType string, file string) common.ResultData {
+	return common.ResultData{
 		ActionID:   t.data.Id,
 		ActionType: t.data.ActionType,
 		ActionName: t.data.Name,
-		Results: []results{
-			{File: file, Type: event},
-		},
+		EventType:  eventType,
+		Payload:    common.Event{Type: eventType, Payload: file},
 	}
-	res, _ := json.Marshal(r)
-	return string(res)
 }
 
 // GetArgs returns the ActionArgs associated with the filechange
