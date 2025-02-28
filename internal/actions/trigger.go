@@ -59,6 +59,12 @@ func (ts *TriggerService) Run() {
 	for {
 		select {
 		case value = <-ts.events:
+			if value.CreatedAt.IsZero() {
+				value.CreatedAt = time.Now()
+			}
+			if value.ResultID == "" {
+				value.ResultID = uuid.New().String()
+			}
 			fmt.Println("Trigger Result", value)
 			jsonResult, _ := json.Marshal(value)
 			fmt.Println("Trigger Result JSON", string(jsonResult))

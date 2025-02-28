@@ -8,6 +8,12 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
+// Event struct for event handling
+type event struct {
+	Type string      `json:"type"` // Event type
+	File interface{} `json:"file"` // Generic payload for event-specific data
+}
+
 type filechange struct {
 	data    common.ActionArgs
 	watcher *fsnotify.Watcher
@@ -89,8 +95,7 @@ func (t *filechange) sendResult(eventType string, file string) common.ResultData
 		ActionID:   t.data.Id,
 		ActionType: t.data.ActionType,
 		ActionName: t.data.Name,
-		EventType:  eventType,
-		Payload:    common.Event{Type: eventType, Payload: file},
+		Payload:    event{Type: eventType, File: file},
 	}
 }
 

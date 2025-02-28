@@ -1,5 +1,7 @@
 package common
 
+import "time"
+
 // ActionArgs holds the arguments for an action
 type ActionArgs struct {
 	Id         string
@@ -18,15 +20,10 @@ type Action interface {
 
 // Generic ResultData struct for various actions
 type ResultData struct {
+	ResultID   string      `json:"result_id"`
 	ActionID   string      `json:"action_id"`
 	ActionType string      `json:"action_type"`
 	ActionName string      `json:"name"`
-	EventType  string      `json:"event_type"` // New field for event type
-	Payload    interface{} `json:"payload"`    // Generic payload for additional data
-}
-
-// Event struct for event handling
-type Event struct {
-	Type    string      `json:"type"`    // Event type
-	Payload interface{} `json:"payload"` // Generic payload for event-specific data
+	CreatedAt  time.Time   `json:"created_at"`
+	Payload    interface{} `json:"payload"` // Generic payload for additional data
 }
