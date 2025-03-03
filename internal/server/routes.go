@@ -72,8 +72,13 @@ func (s *Server) HealthHandler(c context.Context, input *struct{}) (r *struct{},
 		Name:       "Test filechange 2 trigger",
 		Args:       []string{"/tmp"},
 	}
-	s.ts.New(myArgs)
-	mapstructure.Decode(s.db.Health(), &r)
+	_, err := s.ts.New(myArgs)
+	if err != nil {
+		log.Fatalf("Cannot create new trigger: %s", err)
+	}
+	if err := mapstructure.Decode(s.db.Health(), &r); err != nil {
+		log.Fatalf("Cannot decode health: %s", err)
+	}
 	return r, nil
 }
 

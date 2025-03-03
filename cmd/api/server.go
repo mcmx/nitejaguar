@@ -47,7 +47,10 @@ func RunServer() {
 			Args:       args,
 		}
 
-		ts.New(myArgs)
+		_, err := ts.New(myArgs)
+		if err != nil {
+			log.Fatalf("Cannot create new trigger: %s", err)
+		}
 		log.Printf("Created new trigger: %s, with args: %v", actionName, args)
 	}
 
