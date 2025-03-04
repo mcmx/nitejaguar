@@ -19,8 +19,16 @@ var (
 
 func RunServer() {
 	myDb := database.New()
-	ts := actions.TriggerService{}
+	ts := actions.NewTriggerService()
+	am := actions.NewActionManager()
 	go ts.Run()
+
+	am.AddAction(common.ActionArgs{
+		ActionName: "fileAction",
+		ActionType: "action",
+		Name:       "Test file action",
+		Args:       []string{"rename", "/tmp/test.txt", "/tmp/test2.txt"},
+	})
 
 	// Handle server action if specified
 	enableActions = true
@@ -54,7 +62,7 @@ func RunServer() {
 		log.Printf("Created new trigger: %s, with args: %v", actionName, args)
 	}
 
-	server := server.NewServer(myDb, ts)
+	server := server.NewServer(myDb, *ts, *am)
 	log.Println("Starting server...")
 	err := server.ListenAndServe()
 	if err != nil {

@@ -18,14 +18,16 @@ type Server struct {
 
 	db database.Service
 	ts actions.TriggerService
+	am actions.ActionManager
 }
 
-func NewServer(myDb database.Service, myTs actions.TriggerService) *http.Server {
+func NewServer(myDb database.Service, myTs actions.TriggerService, myAm actions.ActionManager) *http.Server {
 	port, _ := strconv.Atoi(os.Getenv("PORT"))
 	intServer := &Server{
 		port: port,
 		db:   myDb,
 		ts:   myTs,
+		am:   myAm,
 	}
 	if port == 0 {
 		intServer.port = 8080

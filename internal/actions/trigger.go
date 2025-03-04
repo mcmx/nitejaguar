@@ -17,17 +17,18 @@ type TriggerService struct {
 	triggers map[string]common.Action
 }
 
+// NewTriggerService creates a new TriggerService instance
+func NewTriggerService() *TriggerService {
+	return &TriggerService{
+		triggers: make(map[string]common.Action),
+		events:   make(chan common.ResultData),
+	}
+}
+
 // New creates a new Action instance and adds it to the TriggerList.
 // It takes a common.ActionArgs object as input, which contains the action name and other relevant data.
 // The function returns a pointer to the newly created Action instance and an error if any occurs.
 func (ts *TriggerService) New(data common.ActionArgs) (common.Action, error) {
-	if ts.triggers == nil {
-		ts.triggers = make(map[string]common.Action)
-	}
-	if ts.events == nil {
-		ts.events = make(chan common.ResultData)
-	}
-
 	if data.Id == "" {
 		data.Id = uuid.New().String()
 	}
@@ -39,6 +40,7 @@ func (ts *TriggerService) New(data common.ActionArgs) (common.Action, error) {
 			return nil, err
 		}
 		ts.triggers[data.Id] = trigger
+		// TODO: Add an error handler to the trigger execution
 		go trigger.Execute()
 		return trigger, nil
 	}
