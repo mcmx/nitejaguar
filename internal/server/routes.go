@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/mcmx/nitejaguar/cmd/web"
-	"github.com/mcmx/nitejaguar/common"
+	"github.com/mcmx/nitejaguar/internal/database"
 
 	"github.com/a-h/templ"
 	"github.com/coder/websocket"
@@ -17,8 +17,13 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humaecho"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/mitchellh/mapstructure"
 )
+
+type HealthResponse struct {
+	Body struct {
+		Database *database.HealthResponse `json:"database"`
+	}
+}
 
 func (s *Server) RegisterRoutes() http.Handler {
 	e := echo.New()
@@ -65,21 +70,14 @@ func (s *Server) TriggerWebHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, "Ok Hello")
 }
 
-func (s *Server) HealthHandler(c context.Context, input *struct{}) (r *struct{}, e error) {
-	myArgs := common.ActionArgs{
-		ActionName: "filechangeTrigger",
-		ActionType: "trigger",
-		Name:       "Test filechange 2 trigger",
-		Args:       []string{"/tmp"},
-	}
-	_, err := s.ts.AddTrigger(myArgs)
-	if err != nil {
-		log.Fatalf("Cannot create new trigger: %s", err)
-	}
-	if err := mapstructure.Decode(s.db.Health(), &r); err != nil {
-		log.Fatalf("Cannot decode health: %s", err)
-	}
-	return r, nil
+func (s *Server) HealthHandler(c context.Context, input *struct{}) (*HealthResponse, error) {
+	return &HealthResponse{
+		Body: struct {
+			Database *database.HealthResponse `json:"database"`
+		}{
+			Database: s.db.Health(),
+		},
+	}, nil
 }
 
 func (s *Server) websocketHandler(c echo.Context) error {

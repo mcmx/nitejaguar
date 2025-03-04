@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"time"
 
 	_ "github.com/joho/godotenv/autoload"
@@ -17,7 +16,7 @@ import (
 type Service interface {
 	// Health returns a map of health status information.
 	// The keys and values in the map are service-specific.
-	Health() map[string]string
+	Health() *HealthResponse
 
 	// Close terminates the database connection.
 	// It returns an error if the connection cannot be closed.
@@ -26,6 +25,19 @@ type Service interface {
 
 type service struct {
 	db *sql.DB
+}
+
+type HealthResponse struct {
+	Status            string `json:"status"`
+	Message           string `json:"message"`
+	Error             string `json:"error,omitempty"`
+	OpenConnections   int    `json:"open_connections"`
+	InUse             int    `json:"in_use"`
+	Idle              int    `json:"idle"`
+	WaitCount         int64  `json:"wait_count"`
+	WaitDuration      string `json:"wait_duration"`
+	MaxIdleClosed     int64  `json:"max_idle_closed"`
+	MaxLifetimeClosed int64  `json:"max_lifetime_closed"`
 }
 
 var (
@@ -54,50 +66,50 @@ func New() Service {
 
 // Health checks the health of the database connection by pinging the database.
 // It returns a map with keys indicating various health statistics.
-func (s *service) Health() map[string]string {
+func (s *service) Health() *HealthResponse {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	stats := make(map[string]string)
+	stats := &HealthResponse{}
 
 	// Ping the database
 	err := s.db.PingContext(ctx)
 	if err != nil {
-		stats["status"] = "down"
-		stats["error"] = fmt.Sprintf("db down: %v", err)
+		stats.Status = "down"
+		stats.Error = fmt.Sprintf("db down: %v", err)
 		log.Fatalf("db down: %v", err) // Log the error and terminate the program
 		return stats
 	}
 
 	// Database is up, add more statistics
-	stats["status"] = "up"
-	stats["message"] = "It's healthy"
+	stats.Status = "up"
+	stats.Message = "It's healthy"
 
 	// Get database stats (like open connections, in use, idle, etc.)
 	dbStats := s.db.Stats()
-	stats["open_connections"] = strconv.Itoa(dbStats.OpenConnections)
-	stats["in_use"] = strconv.Itoa(dbStats.InUse)
-	stats["idle"] = strconv.Itoa(dbStats.Idle)
-	stats["wait_count"] = strconv.FormatInt(dbStats.WaitCount, 10)
-	stats["wait_duration"] = dbStats.WaitDuration.String()
-	stats["max_idle_closed"] = strconv.FormatInt(dbStats.MaxIdleClosed, 10)
-	stats["max_lifetime_closed"] = strconv.FormatInt(dbStats.MaxLifetimeClosed, 10)
+	stats.OpenConnections = dbStats.OpenConnections
+	stats.InUse = dbStats.InUse
+	stats.Idle = dbStats.Idle
+	stats.WaitCount = dbStats.WaitCount
+	stats.WaitDuration = dbStats.WaitDuration.String()
+	stats.MaxIdleClosed = dbStats.MaxIdleClosed
+	stats.MaxLifetimeClosed = dbStats.MaxLifetimeClosed
 
 	// Evaluate stats to provide a health message
 	if dbStats.OpenConnections > 40 { // Assuming 50 is the max for this example
-		stats["message"] = "The database is experiencing heavy load."
+		stats.Message = "The database is experiencing heavy load."
 	}
 
 	if dbStats.WaitCount > 1000 {
-		stats["message"] = "The database has a high number of wait events, indicating potential bottlenecks."
+		stats.Message = "The database has a high number of wait events, indicating potential bottlenecks."
 	}
 
 	if dbStats.MaxIdleClosed > int64(dbStats.OpenConnections)/2 {
-		stats["message"] = "Many idle connections are being closed, consider revising the connection pool settings."
+		stats.Message = "Many idle connections are being closed, consider revising the connection pool settings."
 	}
 
 	if dbStats.MaxLifetimeClosed > int64(dbStats.OpenConnections)/2 {
-		stats["message"] = "Many connections are being closed due to max lifetime, consider increasing max lifetime or revising the connection usage pattern."
+		stats.Message = "Many connections are being closed due to max lifetime, consider increasing max lifetime or revising the connection usage pattern."
 	}
 
 	return stats
