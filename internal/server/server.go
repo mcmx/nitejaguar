@@ -17,11 +17,11 @@ type Server struct {
 	port int
 
 	db database.Service
-	ts actions.TriggerService
+	ts actions.TriggerManager
 	am actions.ActionManager
 }
 
-func NewServer(myDb database.Service, myTs actions.TriggerService, myAm actions.ActionManager) *http.Server {
+func NewServer(myDb database.Service, myTs actions.TriggerManager, myAm actions.ActionManager) *http.Server {
 	port, _ := strconv.Atoi(os.Getenv("PORT"))
 	intServer := &Server{
 		port: port,

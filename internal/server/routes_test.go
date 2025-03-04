@@ -13,7 +13,7 @@ import (
 func TestHandler(t *testing.T) {
 	// req := httptest.NewRequest(http.MethodGet, "/", nil)
 	_, api := humatest.New(t)
-	s := &Server{db: database.New(), ts: actions.TriggerService{}}
+	s := &Server{db: database.New(), ts: actions.TriggerManager{}}
 	addApiRoutes(api, s)
 
 	resp := api.Get("/health")

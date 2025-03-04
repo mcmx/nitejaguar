@@ -11,15 +11,15 @@ import (
 	"github.com/google/uuid"
 )
 
-// TriggerService manages triggers and their events
-type TriggerService struct {
+// TriggerManager manages triggers and their events
+type TriggerManager struct {
 	events   chan common.ResultData
 	triggers map[string]common.Action
 }
 
-// NewTriggerService creates a new TriggerService instance
-func NewTriggerService() *TriggerService {
-	return &TriggerService{
+// NewTriggerManager creates a new TriggerManager instance
+func NewTriggerManager() *TriggerManager {
+	return &TriggerManager{
 		triggers: make(map[string]common.Action),
 		events:   make(chan common.ResultData),
 	}
@@ -28,7 +28,7 @@ func NewTriggerService() *TriggerService {
 // New creates a new Action instance and adds it to the TriggerList.
 // It takes a common.ActionArgs object as input, which contains the action name and other relevant data.
 // The function returns a pointer to the newly created Action instance and an error if any occurs.
-func (ts *TriggerService) New(data common.ActionArgs) (common.Action, error) {
+func (ts *TriggerManager) AddTrigger(data common.ActionArgs) (common.Action, error) {
 	if data.Id == "" {
 		data.Id = uuid.New().String()
 	}
@@ -48,14 +48,14 @@ func (ts *TriggerService) New(data common.ActionArgs) (common.Action, error) {
 	return nil, nil
 }
 
-func (ts *TriggerService) Stop(id string) {
+func (ts *TriggerManager) RemoveTrigger(id string) {
 	err := ts.triggers[id].Stop()
 	if err != nil {
 		fmt.Println("Error while stopping action:", err)
 	}
 }
 
-func (ts *TriggerService) Run() {
+func (ts *TriggerManager) Run() {
 	fmt.Println("Starting Trigger Service")
 	var value common.ResultData
 	for {
@@ -76,7 +76,7 @@ func (ts *TriggerService) Run() {
 	}
 }
 
-func (ts *TriggerService) ListTriggers() {
+func (ts *TriggerManager) ListTriggers() {
 	for k, v := range ts.triggers {
 		fmt.Println("Trigger:", k, v)
 	}

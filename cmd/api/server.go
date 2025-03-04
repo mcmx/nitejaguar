@@ -19,7 +19,7 @@ var (
 
 func RunServer() {
 	myDb := database.New()
-	ts := actions.NewTriggerService()
+	ts := actions.NewTriggerManager()
 	am := actions.NewActionManager()
 	go ts.Run()
 
@@ -55,7 +55,7 @@ func RunServer() {
 			Args:       args,
 		}
 
-		_, err := ts.New(myArgs)
+		_, err := ts.AddTrigger(myArgs)
 		if err != nil {
 			log.Fatalf("Cannot create new trigger: %s", err)
 		}

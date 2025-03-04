@@ -44,6 +44,7 @@ func (am *ActionManager) AddAction(data common.ActionArgs) error {
 
 // RemoveAction removes an action from the manager by ID
 func (am *ActionManager) RemoveAction(id string) {
+	am.actions[id].Stop()
 	delete(am.actions, id)
 	fmt.Println("Action removed with id:", id)
 }

@@ -61,7 +61,7 @@ func addApiRoutes(api huma.API, s *Server) {
 func (s *Server) TriggerWebHandler(c echo.Context) error {
 	name := c.FormValue("name")
 	fmt.Println("Form value Stopping Trigger:", name)
-	s.ts.Stop(name)
+	s.ts.RemoveTrigger(name)
 	return c.JSON(http.StatusOK, "Ok Hello")
 }
 
@@ -72,7 +72,7 @@ func (s *Server) HealthHandler(c context.Context, input *struct{}) (r *struct{},
 		Name:       "Test filechange 2 trigger",
 		Args:       []string{"/tmp"},
 	}
-	_, err := s.ts.New(myArgs)
+	_, err := s.ts.AddTrigger(myArgs)
 	if err != nil {
 		log.Fatalf("Cannot create new trigger: %s", err)
 	}
