@@ -32,9 +32,9 @@ func NewServer(myDb database.Service, myTs actions.TriggerManager, myAm actions.
 	if port == 0 {
 		intServer.port = 8080
 		fmt.Println("No port specified. Using default port 8080")
-	} else {
-		fmt.Printf("Starting server on port %d\n", intServer.port)
 	}
+	fmt.Printf("Starting server on http://0.0.0.0:%d and http://[::0]:%d\n", intServer.port, intServer.port)
+
 	// Declare Server config
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", intServer.port),

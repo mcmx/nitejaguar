@@ -19,6 +19,7 @@ var (
 
 func RunServer() {
 	myDb := database.New()
+	defer myDb.Close()
 	ts := actions.NewTriggerManager()
 	am := actions.NewActionManager()
 	go ts.Run()
