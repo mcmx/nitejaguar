@@ -144,13 +144,13 @@ type Node struct {
 
 // ConditionEntry associates a condition with a list of strings
 type ConditionEntry struct {
-	Condition *Condition
-	Strings   []string
+	Condition *Condition `json:"condition"`
+	Nexts     []string   `json:"nexts"`
 }
 
 // ConditionDictionary maps condition IDs to condition entries
 type ConditionDictionary struct {
-	Entries map[string]ConditionEntry
+	Entries map[string]ConditionEntry `json:"entries"`
 }
 
 // NewConditionDictionary creates a new condition dictionary
