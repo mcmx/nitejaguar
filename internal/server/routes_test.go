@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/mcmx/nitejaguar/internal/actions"
 	"github.com/mcmx/nitejaguar/internal/database"
+	"github.com/mcmx/nitejaguar/internal/workflow"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 )
@@ -13,7 +13,7 @@ import (
 func TestHandler(t *testing.T) {
 	// req := httptest.NewRequest(http.MethodGet, "/", nil)
 	_, api := humatest.New(t)
-	s := &Server{db: database.New(), ts: actions.TriggerManager{}}
+	s := &Server{db: database.New(), wm: workflow.WorkflowManager{}}
 	addApiRoutes(api, s)
 
 	resp := api.Get("/health")

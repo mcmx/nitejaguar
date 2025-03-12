@@ -9,7 +9,6 @@ import (
 
 	_ "github.com/joho/godotenv/autoload"
 
-	"github.com/mcmx/nitejaguar/internal/actions"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/workflow"
 )
@@ -18,18 +17,14 @@ type Server struct {
 	port int
 
 	db database.Service
-	ts actions.TriggerManager
-	am actions.ActionManager
 	wm workflow.WorkflowManager
 }
 
-func NewServer(myDb database.Service, myTs actions.TriggerManager, myAm actions.ActionManager, myWm workflow.WorkflowManager) *http.Server {
+func NewServer(myDb database.Service, myWm workflow.WorkflowManager) *http.Server {
 	port, _ := strconv.Atoi(os.Getenv("PORT"))
 	intServer := &Server{
 		port: port,
 		db:   myDb,
-		ts:   myTs,
-		am:   myAm,
 		wm:   myWm,
 	}
 	if port == 0 {

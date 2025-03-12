@@ -16,16 +16,16 @@ type Workflow struct {
 }
 
 type WorkflowManager struct {
-	Workflows map[string]Workflow
-	ts actions.TriggerManager
-	am actions.ActionManager
+	Workflows      map[string]Workflow
+	TriggerManager actions.TriggerManager
+	ActionManager  actions.ActionManager
 }
 
 func NewWorkflowManager() *WorkflowManager {
 	return &WorkflowManager{
-		Workflows: make(map[string]Workflow),
-		ts:        *actions.NewTriggerManager(),
-		am:        *actions.NewActionManager(),
+		Workflows:      make(map[string]Workflow),
+		TriggerManager: *actions.NewTriggerManager(),
+		ActionManager:  *actions.NewActionManager(),
 	}
 }
 

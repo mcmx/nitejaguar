@@ -66,7 +66,7 @@ func addApiRoutes(api huma.API, s *Server) {
 func (s *Server) TriggerWebHandler(c echo.Context) error {
 	name := c.FormValue("name")
 	fmt.Println("Form value Stopping Trigger:", name)
-	s.ts.RemoveTrigger(name)
+	s.wm.TriggerManager.RemoveTrigger(name)
 	return c.JSON(http.StatusOK, "Ok Hello")
 }
 

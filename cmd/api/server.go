@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mcmx/nitejaguar/common"
-	"github.com/mcmx/nitejaguar/internal/actions"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/server"
 	"github.com/mcmx/nitejaguar/internal/workflow"
@@ -22,11 +21,10 @@ func RunServer() {
 	myDb := database.New()
 	defer myDb.Close()
 	wm := workflow.NewWorkflowManager()
-	ts := actions.NewTriggerManager()
-	am := actions.NewActionManager()
-	go ts.Run()
 
-	am.AddAction(common.ActionArgs{
+	go wm.TriggerManager.Run()
+
+	wm.ActionManager.AddAction(common.ActionArgs{
 		ActionName: "fileAction",
 		ActionType: "action",
 		Name:       "Test file action",
@@ -58,14 +56,14 @@ func RunServer() {
 			Args:       args,
 		}
 
-		_, err := ts.AddTrigger(myArgs)
+		_, err := wm.TriggerManager.AddTrigger(myArgs)
 		if err != nil {
 			log.Fatalf("Cannot create new trigger: %s", err)
 		}
 		log.Printf("Created new trigger: %s, with args: %v", actionName, args)
 	}
 
-	server := server.NewServer(myDb, *ts, *am, *wm)
+	server := server.NewServer(myDb, *wm)
 	log.Println("Starting server...")
 	err := server.ListenAndServe()
 	if err != nil {
