@@ -9,6 +9,7 @@ import (
 	"github.com/mcmx/nitejaguar/internal/actions"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/server"
+	"github.com/mcmx/nitejaguar/internal/workflow"
 )
 
 var (
@@ -20,6 +21,7 @@ var (
 func RunServer() {
 	myDb := database.New()
 	defer myDb.Close()
+	wm := workflow.NewWorkflowManager()
 	ts := actions.NewTriggerManager()
 	am := actions.NewActionManager()
 	go ts.Run()
@@ -63,7 +65,7 @@ func RunServer() {
 		log.Printf("Created new trigger: %s, with args: %v", actionName, args)
 	}
 
-	server := server.NewServer(myDb, *ts, *am)
+	server := server.NewServer(myDb, *ts, *am, *wm)
 	log.Println("Starting server...")
 	err := server.ListenAndServe()
 	if err != nil {

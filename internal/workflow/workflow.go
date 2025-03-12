@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mcmx/nitejaguar/common"
+	"github.com/mcmx/nitejaguar/internal/actions"
 )
 
 type Workflow struct {
@@ -16,6 +17,16 @@ type Workflow struct {
 
 type WorkflowManager struct {
 	Workflows map[string]Workflow
+	ts actions.TriggerManager
+	am actions.ActionManager
+}
+
+func NewWorkflowManager() *WorkflowManager {
+	return &WorkflowManager{
+		Workflows: make(map[string]Workflow),
+		ts:        *actions.NewTriggerManager(),
+		am:        *actions.NewActionManager(),
+	}
 }
 
 type Condition struct {
