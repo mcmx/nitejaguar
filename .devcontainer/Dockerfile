@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/go
+FROM mcr.microsoft.com/devcontainers/go:dev-1.24
 
 # use this Dockerfile to install additional tools you might need, e.g.
 # RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
