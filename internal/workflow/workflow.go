@@ -164,7 +164,7 @@ func NewConditionDictionary() *ConditionDictionary {
 func (cd *ConditionDictionary) AddEntry(id string, condition *Condition, strings []string) {
 	cd.Entries[id] = ConditionEntry{
 		Condition: condition,
-		Strings:   strings,
+		Nexts:     strings,
 	}
 }
 
@@ -200,7 +200,7 @@ func (cd *ConditionDictionary) GetStringsIfTrue(id string) ([]string, error) {
 		return nil, nil // Condition is false
 	}
 
-	return cd.Entries[id].Strings, nil
+	return cd.Entries[id].Nexts, nil
 }
 
 func (w *WorkflowManager) AddWorkflow(data Workflow) {
