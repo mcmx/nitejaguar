@@ -5,7 +5,7 @@
 {
     "name": "NiteJaguar",
     // Use "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
-    "image": "mcr.microsoft.com/devcontainers/go",
+    "image": "mcr.microsoft.com/devcontainers/go"
     // instead of the build to use a pre-built image.
     // "build": {
     //     "context": ".",
