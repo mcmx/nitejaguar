@@ -10,8 +10,8 @@ import (
 
 // Event struct for event handling
 type event struct {
-	Type string      `json:"type"` // Event type
-	File interface{} `json:"file"` // Generic payload for event-specific data
+	Type string `json:"type"` // Event type
+	File any    `json:"file"` // Generic payload for event-specific data
 }
 
 type filechange struct {

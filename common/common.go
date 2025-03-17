@@ -13,7 +13,7 @@ type ActionArgs struct {
 
 // Action interface for actions
 type Action interface {
-	Execute() error
+	Execute()
 	Stop() error
 	GetArgs() ActionArgs
 }
@@ -25,5 +25,5 @@ type ResultData struct {
 	ActionType string      `json:"action_type"`
 	ActionName string      `json:"name"`
 	CreatedAt  time.Time   `json:"created_at"`
-	Payload    interface{} `json:"payload"` // Generic payload for additional data
+	Payload    any `json:"payload"` // Generic payload for additional data
 }

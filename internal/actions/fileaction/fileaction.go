@@ -13,8 +13,8 @@ type fileaction struct {
 }
 
 type event struct {
-	Type   string      `json:"type"`   // Event type
-	Result interface{} `json:"result"` // Generic payload for event-specific data
+	Type   string `json:"type"`   // Event type
+	Result any    `json:"result"` // Generic payload for event-specific data
 }
 
 func (f *fileaction) Execute() {
