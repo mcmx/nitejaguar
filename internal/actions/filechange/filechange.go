@@ -42,7 +42,7 @@ func New(events chan common.ResultData, data common.ActionArgs) (common.Action, 
 	return s, nil
 }
 
-func (t *filechange) Execute() error {
+func (t *filechange) Execute() {
 	fmt.Println("Executing File Change Trigger with id:", t.data.Id)
 
 	// Start watching in a goroutine
@@ -82,7 +82,7 @@ func (t *filechange) Execute() error {
 	err := t.watcher.Add(t.data.Args[0])
 	if err != nil {
 		fmt.Println("Error adding watcher:", err)
-		return err
+		return
 	}
 
 	// Keep the Execute method running without blocking

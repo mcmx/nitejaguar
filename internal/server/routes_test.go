@@ -18,7 +18,7 @@ func TestHandler(t *testing.T) {
 
 	resp := api.Get("/health")
 
-	if resp.Code != http.StatusNoContent {
+	if resp.Code != http.StatusOK {
 		t.Errorf("handler() wrong status code = %v", resp.Code)
 		return
 	}

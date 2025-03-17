@@ -44,7 +44,10 @@ func (am *ActionManager) AddAction(data common.ActionArgs) error {
 
 // RemoveAction removes an action from the manager by ID
 func (am *ActionManager) RemoveAction(id string) {
-	am.actions[id].Stop()
+	e := am.actions[id].Stop()
+	if e != nil {
+		fmt.Println("Error stopping action:", e)
+	}
 	delete(am.actions, id)
 	fmt.Println("Action removed with id:", id)
 }
@@ -55,7 +58,8 @@ func (am *ActionManager) ExecuteAction(id string) error {
 	if !exists {
 		return fmt.Errorf("action with id %s does not exist", id)
 	}
-	return action.Execute()
+	action.Execute()
+	return nil
 }
 
 // ListActions lists all actions managed by the ActionManager

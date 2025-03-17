@@ -17,14 +17,14 @@ type event struct {
 	Result interface{} `json:"result"` // Generic payload for event-specific data
 }
 
-func (f *fileaction) Execute() error {
+func (f *fileaction) Execute() {
 	fmt.Println("Executing File Action with id:", f.data.Id)
 	if f.data.Args[0] == "create" {
 		if _, err := os.Create(f.data.Args[1]); err != nil {
 			fmt.Println("Error creating file with id:", f.data.Id, err)
 			result := f.sendResult("error", err.Error())
 			f.events <- result
-			return err
+			return
 		}
 		fmt.Println("Creating file with id:", f.data.Id)
 	} else if f.data.Args[0] == "delete" {
@@ -32,7 +32,7 @@ func (f *fileaction) Execute() error {
 			fmt.Println("Error deleting file with id:", f.data.Id, err)
 			result := f.sendResult("error", err.Error())
 			f.events <- result
-			return err
+			return
 		}
 		result := f.sendResult("success", "File deleted successfully")
 		f.events <- result
@@ -42,7 +42,7 @@ func (f *fileaction) Execute() error {
 			fmt.Println("Error renaming file with id:", f.data.Id, err)
 			result := f.sendResult("error", err.Error())
 			f.events <- result
-			return err
+			return
 		}
 		result := f.sendResult("success", "File renamed successfully")
 		f.events <- result
@@ -50,7 +50,7 @@ func (f *fileaction) Execute() error {
 	} else {
 		fmt.Println("Unknown action with id:", f.data.Id)
 	}
-	return nil
+
 }
 
 func (f *fileaction) Stop() error {
