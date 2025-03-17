@@ -24,12 +24,15 @@ func RunServer() {
 
 	go wm.TriggerManager.Run()
 
-	wm.ActionManager.AddAction(common.ActionArgs{
+	e := wm.ActionManager.AddAction(common.ActionArgs{
 		ActionName: "fileAction",
 		ActionType: "action",
 		Name:       "Test file action",
 		Args:       []string{"rename", "/tmp/test.txt", "/tmp/test2.txt"},
 	})
+	if e != nil {
+		fmt.Println("There was an error", e)
+	}
 
 	// Handle server action if specified
 	enableActions = true
