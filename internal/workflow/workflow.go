@@ -26,6 +26,7 @@ func NewWorkflowManager() *WorkflowManager {
 	}
 }
 
+// Starts the WorkflowManager and other managers
 func (wm *WorkflowManager) Run() {
 	wm.TriggerManager.Run()
 }
