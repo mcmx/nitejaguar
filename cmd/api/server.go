@@ -58,10 +58,17 @@ func RunServer() {
 			Args:       args,
 		}
 
-		_, err := wm.TriggerManager.AddTrigger(myArgs)
-		if err != nil {
-			log.Fatalf("Cannot create new trigger: %s", err)
+		// crear un peque workflow
+		w := workflow.Workflow{
+			Name: "First Workflow",
+			TriggerList: make(map[string]common.ActionArgs)
 		}
+		w.TriggerList[myArgs.Id] = myArgs
+		e := wm.AddWorkflow(w)
+		if e != nil {
+			log.Println(e)
+		}
+
 		log.Printf("Created new trigger: %s, with args: %v", actionName, args)
 	}
 
