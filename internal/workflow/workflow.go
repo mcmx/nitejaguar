@@ -26,6 +26,9 @@ func NewWorkflowManager() *WorkflowManager {
 	}
 }
 
+func (wm *WorkflowManager) Run() {
+	wm.TriggerManager.Run()
+}
 
 // type Node
 type Node struct {

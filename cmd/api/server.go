@@ -21,8 +21,7 @@ func RunServer() {
 	myDb := database.New()
 	defer myDb.Close()
 	wm := workflow.NewWorkflowManager()
-
-	go wm.TriggerManager.Run()
+	go wm.Run()
 
 	e := wm.ActionManager.AddAction(common.ActionArgs{
 		ActionName: "fileAction",
