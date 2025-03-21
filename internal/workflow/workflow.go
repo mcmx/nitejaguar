@@ -3,21 +3,22 @@ package workflow
 import (
 	"errors"
 	"log"
+
 	"github.com/google/uuid"
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions"
 )
 
 type Workflow struct {
-	Id          string                   `json:"id"`
-	Name        string                   `json:"name"`
+	Id          string                       `json:"id"`
+	Name        string                       `json:"name"`
 	TriggerList map[string]common.ActionArgs `json:"triggers"`
 }
 
 type WorkflowInt struct {
 	Id          string
 	Name        string
-	Definition Workflow
+	Definition  Workflow
 	TriggerList map[string]common.Action
 }
 
@@ -37,6 +38,7 @@ func NewWorkflowManager() *WorkflowManager {
 
 // Starts the WorkflowManager and other managers
 func (wm *WorkflowManager) Run() {
+	log.Println("WorkflowManager running...")
 	wm.TriggerManager.Run()
 }
 
@@ -50,16 +52,17 @@ type Node struct {
 }
 
 func (wm *WorkflowManager) AddWorkflow(data Workflow) error {
+	log.Println("Adding workflow", data.Name)
 	if data.Id == "" {
 		data.Id = uuid.New().String()
 	}
 	if data.Id == "" {
-		return errors.New("Incorrect workflow input dataks")
+		return errors.New("incorrect workflow input data")
 	}
 	wm.Workflows[data.Id] = WorkflowInt{
-		Id: data.Id,
-		Name: data.Name,
-		Definition: data,
+		Id:          data.Id,
+		Name:        data.Name,
+		Definition:  data,
 		TriggerList: make(map[string]common.Action),
 	}
 	for _, t := range data.TriggerList {

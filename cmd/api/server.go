@@ -22,7 +22,7 @@ func RunServer() {
 	defer myDb.Close()
 	wm := workflow.NewWorkflowManager()
 	go wm.Run()
-
+	// TODO we should not do this
 	e := wm.ActionManager.AddAction(common.ActionArgs{
 		ActionName: "fileAction",
 		ActionType: "action",
@@ -60,8 +60,8 @@ func RunServer() {
 
 		// crear un peque workflow
 		w := workflow.Workflow{
-			Name: "First Workflow",
-			TriggerList: make(map[string]common.ActionArgs)
+			Name:        "First Workflow",
+			TriggerList: make(map[string]common.ActionArgs),
 		}
 		w.TriggerList[myArgs.Id] = myArgs
 		e := wm.AddWorkflow(w)
