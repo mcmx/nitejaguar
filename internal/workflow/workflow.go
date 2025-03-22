@@ -55,22 +55,24 @@ func (wm *WorkflowManager) Run() {
 	for {
 		select {
 		case value = <-wm.resultChan:
-			wId := wm.Actions2Workflow[value.ActionID]
-			value.WorkflowID = wId
+			value.WorkflowID = wm.Actions2Workflow[value.ActionID]
 			// TODO here use the Condition and validate
 			// Not all results are a trigger or are they?
 
 			// Either way then pass the result to an action
-			jsonResult, _ := json.MarshalIndent(value, "", "  ")
-			jsonFileName := "./results/" + value.ResultID + ".json"
-
-			_ = os.WriteFile(jsonFileName, jsonResult, 0644)
-			fmt.Println("Trigger Result JSON file saved:", jsonFileName)
+			wm.saveResult(value)
 
 		case <-time.After(10 * time.Millisecond):
 			// do nothing
 		}
 	}
+}
+
+func (wm *WorkflowManager) saveResult(result common.ResultData) {
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
+	jsonFileName := "./results/" + result.ResultID + ".json"
+	_ = os.WriteFile(jsonFileName, jsonResult, 0644)
+	fmt.Println("Trigger Result JSON file saved:", jsonFileName)
 }
 
 // type Node
