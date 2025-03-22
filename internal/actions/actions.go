@@ -22,7 +22,7 @@ func NewActionManager() *ActionManager {
 }
 
 // AddAction adds a new action to the manager
-func (am *ActionManager) AddAction(data common.ActionArgs) error {
+func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, string, error) {
 	if data.Id == "" {
 		data.Id = uuid.New().String()
 	}
@@ -31,15 +31,15 @@ func (am *ActionManager) AddAction(data common.ActionArgs) error {
 	case "fileAction":
 		action, err := fileaction.New(am.events, data)
 		if err != nil {
-			return nil
+			return nil, "", err
 		}
 		am.actions[data.Id] = action
 		// TODO: Add an error handler to the trigger execution
 		go action.Execute()
-		return nil
+		return action, data.Id, nil
 	}
 	fmt.Println("Action added with id:", data.Id)
-	return nil
+	return nil, "", nil
 }
 
 // RemoveAction removes an action from the manager by ID

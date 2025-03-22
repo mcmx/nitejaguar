@@ -16,6 +16,8 @@ type Workflow struct {
 	Id          string                       `json:"id"`
 	Name        string                       `json:"name"`
 	TriggerList map[string]common.ActionArgs `json:"triggers"`
+	ActionList  map[string]common.ActionArgs `json:"actions"`
+	// TODO change this to a list of Nodes
 }
 
 type WorkflowInt struct {
@@ -23,19 +25,22 @@ type WorkflowInt struct {
 	Name        string
 	Definition  Workflow
 	TriggerList map[string]common.Action
+	ActionList  map[string]common.Action
 }
 
 type WorkflowManager struct {
-	Workflows      map[string]WorkflowInt
-	TriggerManager actions.TriggerManager
-	ActionManager  actions.ActionManager
+	Workflows        map[string]WorkflowInt
+	Actions2Workflow map[string]string
+	TriggerManager   actions.TriggerManager
+	ActionManager    actions.ActionManager
 }
 
 func NewWorkflowManager() *WorkflowManager {
 	return &WorkflowManager{
-		Workflows:      make(map[string]WorkflowInt),
-		TriggerManager: *actions.NewTriggerManager(),
-		ActionManager:  *actions.NewActionManager(),
+		Workflows:        make(map[string]WorkflowInt),
+		Actions2Workflow: make(map[string]string),
+		TriggerManager:   *actions.NewTriggerManager(),
+		ActionManager:    *actions.NewActionManager(),
 	}
 }
 
@@ -69,12 +74,23 @@ func (wm *WorkflowManager) AddWorkflow(data Workflow) error {
 		TriggerList: make(map[string]common.Action),
 	}
 	for _, t := range data.TriggerList {
-		nt, err := wm.TriggerManager.AddTrigger(t)
+		nt, id, err := wm.TriggerManager.AddTrigger(t)
 		if err != nil {
 			log.Printf("Cannot create new trigger: %s", err)
 		}
-		wm.Workflows[data.Id].TriggerList[t.Id] = nt
+		wm.Workflows[data.Id].TriggerList[id] = nt
+		wm.Actions2Workflow[id] = data.Id
 	}
+	// Do the same for actions
+	for _, a := range data.ActionList {
+		na, id, err := wm.ActionManager.AddAction(a)
+		if err != nil {
+			log.Printf("Cannot create new action: %s", err)
+		}
+		wm.Workflows[data.Id].ActionList[id] = na
+		wm.Actions2Workflow[id] = data.Id
+	}
+
 	jsonDef, err := json.MarshalIndent(wm.Workflows[data.Id].Definition, "", "  ")
 	if err != nil {
 		log.Printf("Cannot marshal workflow: %s", err)

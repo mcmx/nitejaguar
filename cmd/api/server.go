@@ -23,7 +23,7 @@ func RunServer() {
 	wm := workflow.NewWorkflowManager()
 	go wm.Run()
 	// TODO we should not do this
-	e := wm.ActionManager.AddAction(common.ActionArgs{
+	_, _, e := wm.ActionManager.AddAction(common.ActionArgs{
 		ActionName: "fileAction",
 		ActionType: "action",
 		Name:       "Test file action",

@@ -3,6 +3,7 @@ package actions
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/mcmx/nitejaguar/common"
@@ -28,7 +29,7 @@ func NewTriggerManager() *TriggerManager {
 // New creates a new Action instance and adds it to the TriggerList.
 // It takes a common.ActionArgs object as input, which contains the action name and other relevant data.
 // The function returns a pointer to the newly created Action instance and an error if any occurs.
-func (ts *TriggerManager) AddTrigger(data common.ActionArgs) (common.Action, error) {
+func (ts *TriggerManager) AddTrigger(data common.ActionArgs) (common.Action, string, error) {
 	if data.Id == "" {
 		data.Id = uuid.New().String()
 	}
@@ -37,15 +38,15 @@ func (ts *TriggerManager) AddTrigger(data common.ActionArgs) (common.Action, err
 	case "filechangeTrigger":
 		trigger, err := filechange.New(ts.events, data)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		ts.triggers[data.Id] = trigger
 		// TODO: Add an error handler to the trigger execution
 		go trigger.Execute()
-		return trigger, nil
+		return trigger, data.Id, nil
 	}
 
-	return nil, nil
+	return nil, "", nil
 }
 
 func (ts *TriggerManager) RemoveTrigger(id string) {
@@ -68,9 +69,11 @@ func (ts *TriggerManager) Run() {
 				value.ResultID = uuid.New().String()
 			}
 			fmt.Println("Trigger Result", value)
-			jsonResult, _ := json.Marshal(value)
-			fmt.Println("Trigger Result JSON", string(jsonResult))
-		case <-time.After(200 * time.Millisecond):
+			jsonResult, _ := json.MarshalIndent(value, "", "  ")
+			jsonFileName := "./results/" + value.ResultID + ".json"
+			os.WriteFile(jsonFileName, jsonResult, 0644)
+			fmt.Println("Trigger Result JSON file saved:", jsonFileName)
+		case <-time.After(50 * time.Millisecond):
 			// do nothing
 		}
 	}
