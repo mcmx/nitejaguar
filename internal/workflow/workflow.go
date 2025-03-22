@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/mcmx/nitejaguar/common"
@@ -33,6 +34,7 @@ type WorkflowManager struct {
 	Actions2Workflow map[string]string
 	TriggerManager   actions.TriggerManager
 	ActionManager    actions.ActionManager
+	resultChan       chan common.ResultData
 }
 
 func NewWorkflowManager() *WorkflowManager {
@@ -41,13 +43,31 @@ func NewWorkflowManager() *WorkflowManager {
 		Actions2Workflow: make(map[string]string),
 		TriggerManager:   *actions.NewTriggerManager(),
 		ActionManager:    *actions.NewActionManager(),
+		resultChan:       make(chan common.ResultData),
 	}
 }
 
 // Starts the WorkflowManager and other managers
 func (wm *WorkflowManager) Run() {
 	log.Println("WorkflowManager running...")
-	wm.TriggerManager.Run()
+	go wm.TriggerManager.Run(wm.resultChan)
+	var value common.ResultData
+	for {
+		select {
+		case value = <-wm.resultChan:
+			fmt.Println("Trigger Result", value)
+			wId := wm.Actions2Workflow[value.ActionID]
+			value.WorkflowID = wId
+			jsonResult, _ := json.MarshalIndent(value, "", "  ")
+			jsonFileName := "./results/" + value.ResultID + ".json"
+
+			os.WriteFile(jsonFileName, jsonResult, 0644)
+			fmt.Println("Trigger Result JSON file saved:", jsonFileName)
+
+		case <-time.After(10 * time.Millisecond):
+			// do nothing
+		}
+	}
 }
 
 // type Node

@@ -20,10 +20,11 @@ type Action interface {
 
 // Generic ResultData struct for various actions
 type ResultData struct {
-	ResultID   string      `json:"result_id"`
-	ActionID   string      `json:"action_id"`
-	ActionType string      `json:"action_type"`
-	ActionName string      `json:"name"`
-	CreatedAt  time.Time   `json:"created_at"`
-	Payload    any `json:"payload"` // Generic payload for additional data
+	ResultID   string    `json:"result_id"`
+	WorkflowID string    `json:"workflow_id"`
+	ActionID   string    `json:"action_id"`
+	ActionType string    `json:"action_type"`
+	ActionName string    `json:"name"`
+	CreatedAt  time.Time `json:"created_at"`
+	Payload    any       `json:"payload"` // Generic payload for additional data
 }

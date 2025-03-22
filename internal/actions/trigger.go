@@ -1,9 +1,7 @@
 package actions
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/mcmx/nitejaguar/common"
@@ -56,7 +54,7 @@ func (ts *TriggerManager) RemoveTrigger(id string) {
 	}
 }
 
-func (ts *TriggerManager) Run() {
+func (ts *TriggerManager) Run(wmEvents chan common.ResultData) {
 	fmt.Println("Starting Trigger Service")
 	var value common.ResultData
 	for {
@@ -68,11 +66,7 @@ func (ts *TriggerManager) Run() {
 			if value.ResultID == "" {
 				value.ResultID = uuid.New().String()
 			}
-			fmt.Println("Trigger Result", value)
-			jsonResult, _ := json.MarshalIndent(value, "", "  ")
-			jsonFileName := "./results/" + value.ResultID + ".json"
-			os.WriteFile(jsonFileName, jsonResult, 0644)
-			fmt.Println("Trigger Result JSON file saved:", jsonFileName)
+			wmEvents <- value
 		case <-time.After(50 * time.Millisecond):
 			// do nothing
 		}
