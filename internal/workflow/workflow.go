@@ -1,8 +1,11 @@
 package workflow
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/mcmx/nitejaguar/common"
@@ -68,9 +71,17 @@ func (wm *WorkflowManager) AddWorkflow(data Workflow) error {
 	for _, t := range data.TriggerList {
 		nt, err := wm.TriggerManager.AddTrigger(t)
 		if err != nil {
-			log.Fatalf("Cannot create new trigger: %s", err)
+			log.Printf("Cannot create new trigger: %s", err)
 		}
 		wm.Workflows[data.Id].TriggerList[t.Id] = nt
+	}
+	jsonDef, err := json.MarshalIndent(wm.Workflows[data.Id].Definition, "", "  ")
+	if err != nil {
+		log.Printf("Cannot marshal workflow: %s", err)
+	}
+	err = os.WriteFile(fmt.Sprintf("workflows/%s.json", data.Id), jsonDef, 0644)
+	if err != nil {
+		log.Printf("Cannot write workflow file: %s", err)
 	}
 	return nil
 }
