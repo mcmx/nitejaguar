@@ -19,6 +19,7 @@ type Workflow struct {
 	TriggerList map[string]common.ActionArgs `json:"triggers"`
 	ActionList  map[string]common.ActionArgs `json:"actions"`
 	// TODO change this to a list of Nodes
+	Nodes map[string]Node `json:"nodes"`
 }
 
 type WorkflowInt struct {
@@ -77,11 +78,15 @@ func (wm *WorkflowManager) saveResult(result common.ResultData) {
 
 // type Node
 type Node struct {
-	Id          string              `json:"id"`
-	Description string              `json:"description"`
-	Type        string              `json:"type"`       // trigger or action
-	Action      string              `json:"action"`     // the type could be infered from this, it's to make it faster
-	Conditions  ConditionDictionary `json:"conditions"` // next Node's id... TODO I'm not happy with this I need a list with conditions or no condition at all
+	Id           string              `json:"id"`
+	Name         string              `json:"name"`
+	Description  string              `json:"description"`
+	ActionType   string              `json:"action_type"` // trigger or action
+	ActionName   string              `json:"action_name"` // the type could be infered from this, it's to make it faster
+	Conditions   ConditionDictionary `json:"conditions"`  // next Node's id... TODO I'm not happy with this I need a list with conditions or no condition at all
+	Arguments    map[string]string   `json:"arguments"`
+	NextNodes    []string            `json:"next_nodes"`
+	Dependencies []string            `json:"dependencies"`
 }
 
 func (wm *WorkflowManager) AddWorkflow(data Workflow) error {
