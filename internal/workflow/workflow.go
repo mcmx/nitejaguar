@@ -64,7 +64,7 @@ func (wm *WorkflowManager) Run() {
 			jsonResult, _ := json.MarshalIndent(value, "", "  ")
 			jsonFileName := "./results/" + value.ResultID + ".json"
 
-			os.WriteFile(jsonFileName, jsonResult, 0644)
+			_ = os.WriteFile(jsonFileName, jsonResult, 0644)
 			fmt.Println("Trigger Result JSON file saved:", jsonFileName)
 
 		case <-time.After(10 * time.Millisecond):
