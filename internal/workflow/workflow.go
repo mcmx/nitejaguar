@@ -55,9 +55,12 @@ func (wm *WorkflowManager) Run() {
 	for {
 		select {
 		case value = <-wm.resultChan:
-			fmt.Println("Trigger Result", value)
 			wId := wm.Actions2Workflow[value.ActionID]
 			value.WorkflowID = wId
+			// TODO here use the Condition and validate
+			// Not all results are a trigger or are they?
+
+			// Either way then pass the result to an action
 			jsonResult, _ := json.MarshalIndent(value, "", "  ")
 			jsonFileName := "./results/" + value.ResultID + ".json"
 
