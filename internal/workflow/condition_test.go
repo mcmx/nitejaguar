@@ -11,17 +11,33 @@ func TestCondition(t *testing.T) {
 	dict := NewConditionDictionary()
 
 	// Add some entries
-	dict.AddEntry("condition1", NewBooleanCondition(true), []string{"apple", "banana", "cherry"})
-	dict.AddEntry("condition2", NewComparison(10, ">", 5), []string{"dog", "cat", "bird"})
+	dict.AddEntry("condition1", NewBooleanCondition(true), []string{"node1", "node2", "node3"})
+	dict.AddEntry("condition2", NewComparison(10, ">=", 5), []string{"node4", "node5", "node6"})
 	dict.AddEntry("condition3", NewBooleanCondition(false), []string{"red", "green", "blue"})
 
 	// Evaluate and use entries
-	strings1, _ := dict.GetStringsIfTrue("condition1")
-	fmt.Println("Strings for condition1:", strings1) // Should print the strings
+	strings1, _ := dict.GetNextsIfTrue("condition1")
+	if strings1 == nil {
+		fmt.Println("Strings for condition1:", strings1) // Should print the strings
+		t.Error("Strings for condition1 should not be nil")
+	}
 
-	strings2, _ := dict.GetStringsIfTrue("condition2")
-	fmt.Println("Strings for condition2:", strings2) // Should print the strings
+	strings2, _ := dict.GetNextsIfTrue("condition2")
+	c, e := dict.EvaluateCondition("condition2")
+	if e != nil {
+		t.Errorf("Error: %v", e)
+	}
+	if !c {
+		t.Error("Condition is false")
+	}
+	if strings2 == nil {
+		fmt.Println("Strings for condition2:", strings2) // Should print the strings
+		t.Error("Strings for condition2 should not be nil")
+	}
 
-	strings3, _ := dict.GetStringsIfTrue("condition3")
-	fmt.Println("Strings for condition3:", strings3) // Should print nil (condition is false)
+
+	strings3, _ := dict.GetNextsIfTrue("condition3")
+	if strings3 != nil {
+		t.Error("Strings for condition3 should be nil")
+	}
 }

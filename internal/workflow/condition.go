@@ -141,10 +141,10 @@ func NewConditionDictionary() *ConditionDictionary {
 }
 
 // AddEntry adds or updates an entry in the dictionary
-func (cd *ConditionDictionary) AddEntry(id string, condition *Condition, strings []string) {
+func (cd *ConditionDictionary) AddEntry(id string, condition *Condition, next_nodes []string) {
 	cd.Entries[id] = ConditionEntry{
 		Condition: condition,
-		Nexts:     strings,
+		Nexts:     next_nodes,
 	}
 }
 
@@ -170,7 +170,7 @@ func (cd *ConditionDictionary) EvaluateCondition(id string) (bool, error) {
 }
 
 // GetStringsIfTrue returns the string list if the condition evaluates to true
-func (cd *ConditionDictionary) GetStringsIfTrue(id string) ([]string, error) {
+func (cd *ConditionDictionary) GetNextsIfTrue(id string) ([]string, error) {
 	result, err := cd.EvaluateCondition(id)
 	if err != nil {
 		return nil, err
