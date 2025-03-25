@@ -7,7 +7,7 @@ import (
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions/filechange"
 
-	"github.com/google/uuid"
+	"go.jetify.com/typeid"
 )
 
 // TriggerManager manages triggers and their events
@@ -29,7 +29,8 @@ func NewTriggerManager() *TriggerManager {
 // The function returns a pointer to the newly created Action instance and an error if any occurs.
 func (ts *TriggerManager) AddTrigger(data common.ActionArgs) (common.Action, string, error) {
 	if data.Id == "" {
-		data.Id = uuid.New().String()
+		tid, _ := typeid.WithPrefix("trigger")
+		data.Id = tid.String()
 	}
 
 	switch data.ActionName {
@@ -64,7 +65,8 @@ func (ts *TriggerManager) Run(wmEvents chan common.ResultData) {
 				value.CreatedAt = time.Now()
 			}
 			if value.ResultID == "" {
-				value.ResultID = uuid.New().String()
+				vId, _ := typeid.WithPrefix("result")
+				value.ResultID = vId.String()
 			}
 			wmEvents <- value
 		case <-time.After(50 * time.Millisecond):

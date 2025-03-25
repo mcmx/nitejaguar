@@ -5,16 +5,15 @@ import (
 	"reflect"
 )
 
-
 type Condition struct {
 	// Can be a standalone boolean or a value to compare
-	LeftOperand any
+	LeftOperand any `json:"leftOperand"`
 
 	// Can be empty for standalone boolean expressions
-	Operator string
+	Operator string `json:"operator"`
 
 	// Can be nil for standalone boolean expressions
-	RightOperand any
+	RightOperand any `json:"rightOperand"`
 }
 
 // NewComparison creates a comparison-based condition
@@ -120,7 +119,6 @@ func toFloat64(v any) (float64, bool) {
 		return 0, false
 	}
 }
-
 
 // ConditionEntry associates a condition with a list of strings
 type ConditionEntry struct {

@@ -8,9 +8,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions"
+	"go.jetify.com/typeid"
 )
 
 type Workflow struct {
@@ -99,7 +99,8 @@ func (n *Node) GetNextNodes() []string {
 func (wm *WorkflowManager) AddWorkflow(data Workflow) error {
 	log.Println("Adding workflow", data.Name)
 	if data.Id == "" {
-		data.Id = uuid.New().String()
+		dId, _ := typeid.WithPrefix("workflow")
+		data.Id = dId.String()
 	}
 	if data.Id == "" {
 		return errors.New("incorrect workflow input data")
@@ -127,6 +128,19 @@ func (wm *WorkflowManager) AddWorkflow(data Workflow) error {
 		wm.Workflows[data.Id].ActionList[id] = na
 		wm.Actions2Workflow[id] = data.Id
 	}
+	n := Node{
+		Id:          "n1",
+		Name:        "n1",
+		Description: "n1",
+		ActionType:  "trigger",
+		ActionName:  "triggerFile",
+		Conditions:  NewConditionDictionary(),
+		Arguments:   make(map[string]string),
+	}
+	n.Arguments["argument1"] = "/tmp"
+	n.Conditions.AddEntry("c1", NewBooleanCondition(true), []string{"n2", "n3", "n4"})
+	n.Conditions.AddEntry("condition2", NewComparison(10, ">=", 5), []string{"node4", "node5", "node6"})
+	wm.Workflows[data.Id].Definition.Nodes["n1"] = n
 
 	jsonDef, err := json.MarshalIndent(wm.Workflows[data.Id].Definition, "", "  ")
 	if err != nil {

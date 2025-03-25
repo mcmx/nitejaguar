@@ -3,9 +3,9 @@ package actions
 import (
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
+	"go.jetify.com/typeid"
 )
 
 // ActionManager manages a collection of actions
@@ -24,7 +24,8 @@ func NewActionManager() *ActionManager {
 // AddAction adds a new action to the manager
 func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, string, error) {
 	if data.Id == "" {
-		data.Id = uuid.New().String()
+		tid, _ := typeid.WithPrefix("action")
+		data.Id = tid.String()
 	}
 
 	switch data.ActionName {

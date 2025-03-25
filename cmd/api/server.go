@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/google/uuid"
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/server"
 	"github.com/mcmx/nitejaguar/internal/workflow"
+	"go.jetify.com/typeid"
 )
 
 var (
@@ -50,8 +50,9 @@ func RunServer() {
 		// 	Args:       []string{"/tmp"},
 		// }
 
+		aId, _ := typeid.WithPrefix("trigger")
 		myArgs := common.ActionArgs{
-			Id:         uuid.New().String(),
+			Id:         aId.String(),
 			ActionName: actionName,
 			ActionType: "trigger",
 			Name:       fmt.Sprintf("CLI Trigger: %s", actionName),
@@ -62,6 +63,8 @@ func RunServer() {
 		w := workflow.Workflow{
 			Name:        "First Workflow",
 			TriggerList: make(map[string]common.ActionArgs),
+			ActionList:  make(map[string]common.ActionArgs),
+			Nodes:       make(map[string]workflow.Node),
 		}
 		w.TriggerList[myArgs.Id] = myArgs
 		e := wm.AddWorkflow(w)
