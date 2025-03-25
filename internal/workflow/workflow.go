@@ -85,7 +85,6 @@ type Node struct {
 	ActionName   string              `json:"action_name"` // the type could be infered from this, it's to make it faster
 	Conditions   ConditionDictionary `json:"conditions"`  // next Node's id... TODO I'm not happy with this I need a list with conditions or no condition at all
 	Arguments    map[string]string   `json:"arguments"`
-	NextNodes    []string            `json:"next_nodes"`
 	Dependencies []string            `json:"dependencies"`
 }
 

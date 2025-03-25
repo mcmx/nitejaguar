@@ -35,7 +35,6 @@ func TestCondition(t *testing.T) {
 		t.Error("Strings for condition2 should not be nil")
 	}
 
-
 	strings3, _ := dict.GetNextsIfTrue("condition3")
 	if strings3 != nil {
 		t.Error("Strings for condition3 should be nil")
