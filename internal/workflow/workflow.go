@@ -78,14 +78,22 @@ func (wm *WorkflowManager) saveResult(result common.ResultData) {
 
 // type Node
 type Node struct {
-	Id           string              `json:"id"`
-	Name         string              `json:"name"`
-	Description  string              `json:"description"`
-	ActionType   string              `json:"action_type"` // trigger or action
-	ActionName   string              `json:"action_name"` // the type could be infered from this, it's to make it faster
-	Conditions   ConditionDictionary `json:"conditions"`  // next Node's id... TODO I'm not happy with this I need a list with conditions or no condition at all
-	Arguments    map[string]string   `json:"arguments"`
-	Dependencies []string            `json:"dependencies"`
+	Id           string               `json:"id"`
+	Name         string               `json:"name"`
+	Description  string               `json:"description"`
+	ActionType   string               `json:"action_type"` // trigger or action
+	ActionName   string               `json:"action_name"` // the type could be infered from this, it's to make it faster
+	Conditions   *ConditionDictionary `json:"conditions"`  // next Node's id... TODO I'm not happy with this I need a list with conditions or no condition at all
+	Arguments    map[string]string    `json:"arguments"`
+	Dependencies []string             `json:"dependencies"`
+}
+
+func (n *Node) GetNextNodes() []string {
+	next_nodes := []string{}
+	for _, c := range n.Conditions.Entries {
+		next_nodes = append(next_nodes, c.Nexts...)
+	}
+	return next_nodes
 }
 
 func (wm *WorkflowManager) AddWorkflow(data Workflow) error {
