@@ -83,7 +83,7 @@ type Node struct {
 	Description  string               `json:"description"`
 	ActionType   string               `json:"action_type"` // trigger or action
 	ActionName   string               `json:"action_name"` // the type could be infered from this, it's to make it faster
-	Conditions   *ConditionDictionary `json:"conditions"`  // next Node's id... TODO I'm not happy with this I need a list with conditions or no condition at all
+	Conditions   *ConditionDictionary `json:"conditions"`  // Dictionary of conditions, it has the next nodes id according to each condition
 	Arguments    map[string]string    `json:"arguments"`
 	Dependencies []string             `json:"dependencies"`
 }
