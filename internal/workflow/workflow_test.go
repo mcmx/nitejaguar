@@ -24,3 +24,25 @@ func TestGetNextNodes(t *testing.T) {
 		t.Errorf("Expected next nodes to be [n2 n3 n4 node4 node5 node6], got %v", next_nodes)
 	}
 }
+
+// aId, _ := typeid.WithPrefix("trigger")
+
+// crear un peque workflow
+// w := workflow.Workflow{
+// 	Name:  "First Workflow",
+// 	Nodes: make(map[string]workflow.Node),
+// }
+
+// n := workflow.Node{
+// 	Id:          aId.String(),
+// 	Name:        "CLI Trigger: filechangeTrigger",
+// 	Description: "CLI Trigger: filechangeTrigger",
+// 	ActionType:  "trigger",
+// 	ActionName:  "filechangeTrigger",
+// 	Conditions:  workflow.NewConditionDictionary(),
+// 	Arguments:   make(map[string]string),
+// }
+// n.Arguments["argument1"] = "/tmp"
+// n.Conditions.AddEntry("c1", NewBooleanCondition(true), []string{"n2", "n3", "n4"})
+// n.Conditions.AddEntry("condition2", NewComparison(10, ">=", 5), []string{"node4", "node5", "node6"})
+// w.Nodes[n.Id] = n

@@ -1,14 +1,15 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/server"
 	"github.com/mcmx/nitejaguar/internal/workflow"
-	"go.jetify.com/typeid"
 )
 
 var (
@@ -43,29 +44,18 @@ func RunServer() {
 		// 	Args:       []string{"/tmp"},
 		// }
 
-		aId, _ := typeid.WithPrefix("trigger")
-
-		// crear un peque workflow
-		w := workflow.Workflow{
-			Name:  "First Workflow",
-			Nodes: make(map[string]workflow.Node),
+		b, e := os.ReadFile("./workflows/workflow_01jq9c43qhejts98g7n1krqpgd.json")
+		if e != nil {
+			log.Println("Error reading file: ", e)
+		}
+		log.Println(string(b))
+		w1 := workflow.Workflow{}
+		e = json.Unmarshal(b, &w1)
+		if e != nil {
+			log.Println("Error unmarshaling file: ", e)
 		}
 
-		n := workflow.Node{
-			Id:          aId.String(),
-			Name:        "CLI Trigger: filechangeTrigger",
-			Description: "CLI Trigger: filechangeTrigger",
-			ActionType:  "trigger",
-			ActionName:  "filechangeTrigger",
-			Conditions:  workflow.NewConditionDictionary(),
-			Arguments:   make(map[string]string),
-		}
-		n.Arguments["argument1"] = "/tmp"
-		// n.Conditions.AddEntry("c1", NewBooleanCondition(true), []string{"n2", "n3", "n4"})
-		// n.Conditions.AddEntry("condition2", NewComparison(10, ">=", 5), []string{"node4", "node5", "node6"})
-		w.Nodes[n.Id] = n
-
-		e := wm.AddWorkflow(w)
+		e = wm.AddWorkflow(w1)
 		if e != nil {
 			log.Println(e)
 		}

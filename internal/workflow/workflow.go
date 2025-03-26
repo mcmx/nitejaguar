@@ -94,7 +94,7 @@ func (n *Node) GetNextNodes() []string {
 }
 
 func (wm *WorkflowManager) AddWorkflow(data Workflow) error {
-	log.Println("Adding workflow", data.Name)
+	log.Println("Adding workflow:", data.Name)
 	if data.Id == "" {
 		dId, _ := typeid.WithPrefix("workflow")
 		data.Id = dId.String()
@@ -131,13 +131,19 @@ func (wm *WorkflowManager) AddWorkflow(data Workflow) error {
 		}
 	}
 
-	jsonDef, err := json.MarshalIndent(wm.Workflows[data.Id].Definition, "", "  ")
+	return nil
+}
+
+func (wm *WorkflowManager) ExportWorkflowJSON(workflowId string) error {
+	jsonDef, err := json.MarshalIndent(wm.Workflows[workflowId].Definition, "", "  ")
 	if err != nil {
 		log.Printf("Cannot marshal workflow: %s", err)
+		return err
 	}
-	err = os.WriteFile(fmt.Sprintf("workflows/%s.json", data.Id), jsonDef, 0644)
+	err = os.WriteFile(fmt.Sprintf("workflows/%s.json", workflowId), jsonDef, 0644)
 	if err != nil {
 		log.Printf("Cannot write workflow file: %s", err)
+		return err
 	}
 	return nil
 }
