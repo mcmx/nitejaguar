@@ -14,11 +14,8 @@ import (
 )
 
 type Workflow struct {
-	Id          string                       `json:"id"`
-	Name        string                       `json:"name"`
-	TriggerList map[string]common.ActionArgs `json:"triggers"`
-	ActionList  map[string]common.ActionArgs `json:"actions"`
-	// TODO change this to a list of Nodes
+	Id    string          `json:"id"`
+	Name  string          `json:"name"`
 	Nodes map[string]Node `json:"nodes"`
 }
 
@@ -83,8 +80,8 @@ type Node struct {
 	Description  string               `json:"description"`
 	ActionType   string               `json:"action_type"` // trigger or action
 	ActionName   string               `json:"action_name"` // the type could be infered from this, it's to make it faster
-	Conditions   *ConditionDictionary `json:"conditions"`  // Dictionary of conditions, it has the next nodes id according to each condition
 	Arguments    map[string]string    `json:"arguments"`
+	Conditions   *ConditionDictionary `json:"conditions"` // Dictionary of conditions, it has the next nodes id according to each condition
 	Dependencies []string             `json:"dependencies"`
 }
 
@@ -111,36 +108,28 @@ func (wm *WorkflowManager) AddWorkflow(data Workflow) error {
 		Definition:  data,
 		TriggerList: make(map[string]common.Action),
 	}
-	for _, t := range data.TriggerList {
-		nt, id, err := wm.TriggerManager.AddTrigger(t)
-		if err != nil {
-			log.Printf("Cannot create new trigger: %s", err)
+	for _, n := range data.Nodes {
+		args := []string{}
+		for _, v := range n.Arguments {
+			args = append(args, v)
 		}
-		wm.Workflows[data.Id].TriggerList[id] = nt
-		wm.Actions2Workflow[id] = data.Id
-	}
-	// Do the same for actions
-	for _, a := range data.ActionList {
-		na, id, err := wm.ActionManager.AddAction(a)
-		if err != nil {
-			log.Printf("Cannot create new action: %s", err)
+
+		if n.ActionType == "trigger" {
+			cArgs := common.ActionArgs{
+				Id:         n.Id,
+				Name:       n.Name,
+				ActionType: n.ActionType,
+				ActionName: n.ActionName,
+				Args:       args,
+			}
+			nt, id, err := wm.TriggerManager.AddTrigger(cArgs)
+			if err != nil {
+				log.Printf("Cannot create new trigger: %s", err)
+			}
+			wm.Workflows[data.Id].TriggerList[id] = nt
+			wm.Actions2Workflow[id] = data.Id
 		}
-		wm.Workflows[data.Id].ActionList[id] = na
-		wm.Actions2Workflow[id] = data.Id
 	}
-	n := Node{
-		Id:          "n1",
-		Name:        "n1",
-		Description: "n1",
-		ActionType:  "trigger",
-		ActionName:  "triggerFile",
-		Conditions:  NewConditionDictionary(),
-		Arguments:   make(map[string]string),
-	}
-	n.Arguments["argument1"] = "/tmp"
-	n.Conditions.AddEntry("c1", NewBooleanCondition(true), []string{"n2", "n3", "n4"})
-	n.Conditions.AddEntry("condition2", NewComparison(10, ">=", 5), []string{"node4", "node5", "node6"})
-	wm.Workflows[data.Id].Definition.Nodes["n1"] = n
 
 	jsonDef, err := json.MarshalIndent(wm.Workflows[data.Id].Definition, "", "  ")
 	if err != nil {

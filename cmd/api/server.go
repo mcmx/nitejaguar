@@ -13,7 +13,6 @@ import (
 
 var (
 	actionName    string
-	actionArgs    string
 	enableActions bool
 )
 
@@ -36,13 +35,7 @@ func RunServer() {
 	// Handle server action if specified
 	enableActions = true
 	actionName = "filechangeTrigger"
-	actionArgs = "/tmp"
 	if enableActions && actionName != "" {
-		args := []string{}
-		if actionArgs != "" {
-			args = append(args, actionArgs)
-		}
-
 		// myArgs := common.ActionArgs{
 		// 	ActionName: "filechangeTrigger",
 		// 	ActionType: "trigger",
@@ -51,28 +44,32 @@ func RunServer() {
 		// }
 
 		aId, _ := typeid.WithPrefix("trigger")
-		myArgs := common.ActionArgs{
-			Id:         aId.String(),
-			ActionName: actionName,
-			ActionType: "trigger",
-			Name:       fmt.Sprintf("CLI Trigger: %s", actionName),
-			Args:       args,
-		}
 
 		// crear un peque workflow
 		w := workflow.Workflow{
-			Name:        "First Workflow",
-			TriggerList: make(map[string]common.ActionArgs),
-			ActionList:  make(map[string]common.ActionArgs),
-			Nodes:       make(map[string]workflow.Node),
+			Name:  "First Workflow",
+			Nodes: make(map[string]workflow.Node),
 		}
-		w.TriggerList[myArgs.Id] = myArgs
+
+		n := workflow.Node{
+			Id:          aId.String(),
+			Name:        "CLI Trigger: filechangeTrigger",
+			Description: "CLI Trigger: filechangeTrigger",
+			ActionType:  "trigger",
+			ActionName:  "filechangeTrigger",
+			Conditions:  workflow.NewConditionDictionary(),
+			Arguments:   make(map[string]string),
+		}
+		n.Arguments["argument1"] = "/tmp"
+		// n.Conditions.AddEntry("c1", NewBooleanCondition(true), []string{"n2", "n3", "n4"})
+		// n.Conditions.AddEntry("condition2", NewComparison(10, ">=", 5), []string{"node4", "node5", "node6"})
+		w.Nodes[n.Id] = n
+
 		e := wm.AddWorkflow(w)
 		if e != nil {
 			log.Println(e)
 		}
 
-		log.Printf("Created new trigger: %s, with args: %v", actionName, args)
 	}
 
 	server := server.NewServer(myDb, *wm)
