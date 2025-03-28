@@ -27,7 +27,15 @@ type WorkflowInt struct {
 	ActionList  map[string]common.Action
 }
 
-type WorkflowManager struct {
+type WorkflowManager interface {
+	Run()
+	AddWorkflow(Workflow) error
+	ExportWorkflowJSON(string) ([]byte, error)
+	ExportWorkflowJSONFile(string) error
+	GetTriggerManager() actions.TriggerManager
+}
+
+type workflowManager struct {
 	Workflows        map[string]WorkflowInt
 	Actions2Workflow map[string]string
 	TriggerManager   actions.TriggerManager
@@ -35,18 +43,24 @@ type WorkflowManager struct {
 	resultChan       chan common.ResultData
 }
 
-func NewWorkflowManager() *WorkflowManager {
-	return &WorkflowManager{
+var wmmInstance *workflowManager
+
+func NewWorkflowManager() WorkflowManager {
+	if wmmInstance != nil {
+		return wmmInstance
+	}
+	wmmInstance = &workflowManager{
 		Workflows:        make(map[string]WorkflowInt),
 		Actions2Workflow: make(map[string]string),
 		TriggerManager:   *actions.NewTriggerManager(),
 		ActionManager:    *actions.NewActionManager(),
 		resultChan:       make(chan common.ResultData),
 	}
+	return wmmInstance
 }
 
 // Starts the WorkflowManager and other managers
-func (wm *WorkflowManager) Run() {
+func (wm *workflowManager) Run() {
 	log.Println("WorkflowManager running...")
 	go wm.TriggerManager.Run(wm.resultChan)
 	var value common.ResultData
@@ -66,7 +80,7 @@ func (wm *WorkflowManager) Run() {
 	}
 }
 
-func (wm *WorkflowManager) saveResult(result common.ResultData) {
+func (wm *workflowManager) saveResult(result common.ResultData) {
 	jsonResult, _ := json.MarshalIndent(result, "", "  ")
 	jsonFileName := "./results/" + result.ResultID + ".json"
 	_ = os.WriteFile(jsonFileName, jsonResult, 0644)
@@ -93,7 +107,7 @@ func (n *Node) GetNextNodes() []string {
 	return next_nodes
 }
 
-func (wm *WorkflowManager) AddWorkflow(data Workflow) error {
+func (wm *workflowManager) AddWorkflow(data Workflow) error {
 	log.Println("Adding workflow:", data.Name)
 	if data.Id == "" {
 		dId, _ := typeid.WithPrefix("workflow")
@@ -134,7 +148,7 @@ func (wm *WorkflowManager) AddWorkflow(data Workflow) error {
 	return nil
 }
 
-func (wm *WorkflowManager) ExportWorkflowJSON(workflowId string) ([]byte, error) {
+func (wm *workflowManager) ExportWorkflowJSON(workflowId string) ([]byte, error) {
 	if _, ok := wm.Workflows[workflowId]; !ok {
 		return nil, errors.New("workflow not found")
 	}
@@ -147,7 +161,7 @@ func (wm *WorkflowManager) ExportWorkflowJSON(workflowId string) ([]byte, error)
 	return jsonDef, nil
 }
 
-func (wm *WorkflowManager) ExportWorkflowJSONFile(workflowId string) error {
+func (wm *workflowManager) ExportWorkflowJSONFile(workflowId string) error {
 	jsonDef, err := wm.ExportWorkflowJSON(workflowId)
 	if err != nil {
 		return err
@@ -158,4 +172,8 @@ func (wm *WorkflowManager) ExportWorkflowJSONFile(workflowId string) error {
 		return err
 	}
 	return nil
+}
+
+func (wm *workflowManager) GetTriggerManager() actions.TriggerManager {
+	return wm.TriggerManager
 }

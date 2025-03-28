@@ -14,7 +14,7 @@ func TestGetNextNodes(t *testing.T) {
 		ActionName:  "triggerFile",
 		Conditions:  NewConditionDictionary(),
 	}
-	n.Conditions.AddEntry("c1", NewBooleanCondition(true), []string{"n2", "n3", "n4"})
+	n.Conditions.AddEntry("c1", newBooleanCondition(true), []string{"n2", "n3", "n4"})
 	n.Conditions.AddEntry("condition2", NewComparison(10, ">=", 5), []string{"node4", "node5", "node6"})
 	test_nodes := []string{"n2", "n3", "n4", "node4", "node5", "node6"}
 	slices.Sort(test_nodes)

@@ -26,13 +26,13 @@ func NewComparison(left any, operator string, right any) *Condition {
 }
 
 // NewBooleanCondition creates a simple boolean condition
-func NewBooleanCondition(boolExpr any) *Condition {
+func newBooleanCondition(boolExpr any) *Condition {
 	return &Condition{
 		LeftOperand: boolExpr,
 	}
 }
 
-func (c *Condition) Evaluate() (bool, error) {
+func (c *Condition) evaluate() (bool, error) {
 	// Handle the case of a standalone boolean expression
 	if c.Operator == "" && c.RightOperand == nil {
 		// Try to convert LeftOperand to boolean
@@ -164,7 +164,7 @@ func (cd *ConditionDictionary) EvaluateCondition(id string) (bool, error) {
 		return false, fmt.Errorf("condition ID not found: %s", id)
 	}
 
-	return entry.Condition.Evaluate()
+	return entry.Condition.evaluate()
 }
 
 // GetStringsIfTrue returns the string list if the condition evaluates to true

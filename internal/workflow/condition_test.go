@@ -11,9 +11,9 @@ func TestCondition(t *testing.T) {
 	dict := NewConditionDictionary()
 
 	// Add some entries
-	dict.AddEntry("condition1", NewBooleanCondition(true), []string{"node1", "node2", "node3"})
+	dict.AddEntry("condition1", newBooleanCondition(true), []string{"node1", "node2", "node3"})
 	dict.AddEntry("condition2", NewComparison(10, ">=", 5), []string{"node4", "node5", "node6"})
-	dict.AddEntry("condition3", NewBooleanCondition(false), []string{"red", "green", "blue"})
+	dict.AddEntry("condition3", newBooleanCondition(false), []string{"red", "green", "blue"})
 
 	// Evaluate and use entries
 	strings1, _ := dict.GetNextsIfTrue("condition1")

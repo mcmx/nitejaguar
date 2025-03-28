@@ -2,11 +2,9 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 
-	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/server"
 	"github.com/mcmx/nitejaguar/internal/workflow"
@@ -23,15 +21,15 @@ func RunServer() {
 	wm := workflow.NewWorkflowManager()
 	go wm.Run()
 	// TODO we should not do this
-	_, _, e := wm.ActionManager.AddAction(common.ActionArgs{
-		ActionName: "fileAction",
-		ActionType: "action",
-		Name:       "Test file action",
-		Args:       []string{"rename", "/tmp/test.txt", "/tmp/test2.txt"},
-	})
-	if e != nil {
-		fmt.Println("There was an error", e)
-	}
+	// _, _, e := wm.ActionManager.AddAction(common.ActionArgs{
+	// 	ActionName: "fileAction",
+	// 	ActionType: "action",
+	// 	Name:       "Test file action",
+	// 	Args:       []string{"rename", "/tmp/test.txt", "/tmp/test2.txt"},
+	// })
+	// if e != nil {
+	// 	fmt.Println("There was an error", e)
+	// }
 
 	// Handle server action if specified
 	enableActions = true
@@ -62,7 +60,7 @@ func RunServer() {
 
 	}
 
-	server := server.NewServer(myDb, *wm)
+	server := server.NewServer(myDb, wm)
 	log.Println("Starting server...")
 	err := server.ListenAndServe()
 	if err != nil {
