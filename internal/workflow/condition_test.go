@@ -8,12 +8,12 @@ import (
 // ejemplo:
 func TestCondition(t *testing.T) {
 	// Example usage
-	dict := NewConditionDictionary()
+	dict := newConditionDictionary()
 
 	// Add some entries
-	dict.AddEntry("condition1", newBooleanCondition(true), []string{"node1", "node2", "node3"})
-	dict.AddEntry("condition2", NewComparison(10, ">=", 5), []string{"node4", "node5", "node6"})
-	dict.AddEntry("condition3", newBooleanCondition(false), []string{"red", "green", "blue"})
+	dict.addEntry("condition1", newBooleanCondition(true), []string{"node1", "node2", "node3"})
+	dict.addEntry("condition2", newComparison(10, ">=", 5), []string{"node4", "node5", "node6"})
+	dict.addEntry("condition3", newBooleanCondition(false), []string{"red", "green", "blue"})
 
 	// Evaluate and use entries
 	strings1, _ := dict.GetNextsIfTrue("condition1")
@@ -23,7 +23,7 @@ func TestCondition(t *testing.T) {
 	}
 
 	strings2, _ := dict.GetNextsIfTrue("condition2")
-	c, e := dict.EvaluateCondition("condition2")
+	c, e := dict.evaluateCondition("condition2")
 	if e != nil {
 		t.Errorf("Error: %v", e)
 	}

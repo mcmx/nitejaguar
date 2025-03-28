@@ -17,7 +17,7 @@ type Condition struct {
 }
 
 // NewComparison creates a comparison-based condition
-func NewComparison(left any, operator string, right any) *Condition {
+func newComparison(left any, operator string, right any) *Condition {
 	return &Condition{
 		LeftOperand:  left,
 		Operator:     operator,
@@ -132,14 +132,14 @@ type ConditionDictionary struct {
 }
 
 // NewConditionDictionary creates a new condition dictionary
-func NewConditionDictionary() *ConditionDictionary {
+func newConditionDictionary() *ConditionDictionary {
 	return &ConditionDictionary{
 		Entries: make(map[string]ConditionEntry),
 	}
 }
 
 // AddEntry adds or updates an entry in the dictionary
-func (cd *ConditionDictionary) AddEntry(id string, condition *Condition, next_nodes []string) {
+func (cd *ConditionDictionary) addEntry(id string, condition *Condition, next_nodes []string) {
 	cd.Entries[id] = ConditionEntry{
 		Condition: condition,
 		Nexts:     next_nodes,
@@ -147,18 +147,18 @@ func (cd *ConditionDictionary) AddEntry(id string, condition *Condition, next_no
 }
 
 // GetEntry retrieves an entry by ID
-func (cd *ConditionDictionary) GetEntry(id string) (ConditionEntry, bool) {
+func (cd *ConditionDictionary) getEntry(id string) (ConditionEntry, bool) {
 	entry, exists := cd.Entries[id]
 	return entry, exists
 }
 
 // RemoveEntry removes an entry by ID
-func (cd *ConditionDictionary) RemoveEntry(id string) {
+func (cd *ConditionDictionary) removeEntry(id string) {
 	delete(cd.Entries, id)
 }
 
 // EvaluateCondition evaluates the condition for a specific entry
-func (cd *ConditionDictionary) EvaluateCondition(id string) (bool, error) {
+func (cd *ConditionDictionary) evaluateCondition(id string) (bool, error) {
 	entry, exists := cd.Entries[id]
 	if !exists {
 		return false, fmt.Errorf("condition ID not found: %s", id)
@@ -169,7 +169,7 @@ func (cd *ConditionDictionary) EvaluateCondition(id string) (bool, error) {
 
 // GetStringsIfTrue returns the string list if the condition evaluates to true
 func (cd *ConditionDictionary) GetNextsIfTrue(id string) ([]string, error) {
-	result, err := cd.EvaluateCondition(id)
+	result, err := cd.evaluateCondition(id)
 	if err != nil {
 		return nil, err
 	}

@@ -12,10 +12,10 @@ func TestGetNextNodes(t *testing.T) {
 		Description: "n1",
 		ActionType:  "trigger",
 		ActionName:  "triggerFile",
-		Conditions:  NewConditionDictionary(),
+		Conditions:  newConditionDictionary(),
 	}
-	n.Conditions.AddEntry("c1", newBooleanCondition(true), []string{"n2", "n3", "n4"})
-	n.Conditions.AddEntry("condition2", NewComparison(10, ">=", 5), []string{"node4", "node5", "node6"})
+	n.Conditions.addEntry("c1", newBooleanCondition(true), []string{"n2", "n3", "n4"})
+	n.Conditions.addEntry("condition2", newComparison(10, ">=", 5), []string{"node4", "node5", "node6"})
 	test_nodes := []string{"n2", "n3", "n4", "node4", "node5", "node6"}
 	slices.Sort(test_nodes)
 	next_nodes := n.GetNextNodes()
