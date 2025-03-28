@@ -134,10 +134,22 @@ func (wm *WorkflowManager) AddWorkflow(data Workflow) error {
 	return nil
 }
 
-func (wm *WorkflowManager) ExportWorkflowJSON(workflowId string) error {
+func (wm *WorkflowManager) ExportWorkflowJSON(workflowId string) ([]byte, error) {
+	if _, ok := wm.Workflows[workflowId]; !ok {
+		return nil, errors.New("workflow not found")
+	}
 	jsonDef, err := json.MarshalIndent(wm.Workflows[workflowId].Definition, "", "  ")
 	if err != nil {
 		log.Printf("Cannot marshal workflow: %s", err)
+		return nil, err
+	}
+
+	return jsonDef, nil
+}
+
+func (wm *WorkflowManager) ExportWorkflowJSONFile(workflowId string) error {
+	jsonDef, err := wm.ExportWorkflowJSON(workflowId)
+	if err != nil {
 		return err
 	}
 	err = os.WriteFile(fmt.Sprintf("workflows/%s.json", workflowId), jsonDef, 0644)
