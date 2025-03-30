@@ -168,7 +168,7 @@ func (cd *ConditionDictionary) evaluateCondition(id string) (bool, error) {
 }
 
 // GetStringsIfTrue returns the string list if the condition evaluates to true
-func (cd *ConditionDictionary) GetNextsIfTrue(id string) ([]string, error) {
+func (cd *ConditionDictionary) getNextsIfTrue(id string) ([]string, error) {
 	result, err := cd.evaluateCondition(id)
 	if err != nil {
 		return nil, err

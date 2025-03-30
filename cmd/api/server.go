@@ -18,7 +18,7 @@ var (
 func RunServer() {
 	myDb := database.New()
 	defer myDb.Close()
-	wm := workflow.NewWorkflowManager()
+	wm := workflow.NewWorkflowManager(myDb)
 	go wm.Run()
 	// TODO we should not do this
 	// _, _, e := wm.ActionManager.AddAction(common.ActionArgs{
@@ -57,6 +57,10 @@ func RunServer() {
 		if e != nil {
 			log.Println(e)
 		}
+		// e = wm.SaveWorkflowToDB(w1.Id)
+		// if e != nil {
+		// 	log.Println(e)
+		// }
 
 	}
 

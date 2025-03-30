@@ -10,6 +10,7 @@ import (
 
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions"
+	"github.com/mcmx/nitejaguar/internal/database"
 	"go.jetify.com/typeid"
 )
 
@@ -32,6 +33,7 @@ type WorkflowManager interface {
 	AddWorkflow(Workflow) error
 	ExportWorkflowJSON(string) ([]byte, error)
 	ExportWorkflowJSONFile(string) error
+	SaveWorkflowToDB(string) error
 	GetTriggerManager() actions.TriggerManager
 }
 
@@ -41,11 +43,12 @@ type workflowManager struct {
 	TriggerManager   actions.TriggerManager
 	ActionManager    actions.ActionManager
 	resultChan       chan common.ResultData
+	db               database.Service
 }
 
 var wmmInstance *workflowManager
 
-func NewWorkflowManager() WorkflowManager {
+func NewWorkflowManager(db database.Service) WorkflowManager {
 	if wmmInstance != nil {
 		return wmmInstance
 	}
@@ -55,6 +58,7 @@ func NewWorkflowManager() WorkflowManager {
 		TriggerManager:   *actions.NewTriggerManager(),
 		ActionManager:    *actions.NewActionManager(),
 		resultChan:       make(chan common.ResultData),
+		db:               db,
 	}
 	return wmmInstance
 }
@@ -172,6 +176,15 @@ func (wm *workflowManager) ExportWorkflowJSONFile(workflowId string) error {
 		return err
 	}
 	return nil
+}
+
+func (wm *workflowManager) SaveWorkflowToDB(workflowId string) error {
+	jsonDef, err := wm.ExportWorkflowJSON(workflowId)
+	if err != nil {
+		return err
+	}
+
+	return wm.db.SaveWorkflow(workflowId, jsonDef)
 }
 
 func (wm *workflowManager) GetTriggerManager() actions.TriggerManager {

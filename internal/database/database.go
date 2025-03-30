@@ -21,6 +21,15 @@ type Service interface {
 	// Close terminates the database connection.
 	// It returns an error if the connection cannot be closed.
 	Close() error
+
+	// CreateTables creates all necessary database tables
+	CreateTables() error
+
+	// SaveWorkflow saves a workflow definition to the database
+	SaveWorkflow(workflowId string, jsonDef []byte) error
+
+	// GetWorkflow retrieves a workflow definition from the database
+	GetWorkflow(workflowId string) ([]byte, error)
 }
 
 type service struct {
@@ -61,6 +70,7 @@ func New() Service {
 	dbInstance = &service{
 		db: db,
 	}
+	_ = dbInstance.CreateTables()
 	return dbInstance
 }
 
@@ -122,4 +132,50 @@ func (s *service) Health() *HealthResponse {
 func (s *service) Close() error {
 	log.Printf("Disconnected from database: %s", dburl)
 	return s.db.Close()
+}
+
+// CreateTables creates all necessary database tables
+func (s *service) CreateTables() error {
+	workflowTable := `CREATE TABLE IF NOT EXISTS workflows (
+		id TEXT PRIMARY KEY,
+		json_definition TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)`
+
+	_, err := s.db.Exec(workflowTable)
+	if err != nil {
+		return fmt.Errorf("failed to create workflows table: %w", err)
+	}
+
+	return nil
+}
+
+// SaveWorkflow saves a workflow definition to the database
+func (s *service) SaveWorkflow(workflowId string, jsonDef []byte) error {
+	stmt := `INSERT OR REPLACE INTO workflows (id, json_definition, updated_at)
+	VALUES (?, ?, CURRENT_TIMESTAMP)`
+
+	_, err := s.db.Exec(stmt, workflowId, jsonDef)
+	if err != nil {
+		return fmt.Errorf("failed to save workflow: %w", err)
+	}
+
+	return nil
+}
+
+// GetWorkflow retrieves a workflow definition from the database
+func (s *service) GetWorkflow(workflowId string) ([]byte, error) {
+	stmt := `SELECT json_definition FROM workflows WHERE id = ?`
+	var jsonDef []byte
+
+	row := s.db.QueryRow(stmt, workflowId)
+	err := row.Scan(&jsonDef)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("workflow not found: %s", workflowId)
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to retrieve workflow: %w", err)
+	}
+
+	return jsonDef, nil
 }

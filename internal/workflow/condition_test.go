@@ -21,13 +21,13 @@ func TestCondition(t *testing.T) {
 		t.Error("condition4 should not exist")
 	}
 	// Evaluate and use entries
-	strings1, _ := dict.GetNextsIfTrue("condition1")
+	strings1, _ := dict.getNextsIfTrue("condition1")
 	if strings1 == nil {
 		fmt.Println("Strings for condition1:", strings1) // Should print the strings
 		t.Error("Strings for condition1 should not be nil")
 	}
 
-	strings2, _ := dict.GetNextsIfTrue("condition2")
+	strings2, _ := dict.getNextsIfTrue("condition2")
 	c, e := dict.evaluateCondition("condition2")
 	if e != nil {
 		t.Errorf("Error: %v", e)
@@ -40,7 +40,7 @@ func TestCondition(t *testing.T) {
 		t.Error("Strings for condition2 should not be nil")
 	}
 
-	strings3, _ := dict.GetNextsIfTrue("condition3")
+	strings3, _ := dict.getNextsIfTrue("condition3")
 	if strings3 != nil {
 		t.Error("Strings for condition3 should be nil")
 	}
