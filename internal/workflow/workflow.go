@@ -99,7 +99,7 @@ type Node struct {
 	ActionType   string               `json:"action_type"` // trigger or action
 	ActionName   string               `json:"action_name"` // the type could be infered from this, it's to make it faster
 	Arguments    map[string]string    `json:"arguments"`
-	Conditions   *ConditionDictionary `json:"conditions"` // Dictionary of conditions, it has the next nodes id according to each condition
+	Conditions   *conditionDictionary `json:"conditions"` // Dictionary of conditions, it has the next nodes id according to each condition
 	Dependencies []string             `json:"dependencies"`
 }
 

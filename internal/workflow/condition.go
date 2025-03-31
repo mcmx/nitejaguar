@@ -5,7 +5,7 @@ import (
 	"reflect"
 )
 
-type Condition struct {
+type condition struct {
 	// Can be a standalone boolean or a value to compare
 	LeftOperand any `json:"leftOperand"`
 
@@ -17,8 +17,8 @@ type Condition struct {
 }
 
 // NewComparison creates a comparison-based condition
-func newComparison(left any, operator string, right any) *Condition {
-	return &Condition{
+func newComparison(left any, operator string, right any) *condition {
+	return &condition{
 		LeftOperand:  left,
 		Operator:     operator,
 		RightOperand: right,
@@ -26,13 +26,13 @@ func newComparison(left any, operator string, right any) *Condition {
 }
 
 // NewBooleanCondition creates a simple boolean condition
-func newBooleanCondition(boolExpr any) *Condition {
-	return &Condition{
+func newBooleanCondition(boolExpr any) *condition {
+	return &condition{
 		LeftOperand: boolExpr,
 	}
 }
 
-func (c *Condition) evaluate() (bool, error) {
+func (c *condition) evaluate() (bool, error) {
 	// Handle the case of a standalone boolean expression
 	if c.Operator == "" && c.RightOperand == nil {
 		// Try to convert LeftOperand to boolean
@@ -121,44 +121,44 @@ func toFloat64(v any) (float64, bool) {
 }
 
 // ConditionEntry associates a condition with a list of strings
-type ConditionEntry struct {
-	Condition *Condition `json:"condition"`
+type conditionEntry struct {
+	Condition *condition `json:"condition"`
 	Nexts     []string   `json:"nexts"`
 }
 
 // ConditionDictionary maps condition IDs to condition entries
-type ConditionDictionary struct {
-	Entries map[string]ConditionEntry `json:"entries"`
+type conditionDictionary struct {
+	Entries map[string]conditionEntry `json:"entries"`
 }
 
 // NewConditionDictionary creates a new condition dictionary
-func newConditionDictionary() *ConditionDictionary {
-	return &ConditionDictionary{
-		Entries: make(map[string]ConditionEntry),
+func newConditionDictionary() *conditionDictionary {
+	return &conditionDictionary{
+		Entries: make(map[string]conditionEntry),
 	}
 }
 
 // AddEntry adds or updates an entry in the dictionary
-func (cd *ConditionDictionary) addEntry(id string, condition *Condition, next_nodes []string) {
-	cd.Entries[id] = ConditionEntry{
+func (cd *conditionDictionary) addEntry(id string, condition *condition, next_nodes []string) {
+	cd.Entries[id] = conditionEntry{
 		Condition: condition,
 		Nexts:     next_nodes,
 	}
 }
 
 // GetEntry retrieves an entry by ID
-func (cd *ConditionDictionary) getEntry(id string) (ConditionEntry, bool) {
+func (cd *conditionDictionary) getEntry(id string) (conditionEntry, bool) {
 	entry, exists := cd.Entries[id]
 	return entry, exists
 }
 
 // RemoveEntry removes an entry by ID
-func (cd *ConditionDictionary) removeEntry(id string) {
+func (cd *conditionDictionary) removeEntry(id string) {
 	delete(cd.Entries, id)
 }
 
 // EvaluateCondition evaluates the condition for a specific entry
-func (cd *ConditionDictionary) evaluateCondition(id string) (bool, error) {
+func (cd *conditionDictionary) evaluateCondition(id string) (bool, error) {
 	entry, exists := cd.Entries[id]
 	if !exists {
 		return false, fmt.Errorf("condition ID not found: %s", id)
@@ -168,7 +168,7 @@ func (cd *ConditionDictionary) evaluateCondition(id string) (bool, error) {
 }
 
 // GetStringsIfTrue returns the string list if the condition evaluates to true
-func (cd *ConditionDictionary) getNextsIfTrue(id string) ([]string, error) {
+func (cd *conditionDictionary) getNextsIfTrue(id string) ([]string, error) {
 	result, err := cd.evaluateCondition(id)
 	if err != nil {
 		return nil, err
