@@ -34,19 +34,22 @@ func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, strin
 		data.Id = tid.String()
 	}
 
+	var action common.Action
+	var err error
 	switch data.ActionName {
+
 	case "fileAction":
-		action, err := fileaction.New(am.events, data)
-		if err != nil {
-			return nil, "", err
-		}
-		am.actions[data.Id] = action
-		// TODO: Add an error handler to the trigger execution
-		go action.Execute()
-		return action, data.Id, nil
+		action, err = fileaction.New(am.events, data)
 	}
+
+	if err != nil {
+		return nil, "", err
+	}
+	am.actions[data.Id] = action
+	// TODO: Add an error handler to the trigger execution
 	fmt.Println("Action added with id:", data.Id)
-	return nil, "", nil
+	go action.Execute()
+	return action, data.Id, nil
 }
 
 // RemoveAction removes an action from the manager by ID
