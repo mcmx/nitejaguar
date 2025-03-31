@@ -212,3 +212,30 @@ func (wm *workflowManager) SaveWorkflowToDB(workflowId string) error {
 func (wm *workflowManager) GetTriggerManager() actions.TriggerManager {
 	return wm.TriggerManager
 }
+
+func (wm *workflowManager) ImportWorkflowJSON(jsonDef []byte) error {
+	data := Workflow{}
+	err := json.Unmarshal(jsonDef, &data)
+	if err != nil {
+		log.Printf("Cannot unmarshal workflow: %s", err)
+		return err
+	}
+	dId, _ := typeid.WithPrefix("workflow")
+	data.Id = dId.String()
+
+	for _, n := range data.Nodes {
+		if n.ActionType == "trigger" {
+			nId, _ := typeid.WithPrefix("trigger")
+			n.Id = nId.String()
+		} else if n.ActionType == "action" {
+			nId, _ := typeid.WithPrefix("action")
+			n.Id = nId.String()
+		}
+	}
+	data.Name = "Imported Workflow: " + data.Name
+	err = wm.AddWorkflow(data)
+	if err != nil {
+		return err
+	}
+	return wm.SaveWorkflowToDB(data.Id)
+}
