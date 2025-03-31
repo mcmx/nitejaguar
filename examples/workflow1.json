@@ -1,0 +1,20 @@
+{
+  "id": "workflow_01jq9c43qhejts98g7n1krqpgd",
+  "name": "First Workflow from json",
+  "nodes": {
+    "trigger_01jq9c43qhejtacw2p66k2ke5s": {
+      "id": "trigger_01jq9c43qhejtacw2p66k2ke5s",
+      "name": "CLI Trigger: filechangeTrigger",
+      "description": "CLI Trigger: filechangeTrigger",
+      "action_type": "trigger",
+      "action_name": "filechangeTrigger",
+      "arguments": {
+        "argument1": "/tmp"
+      },
+      "conditions": {
+        "entries": {}
+      },
+      "dependencies": null
+    }
+  }
+}
