@@ -48,7 +48,7 @@ type workflowManager struct {
 
 var wmmInstance *workflowManager
 
-func NewWorkflowManager(db database.Service) WorkflowManager {
+func NewWorkflowManager(enableActions bool, db database.Service) WorkflowManager {
 	if wmmInstance != nil {
 		return wmmInstance
 	}

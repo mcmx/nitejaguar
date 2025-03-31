@@ -30,6 +30,9 @@ type Service interface {
 
 	// GetWorkflow retrieves a workflow definition from the database
 	GetWorkflow(workflowId string) ([]byte, error)
+
+	// GetWorkflows retrieves all workflow definitions from the database
+	GetWorkflows() ([][]byte, error)
 }
 
 type service struct {
@@ -178,4 +181,24 @@ func (s *service) GetWorkflow(workflowId string) ([]byte, error) {
 	}
 
 	return jsonDef, nil
+}
+
+// GetWorkflows retrieves all workflow definitions from the database
+func (s *service) GetWorkflows() ([][]byte, error) {
+	stmt := `SELECT json_definition FROM workflows`
+	var workflows [][]byte
+	rows, err := s.db.Query(stmt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve workflows: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var data []byte
+		err := rows.Scan(&data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan workflow ID: %w", err)
+		}
+		workflows = append(workflows, data)
+	}
+	return workflows, nil
 }

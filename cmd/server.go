@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
+Copyright © 2025 Sergio Guzman <sergio@nasadmin.com>
 */
 package cmd
 
@@ -10,8 +10,6 @@ import (
 )
 
 var (
-	actionName    string
-	actionArgs    string
 	enableActions bool
 )
 
@@ -21,7 +19,7 @@ var serverCmd = &cobra.Command{
 	Short: "Start NiteJaguar in server mode",
 	Long:  `Start NiteJaguar in server mode with optional action triggers.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		api.RunServer()
+		api.RunServer(enableActions)
 	},
 }
 
@@ -38,6 +36,6 @@ func init() {
 	// is called directly, e.g.:
 	// serverCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	serverCmd.Flags().BoolVarP(&enableActions, "enable-actions", "e", false, "Enable server action")
-	serverCmd.Flags().StringVarP(&actionName, "action", "a", "filechangeTrigger", "Server action to execute")
-	serverCmd.Flags().StringVarP(&actionArgs, "args", "r", "/tmp", "Comma-separated arguments for the server action")
+	// serverCmd.Flags().StringVarP(&actionName, "action", "a", "filechangeTrigger", "Server action to execute")
+	// serverCmd.Flags().StringVarP(&actionArgs, "args", "r", "/tmp", "Comma-separated arguments for the server action")
 }

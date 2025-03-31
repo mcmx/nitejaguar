@@ -3,22 +3,16 @@ package api
 import (
 	"encoding/json"
 	"log"
-	"os"
 
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/server"
 	"github.com/mcmx/nitejaguar/internal/workflow"
 )
 
-var (
-	actionName    string
-	enableActions bool
-)
-
-func RunServer() {
+func RunServer(enableActions bool) {
 	myDb := database.New()
 	defer myDb.Close()
-	wm := workflow.NewWorkflowManager(myDb)
+	wm := workflow.NewWorkflowManager(enableActions, myDb)
 	go wm.Run()
 	// TODO we should not do this
 	// _, _, e := wm.ActionManager.AddAction(common.ActionArgs{
@@ -32,36 +26,33 @@ func RunServer() {
 	// }
 
 	// Handle server action if specified
-	enableActions = true
-	actionName = "filechangeTrigger"
-	if enableActions && actionName != "" {
+	if enableActions {
 		// myArgs := common.ActionArgs{
 		// 	ActionName: "filechangeTrigger",
 		// 	ActionType: "trigger",
 		// 	Name:       "Test filechange trigger",
 		// 	Args:       []string{"/tmp"},
 		// }
+		log.Println("Loading workflows...")
 
-		b, e := os.ReadFile("./workflows/workflow_01jq9c43qhejts98g7n1krqpgd.json")
+		workflows, e := myDb.GetWorkflows()
 		if e != nil {
-			log.Println("Error reading file: ", e)
+			log.Println("Error getting workflows: ", e)
 		}
-		log.Println(string(b))
 		w1 := workflow.Workflow{}
-		e = json.Unmarshal(b, &w1)
-		if e != nil {
-			log.Println("Error unmarshaling file: ", e)
-		}
 
-		e = wm.AddWorkflow(w1)
-		if e != nil {
-			log.Println(e)
-		}
-		// e = wm.SaveWorkflowToDB(w1.Id)
-		// if e != nil {
-		// 	log.Println(e)
-		// }
+		for _, workflow := range workflows {
+			e = json.Unmarshal(workflow, &w1)
+			if e != nil {
+				log.Println("Error unmarshaling workflow: ", e)
+			}
 
+			e = wm.AddWorkflow(w1)
+			if e != nil {
+				log.Println(e)
+			}
+
+		}
 	}
 
 	server := server.NewServer(myDb, wm)
