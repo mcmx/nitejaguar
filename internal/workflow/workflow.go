@@ -44,6 +44,7 @@ type workflowManager struct {
 	ActionManager    actions.ActionManager
 	resultChan       chan common.ResultData
 	db               database.Service
+	enableActions    bool
 }
 
 var wmmInstance *workflowManager
@@ -52,11 +53,15 @@ func NewWorkflowManager(enableActions bool, db database.Service) WorkflowManager
 	if wmmInstance != nil {
 		return wmmInstance
 	}
+	if !enableActions {
+		log.Printf("Local actions are disabled.")
+	}
 	wmmInstance = &workflowManager{
+		enableActions:    enableActions,
 		Workflows:        make(map[string]WorkflowInt),
 		Actions2Workflow: make(map[string]string),
 		TriggerManager:   *actions.NewTriggerManager(),
-		ActionManager:    *actions.NewActionManager(),
+		ActionManager:    *actions.NewActionManager(enableActions),
 		resultChan:       make(chan common.ResultData),
 		db:               db,
 	}
@@ -145,6 +150,23 @@ func (wm *workflowManager) AddWorkflow(data Workflow) error {
 				log.Printf("Cannot create new trigger: %s", err)
 			}
 			wm.Workflows[data.Id].TriggerList[id] = nt
+			wm.Actions2Workflow[id] = data.Id
+		} else if n.ActionType == "action" {
+			if !wm.enableActions {
+				continue
+			}
+			cArgs := common.ActionArgs{
+				Id:         n.Id,
+				Name:       n.Name,
+				ActionType: n.ActionType,
+				ActionName: n.ActionName,
+				Args:       args,
+			}
+			action, id, err := wm.ActionManager.AddAction(cArgs)
+			if err != nil {
+				log.Printf("Cannot create new action: %s", err)
+			}
+			wm.Workflows[data.Id].ActionList[id] = action
 			wm.Actions2Workflow[id] = data.Id
 		}
 	}

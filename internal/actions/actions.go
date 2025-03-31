@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/mcmx/nitejaguar/common"
@@ -10,19 +11,24 @@ import (
 
 // ActionManager manages a collection of actions
 type ActionManager struct {
-	actions map[string]common.Action
-	events  chan common.ResultData
+	actions       map[string]common.Action
+	events        chan common.ResultData
+	enableActions bool
 }
 
 // NewActionManager creates a new ActionManager instance
-func NewActionManager() *ActionManager {
+func NewActionManager(enableActions bool) *ActionManager {
 	return &ActionManager{
-		actions: make(map[string]common.Action),
+		enableActions: enableActions,
+		actions:       make(map[string]common.Action),
 	}
 }
 
 // AddAction adds a new action to the manager
 func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, string, error) {
+	if !am.enableActions {
+		return nil, "", errors.New("actions are disabled")
+	}
 	if data.Id == "" {
 		tid, _ := typeid.WithPrefix("action")
 		data.Id = tid.String()

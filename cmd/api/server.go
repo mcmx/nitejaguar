@@ -25,34 +25,31 @@ func RunServer(enableActions bool) {
 	// 	fmt.Println("There was an error", e)
 	// }
 
-	// Handle server action if specified
-	if enableActions {
-		// myArgs := common.ActionArgs{
-		// 	ActionName: "filechangeTrigger",
-		// 	ActionType: "trigger",
-		// 	Name:       "Test filechange trigger",
-		// 	Args:       []string{"/tmp"},
-		// }
-		log.Println("Loading workflows...")
+	// myArgs := common.ActionArgs{
+	// 	ActionName: "filechangeTrigger",
+	// 	ActionType: "trigger",
+	// 	Name:       "Test filechange trigger",
+	// 	Args:       []string{"/tmp"},
+	// }
+	log.Println("Loading workflows...")
 
-		workflows, e := myDb.GetWorkflows()
+	workflows, e := myDb.GetWorkflows()
+	if e != nil {
+		log.Println("Error getting workflows: ", e)
+	}
+	w1 := workflow.Workflow{}
+
+	for _, workflow := range workflows {
+		e = json.Unmarshal(workflow, &w1)
 		if e != nil {
-			log.Println("Error getting workflows: ", e)
+			log.Println("Error unmarshaling workflow: ", e)
 		}
-		w1 := workflow.Workflow{}
 
-		for _, workflow := range workflows {
-			e = json.Unmarshal(workflow, &w1)
-			if e != nil {
-				log.Println("Error unmarshaling workflow: ", e)
-			}
-
-			e = wm.AddWorkflow(w1)
-			if e != nil {
-				log.Println(e)
-			}
-
+		e = wm.AddWorkflow(w1)
+		if e != nil {
+			log.Println(e)
 		}
+
 	}
 
 	server := server.NewServer(myDb, wm)
