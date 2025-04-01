@@ -9,7 +9,7 @@
       "action_type": "trigger",
       "action_name": "filechangeTrigger",
       "arguments": {
-        "argument1": "/tmp"
+        "path": "/tmp"
       },
       "conditions": {
         "entries": {}
