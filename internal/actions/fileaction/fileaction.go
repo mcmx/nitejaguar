@@ -19,16 +19,16 @@ type event struct {
 
 func (f *fileaction) Execute() {
 	fmt.Println("Executing File Action with id:", f.data.Id)
-	if f.data.Args[0] == "create" {
-		if _, err := os.Create(f.data.Args[1]); err != nil {
+	if f.data.Args["action"] == "create" {
+		if _, err := os.Create(f.data.Args["file"]); err != nil {
 			fmt.Println("Error creating file with id:", f.data.Id, err)
 			result := f.sendResult("error", err.Error())
 			f.events <- result
 			return
 		}
 		fmt.Println("Creating file with id:", f.data.Id)
-	} else if f.data.Args[0] == "delete" {
-		if err := os.Remove(f.data.Args[1]); err != nil {
+	} else if f.data.Args["action"] == "delete" {
+		if err := os.Remove(f.data.Args["file"]); err != nil {
 			fmt.Println("Error deleting file with id:", f.data.Id, err)
 			result := f.sendResult("error", err.Error())
 			f.events <- result
@@ -37,8 +37,8 @@ func (f *fileaction) Execute() {
 		result := f.sendResult("success", "File deleted successfully")
 		f.events <- result
 		fmt.Println("Deleting file with id:", f.data.Id)
-	} else if f.data.Args[0] == "rename" {
-		if err := os.Rename(f.data.Args[1], f.data.Args[2]); err != nil {
+	} else if f.data.Args["action"] == "rename" {
+		if err := os.Rename(f.data.Args["file"], f.data.Args["new_file"]); err != nil {
 			fmt.Println("Error renaming file with id:", f.data.Id, err)
 			result := f.sendResult("error", err.Error())
 			f.events <- result

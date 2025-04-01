@@ -78,8 +78,8 @@ func (t *filechange) Execute() {
 	}()
 
 	// Add the path to watch
-	fmt.Println("Adding watcher to:", t.data.Args[0])
-	err := t.watcher.Add(t.data.Args[0])
+	fmt.Println("Adding watcher to:", t.data.Args["path"])
+	err := t.watcher.Add(t.data.Args["path"])
 	if err != nil {
 		fmt.Println("Error adding watcher:", err)
 		return

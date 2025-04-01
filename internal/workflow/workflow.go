@@ -82,6 +82,10 @@ func (wm *workflowManager) Run() {
 
 			// Either way then pass the result to an action
 			wm.saveResult(value)
+			// here I need to get the args for the action, the result for the action
+			// process the GetNextNodes for this node
+			// n := wm.Workflows[value.WorkflowID].Definition.Nodes[value.ActionID]
+			// n.GetNextNodes(value.Args, value)
 
 		case <-time.After(10 * time.Millisecond):
 			// do nothing
@@ -108,7 +112,18 @@ type Node struct {
 	Dependencies []string             `json:"dependencies"`
 }
 
-func (n *Node) GetNextNodes() []string {
+func (n *Node) GetNextNodes(args common.ActionArgs, result common.ResultData) []string {
+	next_nodes := []string{}
+	for _, c := range n.Conditions.Entries {
+		ok, _ := c.Condition.evaluate(args, result)
+		if ok {
+			next_nodes = append(next_nodes, c.Nexts...)
+		}
+	}
+	return next_nodes
+}
+
+func (n *Node) GetAllNextNodes() []string {
 	next_nodes := []string{}
 	for _, c := range n.Conditions.Entries {
 		next_nodes = append(next_nodes, c.Nexts...)
@@ -132,18 +147,13 @@ func (wm *workflowManager) AddWorkflow(data Workflow) error {
 		TriggerList: make(map[string]common.Action),
 	}
 	for _, n := range data.Nodes {
-		args := []string{}
-		for _, v := range n.Arguments {
-			args = append(args, v)
-		}
-
 		if n.ActionType == "trigger" {
 			cArgs := common.ActionArgs{
 				Id:         n.Id,
 				Name:       n.Name,
 				ActionType: n.ActionType,
 				ActionName: n.ActionName,
-				Args:       args,
+				Args:       n.Arguments,
 			}
 			nt, id, err := wm.TriggerManager.AddTrigger(cArgs)
 			if err != nil {
@@ -160,7 +170,7 @@ func (wm *workflowManager) AddWorkflow(data Workflow) error {
 				Name:       n.Name,
 				ActionType: n.ActionType,
 				ActionName: n.ActionName,
-				Args:       args,
+				Args:       n.Arguments,
 			}
 			action, id, err := wm.ActionManager.AddAction(cArgs)
 			if err != nil {

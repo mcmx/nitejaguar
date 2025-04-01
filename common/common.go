@@ -8,7 +8,7 @@ type ActionArgs struct {
 	Name       string
 	ActionType string
 	ActionName string
-	Args       []string
+	Args       map[string]string
 }
 
 // Action interface for actions

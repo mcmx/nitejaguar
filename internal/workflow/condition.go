@@ -3,6 +3,9 @@ package workflow
 import (
 	"fmt"
 	"reflect"
+	"strings"
+
+	"github.com/mcmx/nitejaguar/common"
 )
 
 type condition struct {
@@ -32,36 +35,73 @@ func newBooleanCondition(boolExpr any) *condition {
 	}
 }
 
-func (c *condition) evaluate() (bool, error) {
+// input corresponds to the action arguments input that the action received
+// result corresponds to the result of the action
+// either operand can be a variable name that will be resolved from the input or result
+// or neither in which is can be considered a constant value and should not be resolved
+func (c *condition) evaluate(input common.ActionArgs, result common.ResultData) (bool, error) {
+	// we will need to test if the operands must be resolved, I'll follow the format
+	// jsonpath format to resolve the values.
+
+	// we'll make a copy of the operands
+	leftOperand := c.LeftOperand
+	rightOperand := c.RightOperand
+
+	if reflect.TypeOf(leftOperand).Kind() == reflect.String {
+		if leftOperand != nil && strings.HasPrefix(leftOperand.(string), "$.input.") {
+			leftOperand = resolveInput(input.Args, leftOperand.(string))
+		}
+		if leftOperand != nil && strings.HasPrefix(leftOperand.(string), "$.result.") {
+			leftOperand = resolveResult(result.Payload, leftOperand.(string))
+		}
+	}
+
 	// Handle the case of a standalone boolean expression
-	if c.Operator == "" && c.RightOperand == nil {
+	if c.Operator == "" && rightOperand == nil {
 		// Try to convert LeftOperand to boolean
-		boolValue, ok := c.LeftOperand.(bool)
+		boolValue, ok := leftOperand.(bool)
 		if !ok {
 			// If it's not a direct boolean, try to evaluate it as an expression
 			// (This would depend on your implementation)
-			return false, fmt.Errorf("left operand is not a boolean: %v", c.LeftOperand)
+			return false, fmt.Errorf("left operand is not a boolean: %v", leftOperand)
 		}
 		return boolValue, nil
+	}
+	if reflect.TypeOf(rightOperand).Kind() == reflect.String {
+		if rightOperand != nil && strings.HasPrefix(rightOperand.(string), "$.input.") {
+			rightOperand = resolveInput(input.Args, rightOperand.(string))
+		}
+
+		if rightOperand != nil && strings.HasPrefix(rightOperand.(string), "$.result.") {
+			rightOperand = resolveResult(result.Payload, rightOperand.(string))
+		}
 	}
 
 	// Handle comparison operators as before
 	switch c.Operator {
 	case "==":
-		return reflect.DeepEqual(c.LeftOperand, c.RightOperand), nil
+		return reflect.DeepEqual(leftOperand, rightOperand), nil
 	case "!=":
-		return !reflect.DeepEqual(c.LeftOperand, c.RightOperand), nil
+		return !reflect.DeepEqual(leftOperand, rightOperand), nil
 	case ">":
-		return compareValues(c.LeftOperand, c.RightOperand, ">")
+		return compareValues(leftOperand, rightOperand, ">")
 	case ">=":
-		return compareValues(c.LeftOperand, c.RightOperand, ">=")
+		return compareValues(leftOperand, rightOperand, ">=")
 	case "<":
-		return compareValues(c.LeftOperand, c.RightOperand, "<")
+		return compareValues(leftOperand, rightOperand, "<")
 	case "<=":
-		return compareValues(c.LeftOperand, c.RightOperand, "<=")
+		return compareValues(leftOperand, rightOperand, "<=")
 	default:
 		return false, fmt.Errorf("unsupported operator: %s", c.Operator)
 	}
+}
+
+func resolveInput(input map[string]string, path string) any {
+	return input[path]
+}
+
+func resolveResult(result any, path string) any {
+	return result
 }
 
 // Helper function for comparing numerical values (unchanged)
@@ -163,8 +203,9 @@ func (cd *conditionDictionary) evaluateCondition(id string) (bool, error) {
 	if !exists {
 		return false, fmt.Errorf("condition ID not found: %s", id)
 	}
+	// TODO: check this, does it make any sense now?
 
-	return entry.Condition.evaluate()
+	return entry.Condition.evaluate(common.ActionArgs{}, common.ResultData{})
 }
 
 // GetStringsIfTrue returns the string list if the condition evaluates to true
