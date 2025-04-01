@@ -49,10 +49,10 @@ func (c *condition) evaluate(input common.ActionArgs, result common.ResultData) 
 
 	if reflect.TypeOf(leftOperand).Kind() == reflect.String {
 		if leftOperand != nil && strings.HasPrefix(leftOperand.(string), "$.input.") {
-			leftOperand = resolveInput(input.Args, leftOperand.(string))
+			leftOperand = resolveInput(input, leftOperand.(string))
 		}
 		if leftOperand != nil && strings.HasPrefix(leftOperand.(string), "$.result.") {
-			leftOperand = resolveResult(result.Payload, leftOperand.(string))
+			leftOperand = resolveResult(result, leftOperand.(string))
 		}
 	}
 
@@ -69,11 +69,11 @@ func (c *condition) evaluate(input common.ActionArgs, result common.ResultData) 
 	}
 	if reflect.TypeOf(rightOperand).Kind() == reflect.String {
 		if rightOperand != nil && strings.HasPrefix(rightOperand.(string), "$.input.") {
-			rightOperand = resolveInput(input.Args, rightOperand.(string))
+			rightOperand = resolveInput(input, rightOperand.(string))
 		}
 
 		if rightOperand != nil && strings.HasPrefix(rightOperand.(string), "$.result.") {
-			rightOperand = resolveResult(result.Payload, rightOperand.(string))
+			rightOperand = resolveResult(result, rightOperand.(string))
 		}
 	}
 
@@ -96,12 +96,12 @@ func (c *condition) evaluate(input common.ActionArgs, result common.ResultData) 
 	}
 }
 
-func resolveInput(input map[string]string, path string) any {
-	return input[path]
+func resolveInput(input common.ActionArgs, path string) any {
+	return input.Args
 }
 
-func resolveResult(result any, path string) any {
-	return result
+func resolveResult(result common.ResultData, path string) any {
+	return result.Payload
 }
 
 // Helper function for comparing numerical values (unchanged)

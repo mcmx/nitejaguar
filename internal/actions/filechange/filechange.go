@@ -2,6 +2,7 @@ package filechange
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/mcmx/nitejaguar/common"
 
@@ -78,8 +79,17 @@ func (t *filechange) Execute() {
 	}()
 
 	// Add the path to watch
-	fmt.Println("Adding watcher to:", t.data.Args["path"])
-	err := t.watcher.Add(t.data.Args["path"])
+	if reflect.TypeOf(t.data.Args).Kind() != reflect.Map {
+		fmt.Println("Invalid arguments type")
+		return
+	}
+	args := t.data.Args.(map[string]string)
+	if args["path"] == "" {
+		fmt.Println("Invalid path")
+		return
+	}
+	fmt.Println("Adding watcher to:", args["path"])
+	err := t.watcher.Add(args["path"])
 	if err != nil {
 		fmt.Println("Error adding watcher:", err)
 		return
