@@ -25,7 +25,6 @@ func (f *fileaction) Execute() {
 		return
 	}
 	args := f.data.Args.(map[string]string)
-
 	if args["action"] == "create" {
 		if _, err := os.Create(args["file"]); err != nil {
 			fmt.Println("Error creating file with id:", f.data.Id, err)

@@ -80,12 +80,12 @@ func (t *filechange) Execute() {
 
 	// Add the path to watch
 	if reflect.TypeOf(t.data.Args).Kind() != reflect.Map {
-		fmt.Println("Invalid arguments type")
+		fmt.Println("[filechange] Invalid arguments type")
 		return
 	}
 	args := t.data.Args.(map[string]string)
 	if args["path"] == "" {
-		fmt.Println("Invalid path")
+		fmt.Println("[filechange] Invalid path")
 		return
 	}
 	fmt.Println("Adding watcher to:", args["path"])
