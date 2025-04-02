@@ -35,6 +35,7 @@ type WorkflowManager interface {
 	ExportWorkflowJSONFile(string) error
 	SaveWorkflowToDB(string) error
 	GetTriggerManager() actions.TriggerManager
+	ImportWorkflowJSON([]byte) error
 }
 
 type workflowManager struct {
@@ -243,9 +244,5 @@ func (wm *workflowManager) ImportWorkflowJSON(jsonDef []byte) error {
 		}
 	}
 	data.Name = "Imported Workflow: " + data.Name
-	err = wm.AddWorkflow(data)
-	if err != nil {
-		return err
-	}
 	return wm.SaveWorkflowToDB(data.Id)
 }

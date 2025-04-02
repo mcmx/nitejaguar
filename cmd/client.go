@@ -15,6 +15,7 @@ var clientCmd = &cobra.Command{
 	Short: "Start NiteJaguar in client mode",
 	Long:  `Start NiteJaguar in client mode to interact with the server.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		log.Println("Args:", args)
 		log.Println("Client mode not implemented yet, try server instead")
 	},
 }
@@ -30,5 +31,9 @@ func init() {
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	// clientCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+
+	clientCmd.Flags().String("import", "workflow.json", "Imports workflow.json file into the DB")
+	clientCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	clientCmd.Flags().BoolVarP(&enableActions, "enable-actions", "e", false, "Enable server action")
+
 }

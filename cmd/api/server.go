@@ -3,16 +3,22 @@ package api
 import (
 	"encoding/json"
 	"log"
+	"os"
 
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/server"
 	"github.com/mcmx/nitejaguar/internal/workflow"
 )
 
-func RunServer(enableActions bool) {
+type ServerArgs struct {
+	EnableActions  bool
+	ImportWorkflow string
+}
+
+func RunServer(args ServerArgs) {
 	myDb := database.New()
 	defer myDb.Close()
-	wm := workflow.NewWorkflowManager(enableActions, myDb)
+	wm := workflow.NewWorkflowManager(args.EnableActions, myDb)
 	go wm.Run()
 	// TODO we should not do this
 	// _, _, e := wm.ActionManager.AddAction(common.ActionArgs{
@@ -31,6 +37,18 @@ func RunServer(enableActions bool) {
 	// 	Name:       "Test filechange trigger",
 	// 	Args:       []string{"/tmp"},
 	// }
+	if args.ImportWorkflow != "" {
+		log.Println("Importing workflow:", args.ImportWorkflow)
+		wImportJSON, e := os.ReadFile(args.ImportWorkflow)
+		if e != nil {
+			log.Println("error importing workflow 1", e)
+		} else {
+			e := wm.ImportWorkflowJSON(wImportJSON)
+			if e != nil {
+				log.Println("error importing workflow 2", e)
+			}
+		}
+	}
 	log.Println("Loading workflows...")
 
 	workflows, e := myDb.GetWorkflows()
@@ -38,7 +56,6 @@ func RunServer(enableActions bool) {
 		log.Println("Error getting workflows: ", e)
 	}
 	w1 := workflow.Workflow{}
-
 	for _, workflow := range workflows {
 		e = json.Unmarshal(workflow, &w1)
 		if e != nil {

@@ -10,7 +10,8 @@ import (
 )
 
 var (
-	enableActions bool
+	enableActions  bool
+	importWorkflow string
 )
 
 // serverCmd represents the server command
@@ -19,7 +20,11 @@ var serverCmd = &cobra.Command{
 	Short: "Start NiteJaguar in server mode",
 	Long:  `Start NiteJaguar in server mode with optional action triggers.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		api.RunServer(enableActions)
+		sArgs := api.ServerArgs{
+			EnableActions:  enableActions,
+			ImportWorkflow: importWorkflow,
+		}
+		api.RunServer(sArgs)
 	},
 }
 
@@ -36,6 +41,6 @@ func init() {
 	// is called directly, e.g.:
 	// serverCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	serverCmd.Flags().BoolVarP(&enableActions, "enable-actions", "e", false, "Enable server action")
-	// serverCmd.Flags().StringVarP(&actionName, "action", "a", "filechangeTrigger", "Server action to execute")
+	serverCmd.Flags().StringVarP(&importWorkflow, "import", "i", "", "Imports a workflow into the database")
 	// serverCmd.Flags().StringVarP(&actionArgs, "args", "r", "/tmp", "Comma-separated arguments for the server action")
 }
