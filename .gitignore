@@ -34,3 +34,6 @@ tmp/
 # Project build
 main
 *templ.go
+
+results/
+log/
