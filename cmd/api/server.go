@@ -24,8 +24,8 @@ func RunServer(args ServerArgs) {
 	defer fmt.Println("Finish execution")
 	wm := workflow.NewWorkflowManager(args.EnableActions, myDb)
 	server := server.NewServer(myDb, wm)
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		err := server.ListenAndServe()
 		if err != nil {
@@ -35,8 +35,8 @@ func RunServer(args ServerArgs) {
 		log.Println("Starting server...")
 	}()
 
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		wm.Run()
 	}()
