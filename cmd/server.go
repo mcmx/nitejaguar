@@ -5,8 +5,9 @@ package cmd
 
 import (
 	"github.com/mcmx/nitejaguar/cmd/api"
-
 	"github.com/spf13/cobra"
+	"log"
+	"os"
 )
 
 var (
@@ -29,6 +30,20 @@ var serverCmd = &cobra.Command{
 }
 
 func init() {
+	fileName := "server.log"
+	// open log file
+	logFile, err := os.OpenFile(fileName, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		log.Panic(err)
+	}
+	// defer logFile.Close()
+
+	// set log output
+	log.SetOutput(logFile)
+
+	// optional: log date-time, filename, and line number
+	// log.SetFlags(log.Lshortfile | log.LstdFlags)
+	log.SetFlags(log.LstdFlags)
 	rootCmd.AddCommand(serverCmd)
 
 	// Here you will define your flags and configuration settings.

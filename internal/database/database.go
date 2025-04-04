@@ -146,7 +146,7 @@ func (s *service) CreateTables() error {
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)`
 
-	fmt.Println("Creating DB tables")
+	log.Println("Creating DB tables")
 	_, err := s.db.Exec(workflowTable)
 	if err != nil {
 		return fmt.Errorf("failed to create workflows table: %w", err)

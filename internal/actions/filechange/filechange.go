@@ -2,6 +2,7 @@ package filechange
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 
 	"github.com/mcmx/nitejaguar/common"
@@ -22,7 +23,7 @@ type filechange struct {
 }
 
 func (t *filechange) Stop() error {
-	fmt.Println("Stopping the filechange trigger")
+	log.Println("Stopping the filechange trigger")
 	return t.watcher.Close()
 }
 
@@ -38,13 +39,13 @@ func New(events chan common.ResultData, data common.ActionArgs) (common.Action, 
 		watcher: watcher,
 	}
 	s.data.ActionType = "trigger"
-	fmt.Println("Initializing File Change Trigger with id:", s.data.Id)
+	log.Println("Initializing File Change Trigger with id:", s.data.Id)
 
 	return s, nil
 }
 
 func (t *filechange) Execute() {
-	fmt.Println("Executing File Change Trigger with id:", t.data.Id)
+	log.Println("Executing File Change Trigger with id:", t.data.Id)
 
 	// Start watching in a goroutine
 	go func() {
@@ -52,14 +53,14 @@ func (t *filechange) Execute() {
 			select {
 			case event, ok := <-t.watcher.Events:
 				if !ok {
-					fmt.Println("Watcher closed")
+					log.Println("Watcher closed")
 					return
 				}
 				if event.Op.Has(fsnotify.Write) {
 					t.events <- t.sendResult("write", event.Name)
 				}
 				if event.Op.Has(fsnotify.Create) {
-					fmt.Println("Create event:", event.Name)
+					log.Println("Create event:", event.Name)
 					t.events <- t.sendResult("create", event.Name)
 				}
 				if event.Op.Has(fsnotify.Rename) {
@@ -70,28 +71,28 @@ func (t *filechange) Execute() {
 				}
 			case err, ok := <-t.watcher.Errors:
 				if !ok {
-					fmt.Println("Watcher error closed")
+					log.Println("Watcher error closed")
 					return
 				}
-				fmt.Println("error:", err)
+				log.Println("error:", err)
 			}
 		}
 	}()
 
 	// Add the path to watch
 	if reflect.TypeOf(t.data.Args).Kind() != reflect.Map {
-		fmt.Println("[filechange] Invalid arguments type")
+		log.Println("[filechange] Invalid arguments type")
 		return
 	}
 	args := t.data.Args.(map[string]string)
 	if args["path"] == "" {
-		fmt.Println("[filechange] Invalid path")
+		log.Println("[filechange] Invalid path")
 		return
 	}
-	fmt.Println("Adding watcher to:", args["path"])
+	log.Println("Adding watcher to:", args["path"])
 	err := t.watcher.Add(args["path"])
 	if err != nil {
-		fmt.Println("Error adding watcher:", err)
+		log.Println("Error adding watcher:", err)
 		return
 	}
 

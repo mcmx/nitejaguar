@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/server"
@@ -16,10 +18,28 @@ type ServerArgs struct {
 }
 
 func RunServer(args ServerArgs) {
+	var wg sync.WaitGroup
 	myDb := database.New()
 	defer myDb.Close()
+	defer fmt.Println("Finish execution")
 	wm := workflow.NewWorkflowManager(args.EnableActions, myDb)
-	go wm.Run()
+	server := server.NewServer(myDb, wm)
+	go func() {
+		wg.Add(1)
+		defer wg.Done()
+		err := server.ListenAndServe()
+		if err != nil {
+			fmt.Printf("Cannot start server: %s\n", err)
+			os.Exit(1)
+		}
+		log.Println("Starting server...")
+	}()
+
+	go func() {
+		wg.Add(1)
+		defer wg.Done()
+		wm.Run()
+	}()
 	// TODO we should not do this
 	// _, _, e := wm.ActionManager.AddAction(common.ActionArgs{
 	// 	ActionName: "fileAction",
@@ -28,7 +48,7 @@ func RunServer(args ServerArgs) {
 	// 	Args:       []string{"rename", "/tmp/test.txt", "/tmp/test2.txt"},
 	// })
 	// if e != nil {
-	// 	fmt.Println("There was an error", e)
+	// 	log.Println("There was an error", e)
 	// }
 
 	// myArgs := common.ActionArgs{
@@ -55,9 +75,9 @@ func RunServer(args ServerArgs) {
 	if e != nil {
 		log.Println("Error getting workflows: ", e)
 	}
-	w1 := workflow.Workflow{}
-	for _, workflow := range workflows {
-		e = json.Unmarshal(workflow, &w1)
+	for _, wf := range workflows {
+		w1 := workflow.Workflow{}
+		e = json.Unmarshal(wf, &w1)
 		if e != nil {
 			log.Println("Error unmarshaling workflow: ", e)
 		}
@@ -68,11 +88,6 @@ func RunServer(args ServerArgs) {
 		}
 
 	}
+	wg.Wait()
 
-	server := server.NewServer(myDb, wm)
-	log.Println("Starting server...")
-	err := server.ListenAndServe()
-	if err != nil {
-		log.Fatalf("Cannot start server: %s", err)
-	}
 }

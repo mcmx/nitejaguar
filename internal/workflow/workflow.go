@@ -98,7 +98,7 @@ func (wm *workflowManager) saveResult(result common.ResultData) {
 	jsonResult, _ := json.MarshalIndent(result, "", "  ")
 	jsonFileName := "./results/" + result.ResultID + ".json"
 	_ = os.WriteFile(jsonFileName, jsonResult, 0644)
-	fmt.Println("Trigger Result JSON file saved:", jsonFileName)
+	log.Println("Trigger Result JSON file saved:", jsonFileName)
 }
 
 // type Node
@@ -234,7 +234,7 @@ func (wm *workflowManager) ImportWorkflowJSON(jsonDef []byte) error {
 	dId, _ := typeid.WithPrefix("workflow")
 	data.Id = dId.String()
 
-	for _, n := range data.Nodes {
+	for i, n := range data.Nodes {
 		if n.ActionType == "trigger" {
 			nId, _ := typeid.WithPrefix("trigger")
 			n.Id = nId.String()
@@ -242,7 +242,12 @@ func (wm *workflowManager) ImportWorkflowJSON(jsonDef []byte) error {
 			nId, _ := typeid.WithPrefix("action")
 			n.Id = nId.String()
 		}
+		data.Nodes[n.Id] = n
+		delete(data.Nodes, i)
 	}
 	data.Name = "Imported Workflow: " + data.Name
-	return wm.SaveWorkflowToDB(data.Id)
+	jData, _ := json.MarshalIndent(data, "", "  ")
+	log.Println("Updated workflow: ", string(jData))
+
+	return wm.db.SaveWorkflow(data.Id, jData)
 }

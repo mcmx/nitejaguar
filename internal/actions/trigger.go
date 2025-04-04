@@ -2,6 +2,7 @@ package actions
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/mcmx/nitejaguar/common"
@@ -33,6 +34,7 @@ func (ts *TriggerManager) AddTrigger(data common.ActionArgs) (common.Action, str
 		data.Id = tid.String()
 	}
 
+	// TODO Add a validation that the triger_id doesn't exist in the triggers already
 	switch data.ActionName {
 	case "filechangeTrigger":
 		trigger, err := filechange.New(ts.events, data)
@@ -56,7 +58,7 @@ func (ts *TriggerManager) RemoveTrigger(id string) {
 }
 
 func (ts *TriggerManager) Run(wmEvents chan common.ResultData) {
-	fmt.Println("Starting Trigger Service")
+	log.Println("Starting Trigger Service")
 	var value common.ResultData
 	for {
 		select {
