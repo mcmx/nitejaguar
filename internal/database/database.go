@@ -2,11 +2,14 @@ package database
 
 import (
 	"context"
-	"database/sql"
+	dsql "database/sql"
 	"fmt"
 	"log"
 	"os"
 	"time"
+
+	"entgo.io/ent/dialect/sql"
+	"github.com/mcmx/nitejaguar/ent"
 
 	_ "github.com/joho/godotenv/autoload"
 	_ "github.com/mattn/go-sqlite3"
@@ -22,9 +25,6 @@ type Service interface {
 	// It returns an error if the connection cannot be closed.
 	Close() error
 
-	// CreateTables creates all necessary database tables
-	CreateTables() error
-
 	// SaveWorkflow saves a workflow definition to the database
 	SaveWorkflow(workflowId string, jsonDef []byte) error
 
@@ -36,7 +36,8 @@ type Service interface {
 }
 
 type service struct {
-	db *sql.DB
+	db     *dsql.DB
+	client *ent.Client
 }
 
 type HealthResponse struct {
@@ -63,17 +64,23 @@ func New() Service {
 		return dbInstance
 	}
 
-	db, err := sql.Open("sqlite3", dburl)
+	drv, err := sql.Open("sqlite3", dburl)
 	if err != nil {
 		// This will not be a connection error, but a DSN parse error or
 		// another initialization error.
 		log.Fatal(err)
 	}
 
+	db := drv.DB()
+	client := ent.NewClient(ent.Driver(drv))
+
 	dbInstance = &service{
-		db: db,
+		client: client,
+		db:     db,
 	}
-	_ = dbInstance.CreateTables()
+	if err := client.Schema.Create(context.Background()); err != nil {
+		log.Fatalf("failed creating schema resources: %v", err)
+	}
 	return dbInstance
 }
 
@@ -137,30 +144,12 @@ func (s *service) Close() error {
 	return s.db.Close()
 }
 
-// CreateTables creates all necessary database tables
-func (s *service) CreateTables() error {
-	workflowTable := `CREATE TABLE IF NOT EXISTS workflows (
-		id TEXT PRIMARY KEY,
-		json_definition TEXT NOT NULL,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	)`
-
-	log.Println("Creating DB tables")
-	_, err := s.db.Exec(workflowTable)
-	if err != nil {
-		return fmt.Errorf("failed to create workflows table: %w", err)
-	}
-
-	return nil
-}
-
 // SaveWorkflow saves a workflow definition to the database
 func (s *service) SaveWorkflow(workflowId string, jsonDef []byte) error {
 	stmt := `INSERT OR REPLACE INTO workflows (id, json_definition, updated_at)
 	VALUES (?, ?, CURRENT_TIMESTAMP)`
 
-	_, err := s.db.Exec(stmt, workflowId, jsonDef)
+	_, err := s.client.ExecContext(context.Background(), stmt, workflowId, jsonDef)
 	if err != nil {
 		return fmt.Errorf("failed to save workflow: %w", err)
 	}
@@ -170,36 +159,47 @@ func (s *service) SaveWorkflow(workflowId string, jsonDef []byte) error {
 
 // GetWorkflow retrieves a workflow definition from the database
 func (s *service) GetWorkflow(workflowId string) ([]byte, error) {
-	stmt := `SELECT json_definition FROM workflows WHERE id = ?`
-	var jsonDef []byte
+	w, _ := s.client.Workflow.Get(context.Background(), workflowId)
 
-	row := s.db.QueryRow(stmt, workflowId)
-	err := row.Scan(&jsonDef)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("workflow not found: %s", workflowId)
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to retrieve workflow: %w", err)
-	}
+	return []byte(w.JSONDefinition), nil
+	// stmt := `SELECT json_definition FROM workflows WHERE id = ?`
+	// var jsonDef []byte
 
-	return jsonDef, nil
+	// row := s.db.QueryRow(stmt, workflowId)
+	// err := row.Scan(&jsonDef)
+	// if err == sql.ErrNoRows {
+	// 	return nil, fmt.Errorf("workflow not found: %s", workflowId)
+	// } else if err != nil {
+	// 	return nil, fmt.Errorf("failed to retrieve workflow: %w", err)
+	// }
+
+	// return jsonDef, nil
 }
 
 // GetWorkflows retrieves all workflow definitions from the database
 func (s *service) GetWorkflows() ([][]byte, error) {
-	stmt := `SELECT json_definition FROM workflows`
+
+	ws, _ := s.client.Workflow.Query().All(context.Background())
 	var workflows [][]byte
-	rows, err := s.db.Query(stmt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve workflows: %w", err)
+	for _, w := range ws {
+		workflows = append(workflows, []byte(w.JSONDefinition))
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var data []byte
-		err := rows.Scan(&data)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan workflow ID: %w", err)
-		}
-		workflows = append(workflows, data)
-	}
+
 	return workflows, nil
+	// stmt := `SELECT json_definition FROM workflows`
+	// var workflows [][]byte
+	// rows, err := s.db.Query(stmt)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to retrieve workflows: %w", err)
+	// }
+	// defer rows.Close()
+	// for rows.Next() {
+	// 	var data []byte
+	// 	err := rows.Scan(&data)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("failed to scan workflow ID: %w", err)
+	// 	}
+	// 	workflows = append(workflows, data)
+	// }
+	// return workflows, nil
 }
