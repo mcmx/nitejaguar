@@ -63,6 +63,10 @@ func New() Service {
 	if dbInstance != nil {
 		return dbInstance
 	}
+	if dburl == "" {
+		fmt.Println("DB_URL is empty, you could set it to: file:ent.db?mode=memory&cache=shared&_fk=1, to start in memory only")
+		fmt.Println("or file:ent.db?cache=shared&_fk=1, to create a file called ent")
+	}
 
 	drv, err := sql.Open("sqlite3", dburl)
 	if err != nil {
@@ -146,10 +150,11 @@ func (s *service) Close() error {
 
 // SaveWorkflow saves a workflow definition to the database
 func (s *service) SaveWorkflow(workflowId string, jsonDef []byte) error {
-	stmt := `INSERT OR REPLACE INTO workflows (id, json_definition, updated_at)
-	VALUES (?, ?, CURRENT_TIMESTAMP)`
+	_, err := s.client.Workflow.Create().
+		SetJSONDefinition(string(jsonDef)).
+		SetID(workflowId).
+		Save(context.Background())
 
-	_, err := s.client.ExecContext(context.Background(), stmt, workflowId, jsonDef)
 	if err != nil {
 		return fmt.Errorf("failed to save workflow: %w", err)
 	}

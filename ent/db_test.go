@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"testing"
+
 	// "github.com/mcmx/nitejaguar/ent"
 
 	"entgo.io/ent/dialect"
@@ -23,7 +24,11 @@ func Test_Ent(t *testing.T) {
 	if err := client.Schema.Create(ctx); err != nil {
 		log.Fatalf("failed creating schema resources, %v", err)
 	}
-	w1, err := client.Workflow.Create().Save(ctx)
+	w1, err := client.Workflow.
+		Create().
+		SetID("wf_1").
+		SetJSONDefinition("{}").
+		Save(ctx)
 	if err != nil {
 		log.Fatalf("failed creating a workflow: %v", err)
 	}
