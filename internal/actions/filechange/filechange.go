@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"strings"
 
 	"github.com/mcmx/nitejaguar/common"
 
@@ -46,39 +47,6 @@ func New(events chan common.ResultData, data common.ActionArgs) (common.Action, 
 
 func (t *filechange) Execute() {
 	log.Println("Executing File Change Trigger with id:", t.data.Id)
-
-	// Start watching in a goroutine
-	go func() {
-		for {
-			select {
-			case event, ok := <-t.watcher.Events:
-				if !ok {
-					log.Println("Watcher closed")
-					return
-				}
-				if event.Op.Has(fsnotify.Write) {
-					t.events <- t.sendResult("write", event.Name)
-				}
-				if event.Op.Has(fsnotify.Create) {
-					log.Println("Create event:", event.Name)
-					t.events <- t.sendResult("create", event.Name)
-				}
-				if event.Op.Has(fsnotify.Rename) {
-					t.events <- t.sendResult("rename", event.Name)
-				}
-				if event.Op.Has(fsnotify.Remove) {
-					t.events <- t.sendResult("remove", event.Name)
-				}
-			case err, ok := <-t.watcher.Errors:
-				if !ok {
-					log.Println("Watcher error closed")
-					return
-				}
-				log.Println("error:", err)
-			}
-		}
-	}()
-
 	// Add the path to watch
 	if reflect.TypeOf(t.data.Args).Kind() != reflect.Map {
 		log.Println("[filechange] Invalid arguments type")
@@ -95,6 +63,45 @@ func (t *filechange) Execute() {
 		log.Println("Error adding watcher:", err)
 		return
 	}
+
+	eventTypeParam, ok := args["event_type"]
+	eventType := fsnotify.Create | fsnotify.Write | fsnotify.Rename | fsnotify.Remove | fsnotify.Chmod
+
+	if ok {
+		if eventTypeParam == "create" {
+			eventType = fsnotify.Create
+		} else if eventTypeParam == "write" {
+			eventType = fsnotify.Write
+		} else if eventTypeParam == "rename" {
+			eventType = fsnotify.Rename
+		} else if eventTypeParam == "remove" {
+			eventType = fsnotify.Remove
+		} else if eventTypeParam == "chmod" {
+			eventType = fsnotify.Chmod
+		}
+	}
+	// Start watching in a goroutine
+	go func() {
+		for {
+			select {
+			case event, ok := <-t.watcher.Events:
+				if !ok {
+					log.Println("Watcher closed")
+					return
+				}
+				if event.Op.Has(eventType) {
+					log.Println(event)
+					t.events <- t.sendResult(strings.ToLower(event.Op.String()), event.Name)
+				}
+			case err, ok := <-t.watcher.Errors:
+				if !ok {
+					log.Println("Watcher error closed")
+					return
+				}
+				log.Println("error:", err)
+			}
+		}
+	}()
 
 	// Keep the Execute method running without blocking
 	select {} // This keeps the method running without consuming resources
