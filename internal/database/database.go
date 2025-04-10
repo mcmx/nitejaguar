@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"github.com/mcmx/nitejaguar/ent"
+	"github.com/mcmx/nitejaguar/ent/workflow"
 
 	_ "github.com/joho/godotenv/autoload"
 	_ "github.com/mattn/go-sqlite3"
@@ -168,44 +169,15 @@ func (s *service) GetWorkflow(workflowId string) ([]byte, error) {
 	w, _ := s.client.Workflow.Get(context.Background(), workflowId)
 
 	return []byte(w.JSONDefinition), nil
-	// stmt := `SELECT json_definition FROM workflows WHERE id = ?`
-	// var jsonDef []byte
-
-	// row := s.db.QueryRow(stmt, workflowId)
-	// err := row.Scan(&jsonDef)
-	// if err == sql.ErrNoRows {
-	// 	return nil, fmt.Errorf("workflow not found: %s", workflowId)
-	// } else if err != nil {
-	// 	return nil, fmt.Errorf("failed to retrieve workflow: %w", err)
-	// }
-
-	// return jsonDef, nil
 }
 
 // GetWorkflows retrieves all workflow definitions from the database
 func (s *service) GetWorkflows() ([][]byte, error) {
-
-	ws, _ := s.client.Workflow.Query().All(context.Background())
+	ws, _ := s.client.Workflow.Query().Where(workflow.Enabled(true)).All(context.Background())
 	var workflows [][]byte
 	for _, w := range ws {
 		workflows = append(workflows, []byte(w.JSONDefinition))
 	}
 
 	return workflows, nil
-	// stmt := `SELECT json_definition FROM workflows`
-	// var workflows [][]byte
-	// rows, err := s.db.Query(stmt)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to retrieve workflows: %w", err)
-	// }
-	// defer rows.Close()
-	// for rows.Next() {
-	// 	var data []byte
-	// 	err := rows.Scan(&data)
-	// 	if err != nil {
-	// 		return nil, fmt.Errorf("failed to scan workflow ID: %w", err)
-	// 	}
-	// 	workflows = append(workflows, data)
-	// }
-	// return workflows, nil
 }

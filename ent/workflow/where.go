@@ -64,6 +64,11 @@ func IDContainsFold(id string) predicate.Workflow {
 	return predicate.Workflow(sql.FieldContainsFold(FieldID, id))
 }
 
+// Enabled applies equality check predicate on the "enabled" field. It's identical to EnabledEQ.
+func Enabled(v bool) predicate.Workflow {
+	return predicate.Workflow(sql.FieldEQ(FieldEnabled, v))
+}
+
 // JSONDefinition applies equality check predicate on the "json_definition" field. It's identical to JSONDefinitionEQ.
 func JSONDefinition(v string) predicate.Workflow {
 	return predicate.Workflow(sql.FieldEQ(FieldJSONDefinition, v))
@@ -77,6 +82,16 @@ func CreatedAt(v time.Time) predicate.Workflow {
 // UpdatedAt applies equality check predicate on the "updated_at" field. It's identical to UpdatedAtEQ.
 func UpdatedAt(v time.Time) predicate.Workflow {
 	return predicate.Workflow(sql.FieldEQ(FieldUpdatedAt, v))
+}
+
+// EnabledEQ applies the EQ predicate on the "enabled" field.
+func EnabledEQ(v bool) predicate.Workflow {
+	return predicate.Workflow(sql.FieldEQ(FieldEnabled, v))
+}
+
+// EnabledNEQ applies the NEQ predicate on the "enabled" field.
+func EnabledNEQ(v bool) predicate.Workflow {
+	return predicate.Workflow(sql.FieldNEQ(FieldEnabled, v))
 }
 
 // JSONDefinitionEQ applies the EQ predicate on the "json_definition" field.

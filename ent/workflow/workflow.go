@@ -13,6 +13,8 @@ const (
 	Label = "workflow"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
+	// FieldEnabled holds the string denoting the enabled field in the database.
+	FieldEnabled = "enabled"
 	// FieldJSONDefinition holds the string denoting the json_definition field in the database.
 	FieldJSONDefinition = "json_definition"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -26,6 +28,7 @@ const (
 // Columns holds all SQL columns for workflow fields.
 var Columns = []string{
 	FieldID,
+	FieldEnabled,
 	FieldJSONDefinition,
 	FieldCreatedAt,
 	FieldUpdatedAt,
@@ -42,6 +45,8 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// DefaultEnabled holds the default value on creation for the "enabled" field.
+	DefaultEnabled bool
 	// JSONDefinitionValidator is a validator for the "json_definition" field. It is called by the builders before save.
 	JSONDefinitionValidator func(string) error
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
@@ -58,6 +63,11 @@ type OrderOption func(*sql.Selector)
 // ByID orders the results by the id field.
 func ByID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldID, opts...).ToFunc()
+}
+
+// ByEnabled orders the results by the enabled field.
+func ByEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldEnabled, opts...).ToFunc()
 }
 
 // ByJSONDefinition orders the results by the json_definition field.

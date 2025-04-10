@@ -17,6 +17,8 @@ type Workflow struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID string `json:"id,omitempty"`
+	// Enabled holds the value of the "enabled" field.
+	Enabled bool `json:"enabled,omitempty"`
 	// JSONDefinition holds the value of the "json_definition" field.
 	JSONDefinition string `json:"json_definition,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -31,6 +33,8 @@ func (*Workflow) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case workflow.FieldEnabled:
+			values[i] = new(sql.NullBool)
 		case workflow.FieldID, workflow.FieldJSONDefinition:
 			values[i] = new(sql.NullString)
 		case workflow.FieldCreatedAt, workflow.FieldUpdatedAt:
@@ -55,6 +59,12 @@ func (w *Workflow) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
 				w.ID = value.String
+			}
+		case workflow.FieldEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field enabled", values[i])
+			} else if value.Valid {
+				w.Enabled = value.Bool
 			}
 		case workflow.FieldJSONDefinition:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -110,6 +120,9 @@ func (w *Workflow) String() string {
 	var builder strings.Builder
 	builder.WriteString("Workflow(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", w.ID))
+	builder.WriteString("enabled=")
+	builder.WriteString(fmt.Sprintf("%v", w.Enabled))
+	builder.WriteString(", ")
 	builder.WriteString("json_definition=")
 	builder.WriteString(w.JSONDefinition)
 	builder.WriteString(", ")

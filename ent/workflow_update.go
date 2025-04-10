@@ -28,6 +28,20 @@ func (wu *WorkflowUpdate) Where(ps ...predicate.Workflow) *WorkflowUpdate {
 	return wu
 }
 
+// SetEnabled sets the "enabled" field.
+func (wu *WorkflowUpdate) SetEnabled(b bool) *WorkflowUpdate {
+	wu.mutation.SetEnabled(b)
+	return wu
+}
+
+// SetNillableEnabled sets the "enabled" field if the given value is not nil.
+func (wu *WorkflowUpdate) SetNillableEnabled(b *bool) *WorkflowUpdate {
+	if b != nil {
+		wu.SetEnabled(*b)
+	}
+	return wu
+}
+
 // SetJSONDefinition sets the "json_definition" field.
 func (wu *WorkflowUpdate) SetJSONDefinition(s string) *WorkflowUpdate {
 	wu.mutation.SetJSONDefinition(s)
@@ -110,6 +124,9 @@ func (wu *WorkflowUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			}
 		}
 	}
+	if value, ok := wu.mutation.Enabled(); ok {
+		_spec.SetField(workflow.FieldEnabled, field.TypeBool, value)
+	}
 	if value, ok := wu.mutation.JSONDefinition(); ok {
 		_spec.SetField(workflow.FieldJSONDefinition, field.TypeString, value)
 	}
@@ -134,6 +151,20 @@ type WorkflowUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *WorkflowMutation
+}
+
+// SetEnabled sets the "enabled" field.
+func (wuo *WorkflowUpdateOne) SetEnabled(b bool) *WorkflowUpdateOne {
+	wuo.mutation.SetEnabled(b)
+	return wuo
+}
+
+// SetNillableEnabled sets the "enabled" field if the given value is not nil.
+func (wuo *WorkflowUpdateOne) SetNillableEnabled(b *bool) *WorkflowUpdateOne {
+	if b != nil {
+		wuo.SetEnabled(*b)
+	}
+	return wuo
 }
 
 // SetJSONDefinition sets the "json_definition" field.
@@ -247,6 +278,9 @@ func (wuo *WorkflowUpdateOne) sqlSave(ctx context.Context) (_node *Workflow, err
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := wuo.mutation.Enabled(); ok {
+		_spec.SetField(workflow.FieldEnabled, field.TypeBool, value)
 	}
 	if value, ok := wuo.mutation.JSONDefinition(); ok {
 		_spec.SetField(workflow.FieldJSONDefinition, field.TypeString, value)

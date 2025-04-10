@@ -57,7 +57,6 @@ func (t *filechange) Execute() {
 		log.Println("[filechange] Invalid path")
 		return
 	}
-	log.Println("Adding watcher to:", args["path"])
 	err := t.watcher.Add(args["path"])
 	if err != nil {
 		log.Println("Error adding watcher:", err)
@@ -80,6 +79,7 @@ func (t *filechange) Execute() {
 			eventType = fsnotify.Chmod
 		}
 	}
+	log.Printf("Adding watcher to: '%s' on events: %s", args["path"], eventType)
 	// Start watching in a goroutine
 	go func() {
 		for {

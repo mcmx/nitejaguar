@@ -20,6 +20,20 @@ type WorkflowCreate struct {
 	hooks    []Hook
 }
 
+// SetEnabled sets the "enabled" field.
+func (wc *WorkflowCreate) SetEnabled(b bool) *WorkflowCreate {
+	wc.mutation.SetEnabled(b)
+	return wc
+}
+
+// SetNillableEnabled sets the "enabled" field if the given value is not nil.
+func (wc *WorkflowCreate) SetNillableEnabled(b *bool) *WorkflowCreate {
+	if b != nil {
+		wc.SetEnabled(*b)
+	}
+	return wc
+}
+
 // SetJSONDefinition sets the "json_definition" field.
 func (wc *WorkflowCreate) SetJSONDefinition(s string) *WorkflowCreate {
 	wc.mutation.SetJSONDefinition(s)
@@ -95,6 +109,10 @@ func (wc *WorkflowCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (wc *WorkflowCreate) defaults() {
+	if _, ok := wc.mutation.Enabled(); !ok {
+		v := workflow.DefaultEnabled
+		wc.mutation.SetEnabled(v)
+	}
 	if _, ok := wc.mutation.CreatedAt(); !ok {
 		v := workflow.DefaultCreatedAt()
 		wc.mutation.SetCreatedAt(v)
@@ -107,6 +125,9 @@ func (wc *WorkflowCreate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (wc *WorkflowCreate) check() error {
+	if _, ok := wc.mutation.Enabled(); !ok {
+		return &ValidationError{Name: "enabled", err: errors.New(`ent: missing required field "Workflow.enabled"`)}
+	}
 	if _, ok := wc.mutation.JSONDefinition(); !ok {
 		return &ValidationError{Name: "json_definition", err: errors.New(`ent: missing required field "Workflow.json_definition"`)}
 	}
@@ -160,6 +181,10 @@ func (wc *WorkflowCreate) createSpec() (*Workflow, *sqlgraph.CreateSpec) {
 	if id, ok := wc.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
+	}
+	if value, ok := wc.mutation.Enabled(); ok {
+		_spec.SetField(workflow.FieldEnabled, field.TypeBool, value)
+		_node.Enabled = value
 	}
 	if value, ok := wc.mutation.JSONDefinition(); ok {
 		_spec.SetField(workflow.FieldJSONDefinition, field.TypeString, value)

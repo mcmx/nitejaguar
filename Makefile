@@ -22,7 +22,6 @@ tailwind:
 	@chmod +x tailwindcss
 
 ent:
-	@echo "Generating ent..."
 	@go generate ./ent
 
 build: ent tailwind templ-install

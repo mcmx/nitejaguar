@@ -33,6 +33,7 @@ type WorkflowMutation struct {
 	op              Op
 	typ             string
 	id              *string
+	enabled         *bool
 	json_definition *string
 	created_at      *time.Time
 	updated_at      *time.Time
@@ -144,6 +145,42 @@ func (m *WorkflowMutation) IDs(ctx context.Context) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetEnabled sets the "enabled" field.
+func (m *WorkflowMutation) SetEnabled(b bool) {
+	m.enabled = &b
+}
+
+// Enabled returns the value of the "enabled" field in the mutation.
+func (m *WorkflowMutation) Enabled() (r bool, exists bool) {
+	v := m.enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabled returns the old "enabled" field's value of the Workflow entity.
+// If the Workflow object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkflowMutation) OldEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabled: %w", err)
+	}
+	return oldValue.Enabled, nil
+}
+
+// ResetEnabled resets all changes to the "enabled" field.
+func (m *WorkflowMutation) ResetEnabled() {
+	m.enabled = nil
 }
 
 // SetJSONDefinition sets the "json_definition" field.
@@ -288,7 +325,10 @@ func (m *WorkflowMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *WorkflowMutation) Fields() []string {
-	fields := make([]string, 0, 3)
+	fields := make([]string, 0, 4)
+	if m.enabled != nil {
+		fields = append(fields, workflow.FieldEnabled)
+	}
 	if m.json_definition != nil {
 		fields = append(fields, workflow.FieldJSONDefinition)
 	}
@@ -306,6 +346,8 @@ func (m *WorkflowMutation) Fields() []string {
 // schema.
 func (m *WorkflowMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case workflow.FieldEnabled:
+		return m.Enabled()
 	case workflow.FieldJSONDefinition:
 		return m.JSONDefinition()
 	case workflow.FieldCreatedAt:
@@ -321,6 +363,8 @@ func (m *WorkflowMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *WorkflowMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case workflow.FieldEnabled:
+		return m.OldEnabled(ctx)
 	case workflow.FieldJSONDefinition:
 		return m.OldJSONDefinition(ctx)
 	case workflow.FieldCreatedAt:
@@ -336,6 +380,13 @@ func (m *WorkflowMutation) OldField(ctx context.Context, name string) (ent.Value
 // type.
 func (m *WorkflowMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case workflow.FieldEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabled(v)
+		return nil
 	case workflow.FieldJSONDefinition:
 		v, ok := value.(string)
 		if !ok {
@@ -406,6 +457,9 @@ func (m *WorkflowMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *WorkflowMutation) ResetField(name string) error {
 	switch name {
+	case workflow.FieldEnabled:
+		m.ResetEnabled()
+		return nil
 	case workflow.FieldJSONDefinition:
 		m.ResetJSONDefinition()
 		return nil

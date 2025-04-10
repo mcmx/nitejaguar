@@ -15,16 +15,20 @@ import (
 func init() {
 	workflowFields := schema.Workflow{}.Fields()
 	_ = workflowFields
+	// workflowDescEnabled is the schema descriptor for enabled field.
+	workflowDescEnabled := workflowFields[1].Descriptor()
+	// workflow.DefaultEnabled holds the default value on creation for the enabled field.
+	workflow.DefaultEnabled = workflowDescEnabled.Default.(bool)
 	// workflowDescJSONDefinition is the schema descriptor for json_definition field.
-	workflowDescJSONDefinition := workflowFields[1].Descriptor()
+	workflowDescJSONDefinition := workflowFields[2].Descriptor()
 	// workflow.JSONDefinitionValidator is a validator for the "json_definition" field. It is called by the builders before save.
 	workflow.JSONDefinitionValidator = workflowDescJSONDefinition.Validators[0].(func(string) error)
 	// workflowDescCreatedAt is the schema descriptor for created_at field.
-	workflowDescCreatedAt := workflowFields[2].Descriptor()
+	workflowDescCreatedAt := workflowFields[3].Descriptor()
 	// workflow.DefaultCreatedAt holds the default value on creation for the created_at field.
 	workflow.DefaultCreatedAt = workflowDescCreatedAt.Default.(func() time.Time)
 	// workflowDescUpdatedAt is the schema descriptor for updated_at field.
-	workflowDescUpdatedAt := workflowFields[3].Descriptor()
+	workflowDescUpdatedAt := workflowFields[4].Descriptor()
 	// workflow.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	workflow.DefaultUpdatedAt = workflowDescUpdatedAt.Default.(func() time.Time)
 	// workflowDescID is the schema descriptor for id field.

@@ -262,12 +262,12 @@ func (wq *WorkflowQuery) Clone() *WorkflowQuery {
 // Example:
 //
 //	var v []struct {
-//		JSONDefinition string `json:"json_definition,omitempty"`
+//		Enabled bool `json:"enabled,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.Workflow.Query().
-//		GroupBy(workflow.FieldJSONDefinition).
+//		GroupBy(workflow.FieldEnabled).
 //		Aggregate(ent.Count()).
 //		Scan(ctx, &v)
 func (wq *WorkflowQuery) GroupBy(field string, fields ...string) *WorkflowGroupBy {
@@ -285,11 +285,11 @@ func (wq *WorkflowQuery) GroupBy(field string, fields ...string) *WorkflowGroupB
 // Example:
 //
 //	var v []struct {
-//		JSONDefinition string `json:"json_definition,omitempty"`
+//		Enabled bool `json:"enabled,omitempty"`
 //	}
 //
 //	client.Workflow.Query().
-//		Select(workflow.FieldJSONDefinition).
+//		Select(workflow.FieldEnabled).
 //		Scan(ctx, &v)
 func (wq *WorkflowQuery) Select(fields ...string) *WorkflowSelect {
 	wq.ctx.Fields = append(wq.ctx.Fields, fields...)
