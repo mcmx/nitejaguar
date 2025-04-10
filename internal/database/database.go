@@ -54,18 +54,19 @@ type HealthResponse struct {
 }
 
 var (
-	dburl      = os.Getenv("DB_URL")
+	dburl      string
 	dbInstance *service
 )
 
 func New() Service {
 	// Reuse Connection
+	dburl = os.Getenv("DB_URL")
 	if dbInstance != nil {
 		return dbInstance
 	}
 	if dburl == "" {
 		fmt.Println("DB_URL is empty, you could set it to: file:ent.db?mode=memory&cache=shared&_fk=1, to start in memory only")
-		fmt.Println("or file:ent.db?cache=shared&_fk=1, to create a file called ent")
+		fmt.Println("or file:ent.db?cache=shared&_fk=1, to create a file called ent.db")
 	}
 
 	drv, err := sql.Open("sqlite3", dburl)
