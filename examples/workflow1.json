@@ -9,7 +9,8 @@
       "action_type": "trigger",
       "action_name": "filechangeTrigger",
       "arguments": {
-        "path": "/tmp"
+        "path": "/tmp",
+        "event_type": "create"
       },
       "conditions": {
         "entries": {}

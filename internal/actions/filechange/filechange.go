@@ -57,6 +57,7 @@ func (t *filechange) Execute() {
 		log.Println("[filechange] Invalid path")
 		return
 	}
+	// adds the path to the watcher
 	err := t.watcher.Add(args["path"])
 	if err != nil {
 		log.Println("Error adding watcher:", err)
