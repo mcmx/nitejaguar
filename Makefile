@@ -21,7 +21,11 @@ tailwind:
 	
 	@chmod +x tailwindcss
 
-build: tailwind templ-install
+ent:
+	@echo "Generating ent..."
+	@go generate ./ent
+
+build: ent tailwind templ-install
 	@echo "Building..."
 	@templ generate
 	@./tailwindcss -i cmd/web/assets/css/input.css -o cmd/web/assets/css/output.css
@@ -58,4 +62,4 @@ watch:
             fi; \
         fi
 
-.PHONY: all build run test clean watch tailwind templ-install
+.PHONY: all build run test clean watch tailwind templ-install ent

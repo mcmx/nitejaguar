@@ -1,9 +1,10 @@
 package schema
 
 import (
+	"time"
+
 	"entgo.io/ent"
 	"entgo.io/ent/schema/field"
-	"time"
 )
 
 // Workflow holds the schema definition for the Workflow entity.
@@ -18,6 +19,8 @@ func (Workflow) Fields() []ent.Field {
 			Immutable().
 			Unique().
 			NotEmpty(),
+		field.Bool("enabled").
+			Default(true),
 		field.Text("json_definition").
 			NotEmpty(),
 		field.Time("created_at").
