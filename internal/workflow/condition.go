@@ -39,7 +39,7 @@ func newBooleanCondition(boolExpr any) *condition {
 // result corresponds to the result of the action
 // either operand can be a variable name that will be resolved from the input or result
 // or neither in which is can be considered a constant value and should not be resolved
-func (c *condition) evaluate(input common.ActionArgs, result common.ResultData) (bool, error) {
+func (c *condition) evaluate(actionArgs common.ActionArgs, inputs []any, result common.ResultData) (bool, error) {
 	// we will need to test if the operands must be resolved, I'll follow the format
 	// jsonpath format to resolve the values.
 
@@ -49,7 +49,7 @@ func (c *condition) evaluate(input common.ActionArgs, result common.ResultData) 
 
 	if reflect.TypeOf(leftOperand).Kind() == reflect.String {
 		if leftOperand != nil && strings.HasPrefix(leftOperand.(string), "$.input.") {
-			leftOperand = resolveInput(input, leftOperand.(string))
+			leftOperand = resolveInput(actionArgs, leftOperand.(string))
 		}
 		if leftOperand != nil && strings.HasPrefix(leftOperand.(string), "$.result.") {
 			leftOperand = resolveResult(result, leftOperand.(string))
@@ -69,7 +69,7 @@ func (c *condition) evaluate(input common.ActionArgs, result common.ResultData) 
 	}
 	if reflect.TypeOf(rightOperand).Kind() == reflect.String {
 		if rightOperand != nil && strings.HasPrefix(rightOperand.(string), "$.input.") {
-			rightOperand = resolveInput(input, rightOperand.(string))
+			rightOperand = resolveInput(actionArgs, rightOperand.(string))
 		}
 
 		if rightOperand != nil && strings.HasPrefix(rightOperand.(string), "$.result.") {
@@ -205,7 +205,7 @@ func (cd *conditionDictionary) evaluateCondition(id string) (bool, error) {
 	}
 	// TODO: check this, does it make any sense now?
 
-	return entry.Condition.evaluate(common.ActionArgs{}, common.ResultData{})
+	return entry.Condition.evaluate(common.ActionArgs{}, []any{}, common.ResultData{})
 }
 
 // GetStringsIfTrue returns the string list if the condition evaluates to true

@@ -1,5 +1,8 @@
 package fileaction
 
+// Package fileaction implements a workflow action that creates, deletes, or renames files.
+// When a matching event occurs, it emits a result to the workflow engine.
+
 import (
 	"fmt"
 	"os"
@@ -18,7 +21,7 @@ type event struct {
 	Result any    `json:"result"` // Generic payload for event-specific data
 }
 
-func (f *fileaction) Execute() {
+func (f *fileaction) Execute(executionId string, inputs []any) {
 	fmt.Println("Executing File Action with id:", f.data.Id)
 	if reflect.TypeOf(f.data.Args).Kind() != reflect.Map {
 		fmt.Println("[fileaction] Invalid arguments type")
@@ -28,29 +31,29 @@ func (f *fileaction) Execute() {
 	if args["action"] == "create" {
 		if _, err := os.Create(args["file"]); err != nil {
 			fmt.Println("Error creating file with id:", f.data.Id, err)
-			result := f.sendResult("error", err.Error())
+			result := f.sendResult(executionId, "error", err.Error())
 			f.events <- result
 			return
 		}
 		fmt.Println("Creating file with id:", f.data.Id)
-	} else if args["action"] == "delete" {
+	} else if args["action"] == "remove" {
 		if err := os.Remove(args["file"]); err != nil {
-			fmt.Println("Error deleting file with id:", f.data.Id, err)
-			result := f.sendResult("error", err.Error())
+			fmt.Println("Error removing file with id:", f.data.Id, err)
+			result := f.sendResult(executionId, "error", err.Error())
 			f.events <- result
 			return
 		}
-		result := f.sendResult("success", "File deleted successfully")
+		result := f.sendResult(executionId, "success", "File removed successfully")
 		f.events <- result
-		fmt.Println("Deleting file with id:", f.data.Id)
+		fmt.Println("Removing file with id:", f.data.Id)
 	} else if args["action"] == "rename" {
 		if err := os.Rename(args["file"], args["new_file"]); err != nil {
 			fmt.Println("Error renaming file with id:", f.data.Id, err)
-			result := f.sendResult("error", err.Error())
+			result := f.sendResult(executionId, "error", err.Error())
 			f.events <- result
 			return
 		}
-		result := f.sendResult("success", "File renamed successfully")
+		result := f.sendResult(executionId, "success", "File renamed successfully")
 		f.events <- result
 		fmt.Println("Renaming file with id:", f.data.Id)
 	} else {
@@ -75,11 +78,12 @@ func New(events chan common.ResultData, data common.ActionArgs) (common.Action, 
 	return s, nil
 }
 
-func (t *fileaction) sendResult(eventType string, result string) common.ResultData {
+func (t *fileaction) sendResult(executionId string, eventType string, result string) common.ResultData {
 	return common.ResultData{
-		ActionID:   t.data.Id,
-		ActionType: t.data.ActionType,
-		ActionName: t.data.Name,
-		Payload:    event{Type: eventType, Result: result},
+		ExecutionID: executionId,
+		ActionID:    t.data.Id,
+		ActionType:  t.data.ActionType,
+		ActionName:  t.data.Name,
+		Payload:     event{Type: eventType, Result: result},
 	}
 }

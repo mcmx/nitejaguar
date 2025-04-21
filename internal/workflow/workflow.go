@@ -44,6 +44,7 @@ type workflowManager struct {
 	TriggerManager   actions.TriggerManager
 	ActionManager    actions.ActionManager
 	resultChan       chan common.ResultData
+	triggerChan      chan common.ResultData
 	db               database.Service
 	enableActions    bool
 }
@@ -64,6 +65,7 @@ func NewWorkflowManager(enableActions bool, db database.Service) WorkflowManager
 		TriggerManager:   *actions.NewTriggerManager(),
 		ActionManager:    *actions.NewActionManager(enableActions),
 		resultChan:       make(chan common.ResultData),
+		triggerChan:      make(chan common.ResultData),
 		db:               db,
 	}
 	return wmmInstance
@@ -72,21 +74,48 @@ func NewWorkflowManager(enableActions bool, db database.Service) WorkflowManager
 // Starts the WorkflowManager and other managers
 func (wm *workflowManager) Run() {
 	log.Println("WorkflowManager running...")
-	go wm.TriggerManager.Run(wm.resultChan)
-	var value common.ResultData
+	go wm.TriggerManager.Run(wm.triggerChan)
+	var result common.ResultData
 	for {
 		select {
-		case value = <-wm.resultChan:
-			value.WorkflowID = wm.Actions2Workflow[value.ActionID]
+		case result = <-wm.triggerChan:
+			result.WorkflowID = wm.Actions2Workflow[result.ActionID]
+			eId, _ := typeid.WithPrefix("execution")
+			result.ExecutionID = eId.String()
+			wm.saveResult(result)
+
+			n := wm.Workflows[result.WorkflowID].Definition.Nodes[result.ActionID]
+			fmt.Printf("Current node %v,\n", n)
+
+			nexts := n.GetNextNodes([]any{}, result)
+			fmt.Printf("Next node %v,\n", nexts)
+			for _, next := range nexts {
+				fmt.Printf("Executing next node %v,\n", next)
+				err := wm.ActionManager.ExecuteAction(next, result.ExecutionID, []any{})
+				if err != nil {
+					log.Printf("Error executing action: %s", err)
+				}
+			}
+
+		case result = <-wm.resultChan:
+			// here we work with actionmanager and the current
+			// executionID is passed along
+			result.WorkflowID = wm.Actions2Workflow[result.ActionID]
+			// I need to create a ExecutionID for this workflow run
+			// even if the workflow finishes after the first trigger execution
+			// So I'll need to pass this ExecutionID to subsequent actions or maybe keep them tied
 			// TODO here use the Condition and validate
 			// Not all results are a trigger or are they?
 
 			// Either way then pass the result to an action
-			wm.saveResult(value)
+			wm.saveResult(result)
 			// here I need to get the args for the action, the result for the action
 			// process the GetNextNodes for this node
-			// n := wm.Workflows[value.WorkflowID].Definition.Nodes[value.ActionID]
-			// n.GetNextNodes(value.Args, value)
+			n := wm.Workflows[result.WorkflowID].Definition.Nodes[result.ActionID]
+			fmt.Printf("Current node %v,\n", n)
+
+			nexts := n.GetNextNodes([]any{}, result)
+			fmt.Printf("Next node %v,\n", nexts)
 
 		case <-time.After(10 * time.Millisecond):
 			// do nothing
@@ -113,10 +142,22 @@ type Node struct {
 	Dependencies []string             `json:"dependencies"`
 }
 
-func (n *Node) GetNextNodes(args common.ActionArgs, result common.ResultData) []string {
+// args how this node was called
+// The result from this execution
+func (n *Node) GetNextNodes(inputs []any, result common.ResultData) []string {
 	next_nodes := []string{}
+	actionArgs := common.ActionArgs{
+		Id:         n.Id,
+		Name:       n.Name,
+		ActionType: n.ActionType,
+		ActionName: n.ActionName,
+		Args:       n.Arguments,
+	}
 	for _, c := range n.Conditions.Entries {
-		ok, _ := c.Condition.evaluate(args, result)
+		ok, err := c.Condition.evaluate(actionArgs, inputs, result)
+		if err != nil {
+			log.Printf("Error evaluating condition: %s", err)
+		}
 		if ok {
 			next_nodes = append(next_nodes, c.Nexts...)
 		}
@@ -146,8 +187,10 @@ func (wm *workflowManager) AddWorkflow(data Workflow) error {
 		Name:        data.Name,
 		Definition:  data,
 		TriggerList: make(map[string]common.Action),
+		ActionList:  make(map[string]common.Action),
 	}
 	for _, n := range data.Nodes {
+		fmt.Println("Adding node:", n.Name)
 		if n.ActionType == "trigger" {
 			cArgs := common.ActionArgs{
 				Id:         n.Id,
@@ -176,6 +219,7 @@ func (wm *workflowManager) AddWorkflow(data Workflow) error {
 			action, id, err := wm.ActionManager.AddAction(cArgs)
 			if err != nil {
 				log.Printf("Cannot create new action: %s", err)
+				continue
 			}
 			wm.Workflows[data.Id].ActionList[id] = action
 			wm.Actions2Workflow[id] = data.Id

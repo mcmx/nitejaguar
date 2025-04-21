@@ -43,7 +43,7 @@ func (ts *TriggerManager) AddTrigger(data common.ActionArgs) (common.Action, str
 		}
 		ts.triggers[data.Id] = trigger
 		// TODO: Add an error handler to the trigger execution
-		go trigger.Execute()
+		go trigger.Execute("", nil)
 		return trigger, data.Id, nil
 	}
 
@@ -70,6 +70,7 @@ func (ts *TriggerManager) Run(wmEvents chan common.ResultData) {
 				vId, _ := typeid.WithPrefix("result")
 				value.ResultID = vId.String()
 			}
+			// send the event result to workmanager
 			wmEvents <- value
 		case <-time.After(50 * time.Millisecond):
 			// do nothing

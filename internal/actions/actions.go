@@ -48,7 +48,6 @@ func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, strin
 	am.actions[data.Id] = action
 	// TODO: Add an error handler to the trigger execution
 	fmt.Println("Action added with id:", data.Id)
-	go action.Execute()
 	return action, data.Id, nil
 }
 
@@ -63,12 +62,13 @@ func (am *ActionManager) RemoveAction(id string) {
 }
 
 // ExecuteAction executes an action by ID
-func (am *ActionManager) ExecuteAction(id string) error {
+func (am *ActionManager) ExecuteAction(id string, executionId string, inputs []any) error {
 	action, exists := am.actions[id]
 	if !exists {
 		return fmt.Errorf("action with id %s does not exist", id)
 	}
-	action.Execute()
+	fmt.Println("Executing action:", action)
+	go action.Execute(executionId, inputs)
 	return nil
 }
 

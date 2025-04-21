@@ -1,5 +1,9 @@
 package filechange
 
+// Package filechange implements a workflow trigger that watches for file system
+// events (create, write, rename, remove, chmod) on a specified path using fsnotify.
+// When a matching event occurs, it emits a result to the workflow engine.
+
 import (
 	"fmt"
 	"log"
@@ -45,7 +49,7 @@ func New(events chan common.ResultData, data common.ActionArgs) (common.Action, 
 	return s, nil
 }
 
-func (t *filechange) Execute() {
+func (t *filechange) Execute(executionId string, inputs []any) {
 	log.Println("Executing File Change Trigger with id:", t.data.Id)
 	// Add the path to watch
 	if reflect.TypeOf(t.data.Args).Kind() != reflect.Map {
@@ -92,7 +96,7 @@ func (t *filechange) Execute() {
 				}
 				if event.Op.Has(eventType) {
 					log.Println(event)
-					t.events <- t.sendResult(strings.ToLower(event.Op.String()), event.Name)
+					t.events <- t.sendResult(executionId, strings.ToLower(event.Op.String()), event.Name)
 				}
 			case err, ok := <-t.watcher.Errors:
 				if !ok {
@@ -109,12 +113,13 @@ func (t *filechange) Execute() {
 
 }
 
-func (t *filechange) sendResult(eventType string, file string) common.ResultData {
+func (t *filechange) sendResult(executionId string, eventType string, file string) common.ResultData {
 	return common.ResultData{
-		ActionID:   t.data.Id,
-		ActionType: t.data.ActionType,
-		ActionName: t.data.Name,
-		Payload:    event{Type: eventType, File: file},
+		ExecutionID: executionId,
+		ActionID:    t.data.Id,
+		ActionType:  t.data.ActionType,
+		ActionName:  t.data.Name,
+		Payload:     event{Type: eventType, File: file},
 	}
 }
 
