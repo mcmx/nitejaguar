@@ -258,23 +258,34 @@ func (wm *workflowManager) ImportWorkflowJSON(jsonDef []byte) error {
 		log.Printf("Cannot unmarshal workflow: %s", err)
 		return err
 	}
-	dId, _ := typeid.WithPrefix("workflow")
-	data.Id = dId.String()
-
-	for i, n := range data.Nodes {
-		if n.ActionType == "trigger" {
-			nId, _ := typeid.WithPrefix("trigger")
-			n.Id = nId.String()
-		} else if n.ActionType == "action" {
-			nId, _ := typeid.WithPrefix("action")
-			n.Id = nId.String()
-		}
-		data.Nodes[n.Id] = n
-		delete(data.Nodes, i)
+	w, err := wm.db.GetWorkflow(data.Id)
+	if err != nil {
+		log.Printf("Cannot get workflow: %s", err)
+		return err
 	}
-	data.Name = "Imported Workflow: " + data.Name
-	jData, _ := json.MarshalIndent(data, "", "  ")
-	log.Println("Updated workflow: ", string(jData))
+	// if workflow doesn't exit let's create it with new ids
+	if w == nil {
+		dId, _ := typeid.WithPrefix("workflow")
+		data.Id = dId.String()
 
-	return wm.db.SaveWorkflow(data.Id, jData)
+		for i, n := range data.Nodes {
+			if n.ActionType == "trigger" {
+				nId, _ := typeid.WithPrefix("trigger")
+				n.Id = nId.String()
+			} else if n.ActionType == "action" {
+				nId, _ := typeid.WithPrefix("action")
+				n.Id = nId.String()
+			}
+			data.Nodes[n.Id] = n
+			delete(data.Nodes, i)
+		}
+		data.Name = "Imported Workflow: " + data.Name
+		jData, _ := json.MarshalIndent(data, "", "  ")
+		fmt.Printf("Imported new workflow %s\n%s\n", data.Id, string(jData))
+	}
+
+	jsonData, _ := json.Marshal(data)
+	log.Printf("Updated workflow %s", data.Id)
+
+	return wm.db.SaveWorkflow(data.Id, jsonData)
 }

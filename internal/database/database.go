@@ -152,6 +152,17 @@ func (s *service) Close() error {
 
 // SaveWorkflow saves a workflow definition to the database
 func (s *service) SaveWorkflow(workflowId string, jsonDef []byte) error {
+	w, _ := s.client.Workflow.Query().Where(workflow.ID(workflowId)).Only(context.Background())
+	if w != nil {
+		log.Printf("Workflow %s already exists, updating...", workflowId)
+		_, err := s.client.Workflow.UpdateOneID(workflowId).
+			SetJSONDefinition(string(jsonDef)).
+			Save(context.Background())
+		if err != nil {
+			return fmt.Errorf("failed to save workflow: %w", err)
+		}
+		return nil
+	}
 	_, err := s.client.Workflow.Create().
 		SetJSONDefinition(string(jsonDef)).
 		SetID(workflowId).
@@ -166,7 +177,11 @@ func (s *service) SaveWorkflow(workflowId string, jsonDef []byte) error {
 
 // GetWorkflow retrieves a workflow definition from the database
 func (s *service) GetWorkflow(workflowId string) ([]byte, error) {
-	w, _ := s.client.Workflow.Get(context.Background(), workflowId)
+	w, err := s.client.Workflow.Get(context.Background(), workflowId)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow: %w", err)
+	}
 
 	return []byte(w.JSONDefinition), nil
 }
