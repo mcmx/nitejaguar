@@ -16,9 +16,11 @@ type fileaction struct {
 	events chan common.ResultData
 }
 
-type event struct {
-	Type   string `json:"type"`   // Event type
-	Result any    `json:"result"` // Generic payload for event-specific data
+type payload struct {
+	Type    string `json:"type"`               // Event type
+	File    string `json:"file"`               // File name
+	NewFile string `json:"new_file,omitempty"` // New file name
+	Result  any    `json:"result"`             // Generic payload for event-specific data
 }
 
 func (f *fileaction) Execute(executionId string, inputs []any) {
@@ -31,35 +33,27 @@ func (f *fileaction) Execute(executionId string, inputs []any) {
 	if args["action"] == "create" {
 		if _, err := os.Create(args["file"]); err != nil {
 			fmt.Println("Error creating file with id:", f.data.Id, err)
-			result := f.sendResult(executionId, "error", err.Error())
-			f.events <- result
+			f.sendResult(executionId, payload{Type: "error", Result: err.Error()})
 			return
 		}
-		fmt.Println("Creating file with id:", f.data.Id)
+		f.sendResult(executionId, payload{Type: "success", File: args["file"], Result: "File created successfully"})
 	} else if args["action"] == "remove" {
 		if err := os.Remove(args["file"]); err != nil {
 			fmt.Println("Error removing file with id:", f.data.Id, err)
-			result := f.sendResult(executionId, "error", err.Error())
-			f.events <- result
+			f.sendResult(executionId, payload{Type: "error", File: args["file"], Result: err.Error()})
 			return
 		}
-		result := f.sendResult(executionId, "success", "File removed successfully")
-		f.events <- result
-		fmt.Println("Removing file with id:", f.data.Id)
+		f.sendResult(executionId, payload{Type: "success", File: args["file"], Result: "File removed successfully"})
 	} else if args["action"] == "rename" {
 		if err := os.Rename(args["file"], args["new_file"]); err != nil {
 			fmt.Println("Error renaming file with id:", f.data.Id, err)
-			result := f.sendResult(executionId, "error", err.Error())
-			f.events <- result
+			f.sendResult(executionId, payload{Type: "error", Result: err.Error()})
 			return
 		}
-		result := f.sendResult(executionId, "success", "File renamed successfully")
-		f.events <- result
-		fmt.Println("Renaming file with id:", f.data.Id)
+		f.sendResult(executionId, payload{Type: "success", File: args["file"], NewFile: args["new_file"], Result: "File renamed successfully"})
 	} else {
 		fmt.Println("Unknown action with id:", f.data.Id)
 	}
-
 }
 
 func (f *fileaction) Stop() error {
@@ -78,12 +72,12 @@ func New(events chan common.ResultData, data common.ActionArgs) (common.Action, 
 	return s, nil
 }
 
-func (t *fileaction) sendResult(executionId string, eventType string, result string) common.ResultData {
-	return common.ResultData{
+func (t *fileaction) sendResult(executionId string, payload payload) {
+	t.events <- common.ResultData{
 		ExecutionID: executionId,
 		ActionID:    t.data.Id,
 		ActionType:  t.data.ActionType,
 		ActionName:  t.data.Name,
-		Payload:     event{Type: eventType, Result: result},
+		Payload:     payload,
 	}
 }

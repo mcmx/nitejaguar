@@ -3,6 +3,8 @@ package actions
 import (
 	"errors"
 	"fmt"
+	"log"
+	"time"
 
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
@@ -20,6 +22,7 @@ type ActionManager struct {
 func NewActionManager(enableActions bool) *ActionManager {
 	return &ActionManager{
 		enableActions: enableActions,
+		events:        make(chan common.ResultData),
 		actions:       make(map[string]common.Action),
 	}
 }
@@ -49,6 +52,27 @@ func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, strin
 	// TODO: Add an error handler to the trigger execution
 	fmt.Println("Action added with id:", data.Id)
 	return action, data.Id, nil
+}
+
+func (am *ActionManager) Run(wmEvents chan common.ResultData) {
+	log.Println("Starting Action Service")
+	var value common.ResultData
+	for {
+		select {
+		case value = <-am.events:
+			if value.CreatedAt.IsZero() {
+				value.CreatedAt = time.Now()
+			}
+			if value.ResultID == "" {
+				vId, _ := typeid.WithPrefix("result")
+				value.ResultID = vId.String()
+			}
+			// send the event result to workmanager
+			wmEvents <- value
+		case <-time.After(50 * time.Millisecond):
+			// do nothing
+		}
+	}
 }
 
 // RemoveAction removes an action from the manager by ID

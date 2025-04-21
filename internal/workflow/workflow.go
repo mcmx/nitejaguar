@@ -43,8 +43,7 @@ type workflowManager struct {
 	Actions2Workflow map[string]string
 	TriggerManager   actions.TriggerManager
 	ActionManager    actions.ActionManager
-	resultChan       chan common.ResultData
-	triggerChan      chan common.ResultData
+	eventsChan       chan common.ResultData
 	db               database.Service
 	enableActions    bool
 }
@@ -64,8 +63,7 @@ func NewWorkflowManager(enableActions bool, db database.Service) WorkflowManager
 		Actions2Workflow: make(map[string]string),
 		TriggerManager:   *actions.NewTriggerManager(),
 		ActionManager:    *actions.NewActionManager(enableActions),
-		resultChan:       make(chan common.ResultData),
-		triggerChan:      make(chan common.ResultData),
+		eventsChan:       make(chan common.ResultData),
 		db:               db,
 	}
 	return wmmInstance
@@ -74,49 +72,34 @@ func NewWorkflowManager(enableActions bool, db database.Service) WorkflowManager
 // Starts the WorkflowManager and other managers
 func (wm *workflowManager) Run() {
 	log.Println("WorkflowManager running...")
-	go wm.TriggerManager.Run(wm.triggerChan)
+	go wm.TriggerManager.Run(wm.eventsChan)
+	go wm.ActionManager.Run(wm.eventsChan)
 	var result common.ResultData
 	for {
 		select {
-		case result = <-wm.triggerChan:
+		case result = <-wm.eventsChan:
 			result.WorkflowID = wm.Actions2Workflow[result.ActionID]
-			eId, _ := typeid.WithPrefix("execution")
-			result.ExecutionID = eId.String()
-			wm.saveResult(result)
 
 			n := wm.Workflows[result.WorkflowID].Definition.Nodes[result.ActionID]
-			fmt.Printf("Current node %v,\n", n)
+			if n.ActionType == "trigger" && result.ExecutionID == "" {
+				eId, _ := typeid.WithPrefix("execution")
+				result.ExecutionID = eId.String()
+			}
+			wm.saveResult(result)
 
 			nexts := n.GetNextNodes([]any{}, result)
-			fmt.Printf("Next node %v,\n", nexts)
+			fmt.Printf("Current %v and next nodes %v,\n", n, nexts)
 			for _, next := range nexts {
 				fmt.Printf("Executing next node %v,\n", next)
+				// TODO add the inputs to the action
+				// or wait for more inputs to be available (check the dependencies)
 				err := wm.ActionManager.ExecuteAction(next, result.ExecutionID, []any{})
 				if err != nil {
 					log.Printf("Error executing action: %s", err)
 				}
 			}
-
-		case result = <-wm.resultChan:
-			// here we work with actionmanager and the current
-			// executionID is passed along
-			result.WorkflowID = wm.Actions2Workflow[result.ActionID]
-			// I need to create a ExecutionID for this workflow run
-			// even if the workflow finishes after the first trigger execution
-			// So I'll need to pass this ExecutionID to subsequent actions or maybe keep them tied
-			// TODO here use the Condition and validate
-			// Not all results are a trigger or are they?
-
-			// Either way then pass the result to an action
-			wm.saveResult(result)
-			// here I need to get the args for the action, the result for the action
-			// process the GetNextNodes for this node
-			n := wm.Workflows[result.WorkflowID].Definition.Nodes[result.ActionID]
-			fmt.Printf("Current node %v,\n", n)
-
-			nexts := n.GetNextNodes([]any{}, result)
-			fmt.Printf("Next node %v,\n", nexts)
-
+			// TODO check if all nodes have been executed
+			// If so, save the workflow execution
 		case <-time.After(10 * time.Millisecond):
 			// do nothing
 		}
@@ -127,7 +110,7 @@ func (wm *workflowManager) saveResult(result common.ResultData) {
 	jsonResult, _ := json.MarshalIndent(result, "", "  ")
 	jsonFileName := "./results/" + result.ResultID + ".json"
 	_ = os.WriteFile(jsonFileName, jsonResult, 0644)
-	log.Println("Trigger Result JSON file saved:", jsonFileName)
+	log.Println("Node Result JSON file saved:", jsonFileName)
 }
 
 // type Node
