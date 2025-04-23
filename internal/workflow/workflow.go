@@ -260,8 +260,8 @@ func (wm *workflowManager) ImportWorkflowJSON(jsonDef string) error {
 		log.Printf("Cannot get workflow: %s", err)
 		return err
 	}
-	// if workflow doesn't exit let's create it with new ids
-	if w == "" {
+	// if workflow doesn't exist let's create it with new ids
+	if w == nil {
 		dId, _ := typeid.WithPrefix("workflow")
 		data.Id = dId.String()
 

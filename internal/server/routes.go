@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mcmx/nitejaguar/cmd/web"
+	"github.com/mcmx/nitejaguar/ent"
 	"github.com/mcmx/nitejaguar/internal/database"
 
 	"github.com/a-h/templ"
@@ -27,7 +28,7 @@ type HealthResponse struct {
 
 type WorkflowsResponse struct {
 	Body struct {
-		Workflows []string `json:"workflows"`
+		Workflows []*ent.Workflow `json:"workflows"`
 	}
 }
 
@@ -80,13 +81,13 @@ func (s *Server) TriggerWebHandler(c echo.Context) error {
 }
 
 func (s *Server) GetWorkflows(c context.Context, input *struct{}) (*WorkflowsResponse, error) {
-	workflows, err := s.db.GetWorkflows()
+	workflows, err := s.db.GetWorkflows(true)
 	if err != nil {
 		return nil, err
 	}
 	return &WorkflowsResponse{
 		Body: struct {
-			Workflows []string `json:"workflows"`
+			Workflows []*ent.Workflow `json:"workflows"`
 		}{
 			Workflows: workflows,
 		},

@@ -82,13 +82,13 @@ func RunServer(args ServerArgs) {
 	}
 	log.Println("Loading workflows...")
 
-	workflows, e := myDb.GetWorkflows()
+	workflows, e := myDb.GetWorkflows(true)
 	if e != nil {
 		log.Println("Error getting workflows: ", e)
 	}
 	for _, wf := range workflows {
 		var workflowDef workflow.Workflow
-		e = json.Unmarshal([]byte(wf), &workflowDef)
+		e = json.Unmarshal([]byte(wf.JSONDefinition), &workflowDef)
 		if e != nil {
 			log.Println("Error unmarshaling workflow: ", e)
 		}

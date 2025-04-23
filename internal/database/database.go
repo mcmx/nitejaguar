@@ -30,10 +30,11 @@ type Service interface {
 	SaveWorkflow(workflowId string, jsonDef string) error
 
 	// GetWorkflow retrieves a workflow definition from the database
-	GetWorkflow(workflowId string) (string, error)
+	GetWorkflow(workflowId string) (*ent.Workflow, error)
 
 	// GetWorkflows retrieves all workflow definitions from the database
-	GetWorkflows() ([]string, error)
+	// TODO make something to get all regardless of enabled or not
+	GetWorkflows(isEnabled bool) ([]*ent.Workflow, error)
 }
 
 type service struct {
@@ -176,23 +177,19 @@ func (s *service) SaveWorkflow(workflowId string, jsonDef string) error {
 }
 
 // GetWorkflow retrieves a workflow definition from the database
-func (s *service) GetWorkflow(workflowId string) (string, error) {
+func (s *service) GetWorkflow(workflowId string) (*ent.Workflow, error) {
 	w, err := s.client.Workflow.Get(context.Background(), workflowId)
 
 	if err != nil {
-		return "", fmt.Errorf("failed to get workflow: %w", err)
+		return nil, fmt.Errorf("failed to get workflow: %w", err)
 	}
 
-	return w.JSONDefinition, nil
+	return w, nil
 }
 
 // GetWorkflows retrieves all workflow definitions from the database
-func (s *service) GetWorkflows() ([]string, error) {
-	ws, _ := s.client.Workflow.Query().Where(workflow.Enabled(true)).All(context.Background())
-	var workflows []string
-	for _, w := range ws {
-		workflows = append(workflows, w.JSONDefinition)
-	}
+func (s *service) GetWorkflows(isEnabled bool) ([]*ent.Workflow, error) {
+	ws, _ := s.client.Workflow.Query().Where(workflow.Enabled(isEnabled)).All(context.Background())
 
-	return workflows, nil
+	return ws, nil
 }
