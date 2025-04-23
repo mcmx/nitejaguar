@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -54,7 +55,7 @@ func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, strin
 	return action, data.Id, nil
 }
 
-func (am *ActionManager) Run(wmEvents chan common.ResultData) {
+func (am *ActionManager) Run(wmEvents chan common.ResultData, ctx context.Context) {
 	log.Println("Starting Action Service")
 	var value common.ResultData
 	for {
@@ -71,6 +72,9 @@ func (am *ActionManager) Run(wmEvents chan common.ResultData) {
 			wmEvents <- value
 		case <-time.After(50 * time.Millisecond):
 			// do nothing
+		case <-ctx.Done():
+			log.Println("Action Service stopped.")
+			return
 		}
 	}
 }

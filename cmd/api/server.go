@@ -1,11 +1,16 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/server"
@@ -19,44 +24,50 @@ type ServerArgs struct {
 
 func RunServer(args ServerArgs) {
 	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// Set up signal handling
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		fmt.Println("Received interrupt, shutting down...")
+		cancel()
+	}()
+
 	myDb := database.New()
 	defer myDb.Close()
 	defer fmt.Println("Finish execution")
 	wm := workflow.NewWorkflowManager(args.EnableActions, myDb)
 	server := server.NewServer(myDb, wm)
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		log.Println("Starting server...")
+
+		go func() {
+			<-ctx.Done()
+			// gracefuly shutdown the http server
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+			_ = server.Shutdown(shutdownCtx)
+		}()
+
 		err := server.ListenAndServe()
-		if err != nil {
+		if err != nil && err != http.ErrServerClosed {
 			fmt.Printf("Cannot start server: %s\n", err)
 			os.Exit(1)
 		}
-		log.Println("Starting server...")
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		wm.Run()
+		wm.Run(ctx)
 	}()
-	// TODO we should not do this
-	// _, _, e := wm.ActionManager.AddAction(common.ActionArgs{
-	// 	ActionName: "fileAction",
-	// 	ActionType: "action",
-	// 	Name:       "Test file action",
-	// 	Args:       []string{"rename", "/tmp/test.txt", "/tmp/test2.txt"},
-	// })
-	// if e != nil {
-	// 	log.Println("There was an error", e)
-	// }
 
-	// myArgs := common.ActionArgs{
-	// 	ActionName: "filechangeTrigger",
-	// 	ActionType: "trigger",
-	// 	Name:       "Test filechange trigger",
-	// 	Args:       []string{"/tmp"},
-	// }
 	if args.ImportWorkflow != "" {
 		log.Println("Importing workflow:", args.ImportWorkflow)
 		wImportJSON, e := os.ReadFile(args.ImportWorkflow)

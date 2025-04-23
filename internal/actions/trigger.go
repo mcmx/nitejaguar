@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -57,7 +58,7 @@ func (ts *TriggerManager) RemoveTrigger(id string) {
 	}
 }
 
-func (ts *TriggerManager) Run(wmEvents chan common.ResultData) {
+func (ts *TriggerManager) Run(wmEvents chan common.ResultData, ctx context.Context) {
 	log.Println("Starting Trigger Service")
 	var value common.ResultData
 	for {
@@ -74,6 +75,9 @@ func (ts *TriggerManager) Run(wmEvents chan common.ResultData) {
 			wmEvents <- value
 		case <-time.After(50 * time.Millisecond):
 			// do nothing
+		case <-ctx.Done():
+			log.Println("Trigger Service stopped.")
+			return
 		}
 	}
 }

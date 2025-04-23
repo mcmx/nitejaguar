@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,7 +30,7 @@ type WorkflowInt struct {
 }
 
 type WorkflowManager interface {
-	Run()
+	Run(ctx context.Context)
 	AddWorkflow(Workflow) error
 	ExportWorkflowJSON(string) ([]byte, error)
 	ExportWorkflowJSONFile(string) error
@@ -70,10 +71,10 @@ func NewWorkflowManager(enableActions bool, db database.Service) WorkflowManager
 }
 
 // Starts the WorkflowManager and other managers
-func (wm *workflowManager) Run() {
+func (wm *workflowManager) Run(ctx context.Context) {
 	log.Println("WorkflowManager running...")
-	go wm.TriggerManager.Run(wm.eventsChan)
-	go wm.ActionManager.Run(wm.eventsChan)
+	go wm.TriggerManager.Run(wm.eventsChan, ctx)
+	go wm.ActionManager.Run(wm.eventsChan, ctx)
 	var result common.ResultData
 	for {
 		select {
@@ -102,6 +103,9 @@ func (wm *workflowManager) Run() {
 			// If so, save the workflow execution
 		case <-time.After(10 * time.Millisecond):
 			// do nothing
+		case <-ctx.Done():
+			log.Println("WorkflowManager stopped.")
+			return
 		}
 	}
 }
@@ -278,10 +282,11 @@ func (wm *workflowManager) ImportWorkflowJSON(jsonDef []byte) error {
 			}
 			data.Nodes[n.Id] = n
 			delete(data.Nodes, i)
+			// TODO update the nexts and dependencies
 		}
 		data.Name = "Imported Workflow: " + data.Name
 		jData, _ := json.MarshalIndent(data, "", "  ")
-		fmt.Printf("Imported new workflow %s\n%s\n", data.Id, string(jData))
+		log.Printf("Imported new workflow %s\n%s\n", data.Id, string(jData))
 	}
 
 	jsonData, _ := json.Marshal(data)
