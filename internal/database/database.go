@@ -27,13 +27,13 @@ type Service interface {
 	Close() error
 
 	// SaveWorkflow saves a workflow definition to the database
-	SaveWorkflow(workflowId string, jsonDef []byte) error
+	SaveWorkflow(workflowId string, jsonDef string) error
 
 	// GetWorkflow retrieves a workflow definition from the database
-	GetWorkflow(workflowId string) ([]byte, error)
+	GetWorkflow(workflowId string) (string, error)
 
 	// GetWorkflows retrieves all workflow definitions from the database
-	GetWorkflows() ([][]byte, error)
+	GetWorkflows() ([]string, error)
 }
 
 type service struct {
@@ -151,12 +151,12 @@ func (s *service) Close() error {
 }
 
 // SaveWorkflow saves a workflow definition to the database
-func (s *service) SaveWorkflow(workflowId string, jsonDef []byte) error {
+func (s *service) SaveWorkflow(workflowId string, jsonDef string) error {
 	w, _ := s.client.Workflow.Query().Where(workflow.ID(workflowId)).Only(context.Background())
 	if w != nil {
 		log.Printf("Workflow %s already exists, updating...", workflowId)
 		_, err := s.client.Workflow.UpdateOneID(workflowId).
-			SetJSONDefinition(string(jsonDef)).
+			SetJSONDefinition(jsonDef).
 			Save(context.Background())
 		if err != nil {
 			return fmt.Errorf("failed to save workflow: %w", err)
@@ -164,7 +164,7 @@ func (s *service) SaveWorkflow(workflowId string, jsonDef []byte) error {
 		return nil
 	}
 	_, err := s.client.Workflow.Create().
-		SetJSONDefinition(string(jsonDef)).
+		SetJSONDefinition(jsonDef).
 		SetID(workflowId).
 		Save(context.Background())
 
@@ -176,22 +176,22 @@ func (s *service) SaveWorkflow(workflowId string, jsonDef []byte) error {
 }
 
 // GetWorkflow retrieves a workflow definition from the database
-func (s *service) GetWorkflow(workflowId string) ([]byte, error) {
+func (s *service) GetWorkflow(workflowId string) (string, error) {
 	w, err := s.client.Workflow.Get(context.Background(), workflowId)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow: %w", err)
+		return "", fmt.Errorf("failed to get workflow: %w", err)
 	}
 
-	return []byte(w.JSONDefinition), nil
+	return w.JSONDefinition, nil
 }
 
 // GetWorkflows retrieves all workflow definitions from the database
-func (s *service) GetWorkflows() ([][]byte, error) {
+func (s *service) GetWorkflows() ([]string, error) {
 	ws, _ := s.client.Workflow.Query().Where(workflow.Enabled(true)).All(context.Background())
-	var workflows [][]byte
+	var workflows []string
 	for _, w := range ws {
-		workflows = append(workflows, []byte(w.JSONDefinition))
+		workflows = append(workflows, w.JSONDefinition)
 	}
 
 	return workflows, nil

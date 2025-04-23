@@ -74,7 +74,7 @@ func RunServer(args ServerArgs) {
 		if e != nil {
 			log.Println("error importing workflow 1", e)
 		} else {
-			e := wm.ImportWorkflowJSON(wImportJSON)
+			e = wm.ImportWorkflowJSON(string(wImportJSON))
 			if e != nil {
 				log.Println("error importing workflow 2", e)
 			}
@@ -87,13 +87,13 @@ func RunServer(args ServerArgs) {
 		log.Println("Error getting workflows: ", e)
 	}
 	for _, wf := range workflows {
-		w1 := workflow.Workflow{}
-		e = json.Unmarshal(wf, &w1)
+		var workflowDef workflow.Workflow
+		e = json.Unmarshal([]byte(wf), &workflowDef)
 		if e != nil {
 			log.Println("Error unmarshaling workflow: ", e)
 		}
 
-		e = wm.AddWorkflow(w1)
+		e = wm.AddWorkflow(workflowDef)
 		if e != nil {
 			log.Println(e)
 		}

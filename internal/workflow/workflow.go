@@ -32,11 +32,11 @@ type WorkflowInt struct {
 type WorkflowManager interface {
 	Run(ctx context.Context)
 	AddWorkflow(Workflow) error
-	ExportWorkflowJSON(string) ([]byte, error)
+	ExportWorkflowJSON(string) (string, error)
 	ExportWorkflowJSONFile(string) error
 	SaveWorkflowToDB(string) error
 	GetTriggerManager() actions.TriggerManager
-	ImportWorkflowJSON([]byte) error
+	ImportWorkflowJSON(string) error
 }
 
 type workflowManager struct {
@@ -216,17 +216,16 @@ func (wm *workflowManager) AddWorkflow(data Workflow) error {
 	return nil
 }
 
-func (wm *workflowManager) ExportWorkflowJSON(workflowId string) ([]byte, error) {
+func (wm *workflowManager) ExportWorkflowJSON(workflowId string) (string, error) {
 	if _, ok := wm.Workflows[workflowId]; !ok {
-		return nil, errors.New("workflow not found")
+		return "", errors.New("workflow not found")
 	}
 	jsonDef, err := json.MarshalIndent(wm.Workflows[workflowId].Definition, "", "  ")
 	if err != nil {
 		log.Printf("Cannot marshal workflow: %s", err)
-		return nil, err
+		return "", err
 	}
-
-	return jsonDef, nil
+	return string(jsonDef), nil
 }
 
 func (wm *workflowManager) ExportWorkflowJSONFile(workflowId string) error {
@@ -234,12 +233,7 @@ func (wm *workflowManager) ExportWorkflowJSONFile(workflowId string) error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(fmt.Sprintf("workflows/%s.json", workflowId), jsonDef, 0644)
-	if err != nil {
-		log.Printf("Cannot write workflow file: %s", err)
-		return err
-	}
-	return nil
+	return os.WriteFile(fmt.Sprintf("workflows/%s.json", workflowId), []byte(jsonDef), 0644)
 }
 
 func (wm *workflowManager) SaveWorkflowToDB(workflowId string) error {
@@ -247,7 +241,6 @@ func (wm *workflowManager) SaveWorkflowToDB(workflowId string) error {
 	if err != nil {
 		return err
 	}
-
 	return wm.db.SaveWorkflow(workflowId, jsonDef)
 }
 
@@ -255,9 +248,9 @@ func (wm *workflowManager) GetTriggerManager() actions.TriggerManager {
 	return wm.TriggerManager
 }
 
-func (wm *workflowManager) ImportWorkflowJSON(jsonDef []byte) error {
+func (wm *workflowManager) ImportWorkflowJSON(jsonDef string) error {
 	data := Workflow{}
-	err := json.Unmarshal(jsonDef, &data)
+	err := json.Unmarshal([]byte(jsonDef), &data)
 	if err != nil {
 		log.Printf("Cannot unmarshal workflow: %s", err)
 		return err
@@ -268,7 +261,7 @@ func (wm *workflowManager) ImportWorkflowJSON(jsonDef []byte) error {
 		return err
 	}
 	// if workflow doesn't exit let's create it with new ids
-	if w == nil {
+	if w == "" {
 		dId, _ := typeid.WithPrefix("workflow")
 		data.Id = dId.String()
 
@@ -292,5 +285,5 @@ func (wm *workflowManager) ImportWorkflowJSON(jsonDef []byte) error {
 	jsonData, _ := json.Marshal(data)
 	log.Printf("Updated workflow %s", data.Id)
 
-	return wm.db.SaveWorkflow(data.Id, jsonData)
+	return wm.db.SaveWorkflow(data.Id, string(jsonData))
 }

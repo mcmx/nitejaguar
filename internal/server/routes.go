@@ -25,6 +25,12 @@ type HealthResponse struct {
 	}
 }
 
+type WorkflowsResponse struct {
+	Body struct {
+		Workflows []string `json:"workflows"`
+	}
+}
+
 func (s *Server) RegisterRoutes() http.Handler {
 	e := echo.New()
 	config := huma.DefaultConfig(
@@ -53,6 +59,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 func addApiRoutes(api huma.API, s *Server) {
 	huma.Get(api, "/health", s.HealthHandler)
+	huma.Get(api, "/api/workflows", s.GetWorkflows)
 }
 
 // func (s *Server) HelloWorldHandler(c echo.Context) error {
@@ -70,6 +77,20 @@ func (s *Server) TriggerWebHandler(c echo.Context) error {
 	t.RemoveTrigger(name)
 
 	return c.JSON(http.StatusOK, "Ok Hello")
+}
+
+func (s *Server) GetWorkflows(c context.Context, input *struct{}) (*WorkflowsResponse, error) {
+	workflows, err := s.db.GetWorkflows()
+	if err != nil {
+		return nil, err
+	}
+	return &WorkflowsResponse{
+		Body: struct {
+			Workflows []string `json:"workflows"`
+		}{
+			Workflows: workflows,
+		},
+	}, nil
 }
 
 func (s *Server) HealthHandler(c context.Context, input *struct{}) (*HealthResponse, error) {
