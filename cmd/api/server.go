@@ -82,7 +82,8 @@ func RunServer(args ServerArgs) {
 	}
 	log.Println("Loading workflows...")
 
-	workflows, e := myDb.GetWorkflows(true)
+	// Load enabled workflows from the DB
+	workflows, e := myDb.GetWorkflows(false, true)
 	if e != nil {
 		log.Println("Error getting workflows: ", e)
 	}

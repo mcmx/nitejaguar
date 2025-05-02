@@ -31,6 +31,8 @@ func init() {
 	workflowDescUpdatedAt := workflowFields[4].Descriptor()
 	// workflow.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	workflow.DefaultUpdatedAt = workflowDescUpdatedAt.Default.(func() time.Time)
+	// workflow.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	workflow.UpdateDefaultUpdatedAt = workflowDescUpdatedAt.UpdateDefault.(func() time.Time)
 	// workflowDescID is the schema descriptor for id field.
 	workflowDescID := workflowFields[0].Descriptor()
 	// workflow.IDValidator is a validator for the "id" field. It is called by the builders before save.

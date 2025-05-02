@@ -20,14 +20,16 @@ func (Workflow) Fields() []ent.Field {
 			Unique().
 			NotEmpty(),
 		field.Bool("enabled").
-			Default(true),
+			Default(true).
+			StructTag(`json:"enabled"`),
 		field.Text("json_definition").
 			NotEmpty(),
 		field.Time("created_at").
 			Default(time.Now).
 			Immutable(),
 		field.Time("updated_at").
-			Default(time.Now),
+			Default(time.Now).
+			UpdateDefault(time.Now),
 	}
 }
 

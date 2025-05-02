@@ -62,14 +62,6 @@ func (wu *WorkflowUpdate) SetUpdatedAt(t time.Time) *WorkflowUpdate {
 	return wu
 }
 
-// SetNillableUpdatedAt sets the "updated_at" field if the given value is not nil.
-func (wu *WorkflowUpdate) SetNillableUpdatedAt(t *time.Time) *WorkflowUpdate {
-	if t != nil {
-		wu.SetUpdatedAt(*t)
-	}
-	return wu
-}
-
 // Mutation returns the WorkflowMutation object of the builder.
 func (wu *WorkflowUpdate) Mutation() *WorkflowMutation {
 	return wu.mutation
@@ -77,6 +69,7 @@ func (wu *WorkflowUpdate) Mutation() *WorkflowMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (wu *WorkflowUpdate) Save(ctx context.Context) (int, error) {
+	wu.defaults()
 	return withHooks(ctx, wu.sqlSave, wu.mutation, wu.hooks)
 }
 
@@ -99,6 +92,14 @@ func (wu *WorkflowUpdate) Exec(ctx context.Context) error {
 func (wu *WorkflowUpdate) ExecX(ctx context.Context) {
 	if err := wu.Exec(ctx); err != nil {
 		panic(err)
+	}
+}
+
+// defaults sets the default values of the builder before save.
+func (wu *WorkflowUpdate) defaults() {
+	if _, ok := wu.mutation.UpdatedAt(); !ok {
+		v := workflow.UpdateDefaultUpdatedAt()
+		wu.mutation.SetUpdatedAt(v)
 	}
 }
 
@@ -187,14 +188,6 @@ func (wuo *WorkflowUpdateOne) SetUpdatedAt(t time.Time) *WorkflowUpdateOne {
 	return wuo
 }
 
-// SetNillableUpdatedAt sets the "updated_at" field if the given value is not nil.
-func (wuo *WorkflowUpdateOne) SetNillableUpdatedAt(t *time.Time) *WorkflowUpdateOne {
-	if t != nil {
-		wuo.SetUpdatedAt(*t)
-	}
-	return wuo
-}
-
 // Mutation returns the WorkflowMutation object of the builder.
 func (wuo *WorkflowUpdateOne) Mutation() *WorkflowMutation {
 	return wuo.mutation
@@ -215,6 +208,7 @@ func (wuo *WorkflowUpdateOne) Select(field string, fields ...string) *WorkflowUp
 
 // Save executes the query and returns the updated Workflow entity.
 func (wuo *WorkflowUpdateOne) Save(ctx context.Context) (*Workflow, error) {
+	wuo.defaults()
 	return withHooks(ctx, wuo.sqlSave, wuo.mutation, wuo.hooks)
 }
 
@@ -237,6 +231,14 @@ func (wuo *WorkflowUpdateOne) Exec(ctx context.Context) error {
 func (wuo *WorkflowUpdateOne) ExecX(ctx context.Context) {
 	if err := wuo.Exec(ctx); err != nil {
 		panic(err)
+	}
+}
+
+// defaults sets the default values of the builder before save.
+func (wuo *WorkflowUpdateOne) defaults() {
+	if _, ok := wuo.mutation.UpdatedAt(); !ok {
+		v := workflow.UpdateDefaultUpdatedAt()
+		wuo.mutation.SetUpdatedAt(v)
 	}
 }
 

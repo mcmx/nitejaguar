@@ -262,7 +262,7 @@ func (wq *WorkflowQuery) Clone() *WorkflowQuery {
 // Example:
 //
 //	var v []struct {
-//		Enabled bool `json:"enabled,omitempty"`
+//		Enabled bool `json:"enabled"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
@@ -285,7 +285,7 @@ func (wq *WorkflowQuery) GroupBy(field string, fields ...string) *WorkflowGroupB
 // Example:
 //
 //	var v []struct {
-//		Enabled bool `json:"enabled,omitempty"`
+//		Enabled bool `json:"enabled"`
 //	}
 //
 //	client.Workflow.Query().

@@ -33,8 +33,7 @@ type Service interface {
 	GetWorkflow(workflowId string) (*ent.Workflow, error)
 
 	// GetWorkflows retrieves all workflow definitions from the database
-	// TODO make something to get all regardless of enabled or not
-	GetWorkflows(isEnabled bool) ([]*ent.Workflow, error)
+	GetWorkflows(all, isEnabled bool) ([]*ent.Workflow, error)
 }
 
 type service struct {
@@ -188,8 +187,11 @@ func (s *service) GetWorkflow(workflowId string) (*ent.Workflow, error) {
 }
 
 // GetWorkflows retrieves all workflow definitions from the database
-func (s *service) GetWorkflows(isEnabled bool) ([]*ent.Workflow, error) {
-	ws, _ := s.client.Workflow.Query().Where(workflow.Enabled(isEnabled)).All(context.Background())
-
-	return ws, nil
+func (s *service) GetWorkflows(all, isEnabled bool) ([]*ent.Workflow, error) {
+	if all {
+		return s.client.Workflow.Query().All(context.Background())
+	} else {
+		ws, _ := s.client.Workflow.Query().Where(workflow.Enabled(isEnabled)).All(context.Background())
+		return ws, nil
+	}
 }

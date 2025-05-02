@@ -18,7 +18,7 @@ type Workflow struct {
 	// ID of the ent.
 	ID string `json:"id,omitempty"`
 	// Enabled holds the value of the "enabled" field.
-	Enabled bool `json:"enabled,omitempty"`
+	Enabled bool `json:"enabled"`
 	// JSONDefinition holds the value of the "json_definition" field.
 	JSONDefinition string `json:"json_definition,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.

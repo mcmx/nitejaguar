@@ -81,7 +81,7 @@ func (s *Server) TriggerWebHandler(c echo.Context) error {
 }
 
 func (s *Server) GetWorkflows(c context.Context, input *struct{}) (*WorkflowsResponse, error) {
-	workflows, err := s.db.GetWorkflows(true)
+	workflows, err := s.db.GetWorkflows(true, true)
 	if err != nil {
 		return nil, err
 	}
