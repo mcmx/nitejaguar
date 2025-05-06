@@ -12,7 +12,7 @@ require (
 
 require (
 	entgo.io/ent v0.14.4
-	github.com/danielgtaylor/huma/v2 v2.29.0
+	github.com/danielgtaylor/huma/v2 v2.32.0
 	github.com/spf13/cobra v1.9.1
 	go.jetify.com/typeid v1.3.0
 )

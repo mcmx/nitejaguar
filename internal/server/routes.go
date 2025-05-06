@@ -60,7 +60,11 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 func addApiRoutes(api huma.API, s *Server) {
 	huma.Get(api, "/health", s.HealthHandler)
-	huma.Get(api, "/api/workflows", s.GetWorkflows)
+
+	apiGrp := huma.NewGroup(api, "/api")
+	huma.Get(apiGrp, "/workflows", s.GetWorkflows)
+	huma.Get(apiGrp, "/workflows/{id}", s.GetWorkflow)
+	huma.Post(apiGrp, "/events", s.WorkflowEvents)
 }
 
 // func (s *Server) HelloWorldHandler(c echo.Context) error {
@@ -73,6 +77,9 @@ func addApiRoutes(api huma.API, s *Server) {
 
 func (s *Server) TriggerWebHandler(c echo.Context) error {
 	name := c.FormValue("name")
+	if name == "" {
+		return c.JSON(http.StatusBadRequest, "Missing name")
+	}
 	fmt.Println("Form value Stopping Trigger:", name)
 	t := s.wm.GetTriggerManager()
 	t.RemoveTrigger(name)
@@ -83,7 +90,46 @@ func (s *Server) TriggerWebHandler(c echo.Context) error {
 func (s *Server) GetWorkflows(c context.Context, input *struct{}) (*WorkflowsResponse, error) {
 	workflows, err := s.db.GetWorkflows(true, true)
 	if err != nil {
-		return nil, err
+		return nil, huma.Error500InternalServerError("failed to get workflows")
+	}
+	return &WorkflowsResponse{
+		Body: struct {
+			Workflows []*ent.Workflow `json:"workflows"`
+		}{
+			Workflows: workflows,
+		},
+	}, nil
+}
+
+func (s *Server) GetWorkflow(c context.Context, input *struct {
+	ID string `path:"id"`
+}) (*struct {
+	Body struct {
+		Workflow *ent.Workflow `json:"workflow"`
+	}
+}, error) {
+	fmt.Println("GetWorkflow", input)
+	workflow, err := s.db.GetWorkflow(input.ID)
+	if err != nil {
+		return nil, huma.Error404NotFound("workflow not found")
+	}
+	return &struct {
+		Body struct {
+			Workflow *ent.Workflow `json:"workflow"`
+		}
+	}{
+		Body: struct {
+			Workflow *ent.Workflow `json:"workflow"`
+		}{
+			Workflow: workflow,
+		},
+	}, nil
+}
+
+func (s *Server) WorkflowEvents(c context.Context, input *struct{}) (*WorkflowsResponse, error) {
+	workflows, err := s.db.GetWorkflows(true, true)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to get workflows")
 	}
 	return &WorkflowsResponse{
 		Body: struct {
