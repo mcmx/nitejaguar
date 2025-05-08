@@ -51,8 +51,6 @@ func (s *Server) RegisterRoutes() http.Handler {
 	// e.POST("/hello", echo.WrapHandler(http.HandlerFunc(web.HelloWebHandler)))
 	e.POST("/hello", s.TriggerWebHandler)
 
-	// e.GET("/", s.HelloWorldHandler)
-
 	e.GET("/websocket", s.websocketHandler)
 
 	return e
@@ -66,14 +64,6 @@ func addApiRoutes(api huma.API, s *Server) {
 	huma.Get(apiGrp, "/workflows/{id}", s.GetWorkflow)
 	huma.Post(apiGrp, "/events", s.WorkflowEvents)
 }
-
-// func (s *Server) HelloWorldHandler(c echo.Context) error {
-// 	resp := map[string]string{
-// 		"message": "Hello World",
-// 	}
-
-// 	return c.JSON(http.StatusOK, resp)
-// }
 
 func (s *Server) TriggerWebHandler(c echo.Context) error {
 	name := c.FormValue("name")
