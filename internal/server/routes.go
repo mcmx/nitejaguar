@@ -60,9 +60,24 @@ func addApiRoutes(api huma.API, s *Server) {
 	huma.Get(api, "/health", s.HealthHandler)
 
 	apiGrp := huma.NewGroup(api, "/api")
-	huma.Get(apiGrp, "/workflows", s.GetWorkflows)
-	huma.Get(apiGrp, "/workflows/{id}", s.GetWorkflow)
-	huma.Post(apiGrp, "/events", s.WorkflowEvents)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "get-workflows",
+		Method:      http.MethodGet,
+		Path:        "/workflows",
+		Summary:     "All workflows",
+	}, s.GetWorkflows)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "get-workflow",
+		Method:      http.MethodGet,
+		Path:        "/workflows/{id}",
+		Summary:     "Workflow by id",
+	}, s.GetWorkflow)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "post-event",
+		Method:      http.MethodPost,
+		Path:        "/events",
+		Summary:     "Workflow events",
+	}, s.WorkflowEvents)
 }
 
 func (s *Server) TriggerWebHandler(c echo.Context) error {
