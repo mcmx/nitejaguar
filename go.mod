@@ -14,6 +14,7 @@ require (
 
 require (
 	entgo.io/ent v0.14.4
+	github.com/axzilla/templui v0.64.0
 	github.com/danielgtaylor/huma/v2 v2.32.0
 	github.com/spf13/cobra v1.9.1
 	go.jetify.com/typeid v1.3.0
@@ -25,7 +26,6 @@ require (
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/axzilla/templui v0.64.0 // indirect
 	github.com/bmatcuk/doublestar v1.3.4 // indirect
 	github.com/go-openapi/inflect v0.19.0 // indirect
 	github.com/gofrs/uuid/v5 v5.2.0 // indirect
