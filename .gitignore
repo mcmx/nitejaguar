@@ -39,4 +39,6 @@ results/
 workflows/
 log/
 
+tailwindcss
+
 *.db
