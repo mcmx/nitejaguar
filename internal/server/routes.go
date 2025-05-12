@@ -167,7 +167,12 @@ func (s *Server) websocketHandler(c echo.Context) error {
 		return nil
 	}
 
-	defer socket.Close(websocket.StatusGoingAway, "server closing websocket")
+	defer func() {
+		err := socket.Close(websocket.StatusGoingAway, "server closing websocket")
+		if err != nil {
+			log.Printf("Error closing WebSocket: %v", err)
+		}
+	}()
 
 	ctx := r.Context()
 	socketCtx := socket.CloseRead(ctx)

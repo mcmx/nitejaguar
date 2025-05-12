@@ -266,10 +266,11 @@ func (wm *workflowManager) ImportWorkflowJSON(jsonDef string) error {
 		data.Id = dId.String()
 
 		for i, n := range data.Nodes {
-			if n.ActionType == "trigger" {
+			switch n.ActionType {
+			case "trigger":
 				nId, _ := typeid.WithPrefix("trigger")
 				n.Id = nId.String()
-			} else if n.ActionType == "action" {
+			case "action":
 				nId, _ := typeid.WithPrefix("action")
 				n.Id = nId.String()
 			}

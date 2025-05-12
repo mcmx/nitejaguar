@@ -37,8 +37,12 @@ func RunServer(args ServerArgs) {
 	}()
 
 	myDb := database.New()
-	defer myDb.Close()
-	defer fmt.Println("Finish execution")
+	defer func() {
+		if err := myDb.Close(); err != nil {
+			log.Printf("Error closing database: %v", err)
+		}
+		fmt.Println("Finish execution")
+	}()
 	wm := workflow.NewWorkflowManager(args.EnableActions, myDb)
 	server := server.NewServer(myDb, wm)
 

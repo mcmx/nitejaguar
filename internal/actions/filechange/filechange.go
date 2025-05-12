@@ -72,15 +72,16 @@ func (t *filechange) Execute(executionId string, inputs []any) {
 	eventType := fsnotify.Create | fsnotify.Write | fsnotify.Rename | fsnotify.Remove | fsnotify.Chmod
 
 	if ok {
-		if eventTypeParam == "create" {
+		switch eventTypeParam {
+		case "create":
 			eventType = fsnotify.Create
-		} else if eventTypeParam == "write" {
+		case "write":
 			eventType = fsnotify.Write
-		} else if eventTypeParam == "rename" {
+		case "rename":
 			eventType = fsnotify.Rename
-		} else if eventTypeParam == "remove" {
+		case "remove":
 			eventType = fsnotify.Remove
-		} else if eventTypeParam == "chmod" {
+		case "chmod":
 			eventType = fsnotify.Chmod
 		}
 	}

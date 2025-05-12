@@ -14,9 +14,13 @@ func Test_Ent(t *testing.T) {
 	// Create an ent.Client with in-memory SQLite database.
 	client, err := Open(dialect.SQLite, "file:ent?mode=memory&cache=shared&_fk=1")
 	if err != nil {
-		t.Errorf("failed opening connection to sqlite: %v", err)
+		t.Fatalf("failed opening connection to sqlite: %v", err)
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("Error closing database client: %v", err)
+		}
+	}()
 	ctx := context.Background()
 	// Run the automatic migration tool to create all schema resources.
 	if err := client.Schema.Create(ctx); err != nil {

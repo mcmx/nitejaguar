@@ -30,28 +30,29 @@ func (f *fileaction) Execute(executionId string, inputs []any) {
 		return
 	}
 	args := f.data.Args.(map[string]string)
-	if args["action"] == "create" {
+	switch args["action"] {
+	case "create":
 		if _, err := os.Create(args["file"]); err != nil {
 			fmt.Println("Error creating file with id:", f.data.Id, err)
 			f.sendResult(executionId, payload{Type: "error", Result: err.Error()})
 			return
 		}
 		f.sendResult(executionId, payload{Type: "success", File: args["file"], Result: "File created successfully"})
-	} else if args["action"] == "remove" {
+	case "remove":
 		if err := os.Remove(args["file"]); err != nil {
 			fmt.Println("Error removing file with id:", f.data.Id, err)
 			f.sendResult(executionId, payload{Type: "error", File: args["file"], Result: err.Error()})
 			return
 		}
 		f.sendResult(executionId, payload{Type: "success", File: args["file"], Result: "File removed successfully"})
-	} else if args["action"] == "rename" {
+	case "rename":
 		if err := os.Rename(args["file"], args["new_file"]); err != nil {
 			fmt.Println("Error renaming file with id:", f.data.Id, err)
 			f.sendResult(executionId, payload{Type: "error", Result: err.Error()})
 			return
 		}
 		f.sendResult(executionId, payload{Type: "success", File: args["file"], NewFile: args["new_file"], Result: "File renamed successfully"})
-	} else {
+	default:
 		fmt.Println("Unknown action with id:", f.data.Id)
 	}
 }
