@@ -34,6 +34,7 @@ tmp/
 # Project build
 main
 *templ.go
+*templ.txt
 
 results/
 workflows/
