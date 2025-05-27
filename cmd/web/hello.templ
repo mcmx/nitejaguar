@@ -9,9 +9,6 @@ templ HelloForm() {
 	@Base() {
 		<div class="w-full max-w-sm">
 		<form hx-post="/hello" method="POST" hx-target="#hello-container">
-			<input class="border" id="name" name="name" type="text"/>
-			<button type="submit">Submit</button>
-		</form>
 		<div id="hello-container"></div>
 
 		@form.Item() {
@@ -35,6 +32,9 @@ templ HelloForm() {
 				Please enter a valid email address
 			}
 		}
+		<button type="submit">Submit</button>
+		</form>
+
 		</div>
 	}
 }

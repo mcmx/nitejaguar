@@ -158,7 +158,7 @@ func (s *Server) HealthHandler(c context.Context, input *struct{}) (*HealthRespo
 func (s *Server) websocketHandler(c echo.Context) error {
 	w := c.Response().Writer
 	r := c.Request()
-	socket, err := websocket.Accept(w, r, nil)
+	socket, err := websocket.Accept(w, r, &websocket.AcceptOptions{})
 
 	if err != nil {
 		log.Printf("could not open websocket: %v", err)
