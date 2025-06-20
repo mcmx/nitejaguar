@@ -113,7 +113,7 @@ func (wm *workflowManager) Run(ctx context.Context) {
 func (wm *workflowManager) saveResult(result common.ResultData) {
 	jsonResult, _ := json.MarshalIndent(result, "", "  ")
 	jsonFileName := "./results/" + result.ResultID + ".json"
-	_ = os.WriteFile(jsonFileName, jsonResult, 0644)
+	_ = os.WriteFile(jsonFileName, jsonResult, 0600)
 	log.Println("Node Result JSON file saved:", jsonFileName)
 }
 
@@ -233,7 +233,7 @@ func (wm *workflowManager) ExportWorkflowJSONFile(workflowId string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(fmt.Sprintf("workflows/%s.json", workflowId), []byte(jsonDef), 0644)
+	return os.WriteFile(fmt.Sprintf("workflows/%s.json", workflowId), []byte(jsonDef), 0600)
 }
 
 func (wm *workflowManager) SaveWorkflowToDB(workflowId string) error {

@@ -32,12 +32,12 @@ var serverCmd = &cobra.Command{
 func init() {
 	if _, err := os.Stat("log/"); err != nil {
 		if os.IsNotExist(err) {
-			_ = os.Mkdir("log", 0755)
+			_ = os.Mkdir("log", 0700)
 		}
 	}
 	fileName := "log/server.log"
 	// open log file
-	logFile, err := os.OpenFile(fileName, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
+	logFile, err := os.OpenFile(fileName, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		log.Panic(err)
 	}
