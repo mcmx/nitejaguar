@@ -16,7 +16,7 @@ var clientCmd = &cobra.Command{
 	Short: "Start NiteJaguar in client mode",
 	Long:  `Start NiteJaguar in client mode to interact with the server.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
+		_ = cmd.Help()
 		fmt.Println("Args:", args)
 		fmt.Println("\n\nClient mode not implemented yet, try server instead")
 		os.Exit(1)
