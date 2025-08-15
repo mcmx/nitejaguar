@@ -4,7 +4,8 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"log"
+	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -15,8 +16,10 @@ var clientCmd = &cobra.Command{
 	Short: "Start NiteJaguar in client mode",
 	Long:  `Start NiteJaguar in client mode to interact with the server.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Println("Args:", args)
-		log.Println("Client mode not implemented yet, try server instead")
+		cmd.Help()
+		fmt.Println("Args:", args)
+		fmt.Println("\n\nClient mode not implemented yet, try server instead")
+		os.Exit(1)
 	},
 }
 

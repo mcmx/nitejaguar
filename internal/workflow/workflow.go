@@ -177,7 +177,7 @@ func (wm *workflowManager) AddWorkflow(data Workflow) error {
 		ActionList:  make(map[string]common.Action),
 	}
 	for _, n := range data.Nodes {
-		fmt.Println("Adding node:", n.Name)
+		fmt.Println("[debug-remove] Adding node:", n.Name)
 		if n.ActionType == "trigger" {
 			cArgs := common.ActionArgs{
 				Id:         n.Id,
