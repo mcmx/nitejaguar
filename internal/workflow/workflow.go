@@ -134,6 +134,9 @@ type Node struct {
 // The result from this execution
 func (n *Node) GetNextNodes(inputs []any, result common.ResultData) []string {
 	next_nodes := []string{}
+	if n.Conditions == nil {
+		return next_nodes
+	}
 	actionArgs := common.ActionArgs{
 		Id:         n.Id,
 		Name:       n.Name,
@@ -155,6 +158,9 @@ func (n *Node) GetNextNodes(inputs []any, result common.ResultData) []string {
 
 func (n *Node) GetAllNextNodes() []string {
 	next_nodes := []string{}
+	if n.Conditions == nil {
+		return next_nodes
+	}
 	for _, c := range n.Conditions.Entries {
 		next_nodes = append(next_nodes, c.Nexts...)
 	}
