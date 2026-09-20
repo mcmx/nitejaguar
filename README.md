@@ -45,10 +45,20 @@ Check out the API documentation at:
 http://127.0.0.1:8081/docs
 
 ### Client mode
-(Work in progress)
 
-When running on client mode, you need to provide a server address and credentials either through
-command line arguments or environmental variables
+The client registers with a NiteJaguar server, polls for assignments, executes assigned
+`filechangeTrigger` and `fileAction` nodes locally, and reports each result back to the
+server. The default server is `http://127.0.0.1:8080`:
+
+```bash
+./nitejaguar client --server http://127.0.0.1:8080 --name downloads
+```
+
+Use `--client-id` to reconnect with an existing registration, and `--token` for servers
+that require authentication. These options also accept `NITEJAGUAR_SERVER`,
+`NITEJAGUAR_CLIENT_ID`, `NITEJAGUAR_CLIENT_NAME`, and `NITEJAGUAR_TOKEN`. The client
+retries registration and polling with exponential backoff and stops cleanly on context
+cancellation (for example, SIGINT).
 
 ## Workflows
 

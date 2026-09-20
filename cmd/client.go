@@ -1,42 +1,40 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
-	"fmt"
 	"os"
 
+	njclient "github.com/mcmx/nitejaguar/internal/client"
 	"github.com/spf13/cobra"
 )
 
-// clientCmd represents the client command
+var (
+	clientServer string
+	clientID     string
+	clientName   string
+	clientToken  string
+)
+
 var clientCmd = &cobra.Command{
 	Use:   "client",
 	Short: "Start NiteJaguar in client mode",
-	Long:  `Start NiteJaguar in client mode to interact with the server.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		_ = cmd.Help()
-		fmt.Println("Args:", args)
-		fmt.Println("\n\nClient mode not implemented yet, try server instead")
-		os.Exit(1)
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return njclient.Run(cmd.Context(), njclient.Config{
+			Server: clientServer, ClientID: clientID, Name: clientName, Token: clientToken,
+		}, nil)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(clientCmd)
+	clientCmd.Flags().StringVar(&clientServer, "server", envOr("NITEJAGUAR_SERVER", "http://127.0.0.1:8080"), "NiteJaguar server URL")
+	clientCmd.Flags().StringVar(&clientID, "client-id", os.Getenv("NITEJAGUAR_CLIENT_ID"), "existing registered client ID")
+	clientCmd.Flags().StringVar(&clientName, "name", envOr("NITEJAGUAR_CLIENT_NAME", "nitejaguar-client"), "client name used during registration")
+	clientCmd.Flags().StringVar(&clientToken, "token", os.Getenv("NITEJAGUAR_TOKEN"), "API token")
+}
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// clientCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-
-	clientCmd.Flags().String("import", "workflow.json", "Imports workflow.json file into the DB")
-	clientCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	clientCmd.Flags().BoolVarP(&enableActions, "enable-actions", "e", false, "Enable server action")
-
+func envOr(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
 }
