@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	_ "github.com/joho/godotenv/autoload"
@@ -16,9 +17,11 @@ import (
 type Server struct {
 	port int
 
-	db      database.Service
-	wm      workflow.WorkflowManager
-	clients *clientRegistry
+	db       database.Service
+	wm       workflow.WorkflowManager
+	clients  *clientRegistry
+	resultMu sync.Mutex
+	results  map[string]postResultRecord
 }
 
 // registry returns the in-memory client registry, lazily creating it so

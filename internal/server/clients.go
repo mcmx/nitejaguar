@@ -1,6 +1,11 @@
 package server
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +19,7 @@ type clientInfo struct {
 	Name          string    `json:"name"`
 	Tags          []string  `json:"tags"`
 	LastHeartbeat time.Time `json:"last_heartbeat"`
+	tokenHash     string
 }
 
 // clientRegistry is a mutex-protected in-memory client registry.
@@ -26,18 +32,22 @@ func newClientRegistry() *clientRegistry {
 	return &clientRegistry{clients: make(map[string]*clientInfo)}
 }
 
-func (r *clientRegistry) register(name string, tags []string) *clientInfo {
+func (r *clientRegistry) register(name string, tags []string) (*clientInfo, string) {
 	tid, _ := typeid.WithPrefix("client")
+	buf := make([]byte, 32)
+	_, _ = rand.Read(buf)
+	token := hex.EncodeToString(buf)
 	c := &clientInfo{
 		ID:            tid.String(),
 		Name:          name,
 		Tags:          append([]string{}, tags...),
 		LastHeartbeat: time.Now(),
+		tokenHash:     hashToken(token),
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.clients[c.ID] = c
-	return c
+	return c, token
 }
 
 func (r *clientRegistry) heartbeat(id string) (*clientInfo, bool) {
@@ -59,4 +69,35 @@ func (r *clientRegistry) get(id string) (*clientInfo, bool) {
 		return nil, false
 	}
 	return c, true
+}
+
+func hashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
+
+func (r *clientRegistry) authenticate(id, token string) bool {
+	if token == "" {
+		return false
+	}
+	h := hashToken(token)
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if id != "" {
+		c, ok := r.clients[id]
+		return ok && subtle.ConstantTimeCompare([]byte(c.tokenHash), []byte(h)) == 1
+	}
+	for _, c := range r.clients {
+		if subtle.ConstantTimeCompare([]byte(c.tokenHash), []byte(h)) == 1 {
+			return true
+		}
+	}
+	return false
+}
+
+func bearerToken(authorization, compatible string) string {
+	if len(authorization) > 7 && strings.EqualFold(authorization[:7], "Bearer ") {
+		return strings.TrimSpace(authorization[7:])
+	}
+	return strings.TrimSpace(compatible)
 }

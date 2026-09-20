@@ -30,6 +30,7 @@ type RegisterRequest struct {
 }
 type RegisterResponse struct {
 	ClientID string `json:"client_id"`
+	Token    string `json:"token"`
 }
 type Workflow struct {
 	ID    string                   `json:"id"`
@@ -99,6 +100,9 @@ func (a API) Register(ctx context.Context, name string) (RegisterResponse, error
 	var out RegisterResponse
 	err := a.request(ctx, http.MethodPost, "/api/clients/register", RegisterRequest{Name: name}, &out)
 	return out, err
+}
+func (a API) Heartbeat(ctx context.Context, id string) error {
+	return a.request(ctx, http.MethodPost, "/api/clients/heartbeat", map[string]string{"client_id": id}, nil)
 }
 func (a API) Assignments(ctx context.Context, id string) (AssignmentsResponse, error) {
 	var out AssignmentsResponse
@@ -203,8 +207,19 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 				continue
 			}
 			id = reg.ClientID
+			api.Token = reg.Token
 			backoff = cfg.RetryInitial
 			logger.Info("registered client", "client_id", id)
+		}
+		if err := api.Heartbeat(ctx, id); err != nil {
+			if cfg.ClientID == "" {
+				id = ""
+			}
+			if !wait(ctx, backoff) {
+				return ctx.Err()
+			}
+			backoff = min(backoff*2, 30*time.Second)
+			continue
 		}
 		assignments, err := api.Assignments(ctx, id)
 		if err != nil {

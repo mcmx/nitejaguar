@@ -17,6 +17,7 @@ import (
 	"github.com/mcmx/nitejaguar/ent"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/workflow"
+	"go.jetify.com/typeid"
 
 	"github.com/a-h/templ"
 	"github.com/coder/websocket"
@@ -122,11 +123,14 @@ type RegisterClientInput struct {
 type RegisterClientOutput struct {
 	Body struct {
 		ClientID string `json:"client_id"`
+		Token    string `json:"token"`
 	}
 }
 
 type HeartbeatInput struct {
-	Body struct {
+	Authorization string `header:"Authorization"`
+	Token         string `header:"X-Client-Token"`
+	Body          struct {
 		ClientID string `json:"client_id"`
 	}
 }
@@ -146,6 +150,12 @@ type WorkflowDefinition struct {
 	Nodes map[string]workflow.Node `json:"nodes"`
 }
 
+type AssignmentsInput struct {
+	ID            string `path:"id"`
+	Authorization string `header:"Authorization"`
+	Token         string `header:"X-Client-Token"`
+}
+
 type AssignmentsOutput struct {
 	Body struct {
 		ClientID  string               `json:"client_id"`
@@ -154,7 +164,9 @@ type AssignmentsOutput struct {
 }
 
 type PostResultInput struct {
-	Body struct {
+	Authorization string `header:"Authorization"`
+	Token         string `header:"X-Client-Token"`
+	Body          struct {
 		ResultID    string    `json:"result_id,omitempty"`
 		WorkflowID  string    `json:"workflow_id,omitempty"`
 		ExecutionID string    `json:"execution_id,omitempty"`
@@ -164,6 +176,11 @@ type PostResultInput struct {
 		CreatedAt   time.Time `json:"created_at,omitempty"`
 		Payload     any       `json:"payload,omitempty"`
 	}
+}
+
+type postResultRecord struct {
+	workflowID, executionID string
+	nexts                   []string
 }
 
 type PostResultOutput struct {
@@ -178,15 +195,19 @@ func (s *Server) RegisterClient(_ context.Context, input *RegisterClientInput) (
 	if input.Body.Name == "" {
 		return nil, huma.Error400BadRequest("name is required")
 	}
-	c := s.registry().register(input.Body.Name, input.Body.Tags)
+	c, token := s.registry().register(input.Body.Name, input.Body.Tags)
 	return &RegisterClientOutput{
 		Body: struct {
 			ClientID string `json:"client_id"`
-		}{ClientID: c.ID},
+			Token    string `json:"token"`
+		}{ClientID: c.ID, Token: token},
 	}, nil
 }
 
 func (s *Server) ClientHeartbeat(_ context.Context, input *HeartbeatInput) (*HeartbeatOutput, error) {
+	if !s.registry().authenticate(input.Body.ClientID, bearerToken(input.Authorization, input.Token)) {
+		return nil, huma.Error401Unauthorized("invalid or missing client token")
+	}
 	if input.Body.ClientID == "" {
 		return nil, huma.Error400BadRequest("client_id is required")
 	}
@@ -200,9 +221,10 @@ func (s *Server) ClientHeartbeat(_ context.Context, input *HeartbeatInput) (*Hea
 	}, nil
 }
 
-func (s *Server) GetAssignments(_ context.Context, input *struct {
-	ID string `path:"id"`
-}) (*AssignmentsOutput, error) {
+func (s *Server) GetAssignments(_ context.Context, input *AssignmentsInput) (*AssignmentsOutput, error) {
+	if !s.registry().authenticate(input.ID, bearerToken(input.Authorization, input.Token)) {
+		return nil, huma.Error401Unauthorized("invalid or missing client token")
+	}
 	client, ok := s.registry().get(input.ID)
 	if !ok {
 		return nil, huma.Error404NotFound("client not found")
@@ -242,6 +264,9 @@ func (s *Server) GetAssignments(_ context.Context, input *struct {
 }
 
 func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostResultOutput, error) {
+	if !s.registry().authenticate("", bearerToken(input.Authorization, input.Token)) {
+		return nil, huma.Error401Unauthorized("invalid or missing client token")
+	}
 	if input.Body.ActionID == "" {
 		return nil, huma.Error400BadRequest("action_id is required")
 	}
@@ -255,10 +280,25 @@ func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostRes
 		CreatedAt:   input.Body.CreatedAt,
 		Payload:     input.Body.Payload,
 	}
+	if result.ResultID == "" {
+		id, _ := typeid.WithPrefix("result")
+		result.ResultID = id.String()
+	}
+	s.resultMu.Lock()
+	defer s.resultMu.Unlock()
+	if s.results == nil {
+		s.results = make(map[string]postResultRecord)
+	}
+	if prior, ok := s.results[result.ResultID]; ok {
+		out := &PostResultOutput{}
+		out.Body.WorkflowID, out.Body.ExecutionID, out.Body.Nexts = prior.workflowID, prior.executionID, append([]string(nil), prior.nexts...)
+		return out, nil
+	}
 	stored, nexts, err := s.wm.IngestResult(result)
 	if err != nil {
 		return nil, huma.Error404NotFound(err.Error())
 	}
+	s.results[result.ResultID] = postResultRecord{stored.WorkflowID, stored.ExecutionID, append([]string(nil), nexts...)}
 	out := &PostResultOutput{}
 	out.Body.WorkflowID = stored.WorkflowID
 	out.Body.ExecutionID = stored.ExecutionID
