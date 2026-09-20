@@ -183,42 +183,52 @@ func (wm *workflowManager) AddWorkflow(data Workflow) error {
 		TriggerList: make(map[string]common.Action),
 		ActionList:  make(map[string]common.Action),
 	}
+	// First pass: register all action nodes so downstream consumers exist
+	// before any trigger starts firing.
 	for _, n := range data.Nodes {
 		fmt.Println("[debug-remove] Adding node:", n.Name)
-		if n.ActionType == "trigger" {
-			cArgs := common.ActionArgs{
-				Id:         n.Id,
-				Name:       n.Name,
-				ActionType: n.ActionType,
-				ActionName: n.ActionName,
-				Args:       n.Arguments,
-			}
-			nt, id, err := wm.TriggerManager.AddTrigger(cArgs)
-			if err != nil {
-				log.Printf("Cannot create new trigger: %s", err)
-				continue
-			}
-			wm.Workflows[data.Id].TriggerList[id] = nt
-			wm.Actions2Workflow[id] = data.Id
-		} else if n.ActionType == "action" {
-			if !wm.enableActions {
-				continue
-			}
-			cArgs := common.ActionArgs{
-				Id:         n.Id,
-				Name:       n.Name,
-				ActionType: n.ActionType,
-				ActionName: n.ActionName,
-				Args:       n.Arguments,
-			}
-			action, id, err := wm.ActionManager.AddAction(cArgs)
-			if err != nil {
-				log.Printf("Cannot create new action: %s", err)
-				continue
-			}
-			wm.Workflows[data.Id].ActionList[id] = action
-			wm.Actions2Workflow[id] = data.Id
+		if n.ActionType != "action" {
+			continue
 		}
+		if !wm.enableActions {
+			continue
+		}
+		cArgs := common.ActionArgs{
+			Id:         n.Id,
+			Name:       n.Name,
+			ActionType: n.ActionType,
+			ActionName: n.ActionName,
+			Args:       n.Arguments,
+		}
+		action, id, err := wm.ActionManager.AddAction(cArgs)
+		if err != nil {
+			log.Printf("Cannot create new action: %s", err)
+			continue
+		}
+		wm.Workflows[data.Id].ActionList[id] = action
+		wm.Actions2Workflow[id] = data.Id
+	}
+	// Second pass: start triggers. AddTrigger begins trigger execution
+	// immediately, so this must happen only after all actions are registered.
+	for _, n := range data.Nodes {
+		fmt.Println("[debug-remove] Adding node:", n.Name)
+		if n.ActionType != "trigger" {
+			continue
+		}
+		cArgs := common.ActionArgs{
+			Id:         n.Id,
+			Name:       n.Name,
+			ActionType: n.ActionType,
+			ActionName: n.ActionName,
+			Args:       n.Arguments,
+		}
+		nt, id, err := wm.TriggerManager.AddTrigger(cArgs)
+		if err != nil {
+			log.Printf("Cannot create new trigger: %s", err)
+			continue
+		}
+		wm.Workflows[data.Id].TriggerList[id] = nt
+		wm.Actions2Workflow[id] = data.Id
 	}
 
 	return nil
