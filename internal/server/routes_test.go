@@ -13,7 +13,10 @@ import (
 func TestHandler(t *testing.T) {
 	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
 	// req := httptest.NewRequest(http.MethodGet, "/", nil)
-	db := database.New()
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
 	_, api := humatest.New(t)
 	s := &Server{db: db, wm: workflow.NewWorkflowManager(false, db)}
 	addApiRoutes(api, s)

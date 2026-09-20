@@ -9,13 +9,15 @@ func HelloWebHandler(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
 	}
 
 	name := r.FormValue("name")
 	component := HelloPost(name)
 	err = component.Render(r.Context(), w)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Fatalf("Error rendering in HelloWebHandler: %e", err)
+		log.Printf("Error rendering in HelloWebHandler: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }

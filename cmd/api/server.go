@@ -37,7 +37,10 @@ func RunServer(args ServerArgs) {
 		cancel()
 	}()
 
-	myDb := database.New()
+	myDb, err := database.New()
+	if err != nil {
+		log.Fatalf("failed initializing database: %v", err)
+	}
 	defer func() {
 		if err := myDb.Close(); err != nil {
 			log.Printf("Error closing database: %v", err)
@@ -60,7 +63,7 @@ func RunServer(args ServerArgs) {
 			_ = server.Shutdown(shutdownCtx)
 		}()
 
-		err := server.ListenAndServe()
+		err = server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			fmt.Printf("Cannot start server: %s\n", err)
 			os.Exit(1)
