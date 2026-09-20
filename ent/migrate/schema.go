@@ -12,6 +12,7 @@ var (
 	RemoteClientsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
 		{Name: "name", Type: field.TypeString},
+		{Name: "tenant_id", Type: field.TypeString, Default: "default"},
 		{Name: "tags", Type: field.TypeJSON},
 		{Name: "token_hash", Type: field.TypeString},
 		{Name: "registered_at", Type: field.TypeTime},
@@ -28,6 +29,7 @@ var (
 	WorkflowsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
 		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "tenant_id", Type: field.TypeString, Default: "default"},
 		{Name: "json_definition", Type: field.TypeString, Size: 2147483647},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},

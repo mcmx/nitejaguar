@@ -36,6 +36,7 @@ type RemoteClientMutation struct {
 	typ            string
 	id             *string
 	name           *string
+	tenant_id      *string
 	tags           *[]string
 	appendtags     []string
 	token_hash     *string
@@ -186,6 +187,42 @@ func (m *RemoteClientMutation) OldName(ctx context.Context) (v string, err error
 // ResetName resets all changes to the "name" field.
 func (m *RemoteClientMutation) ResetName() {
 	m.name = nil
+}
+
+// SetTenantID sets the "tenant_id" field.
+func (m *RemoteClientMutation) SetTenantID(s string) {
+	m.tenant_id = &s
+}
+
+// TenantID returns the value of the "tenant_id" field in the mutation.
+func (m *RemoteClientMutation) TenantID() (r string, exists bool) {
+	v := m.tenant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTenantID returns the old "tenant_id" field's value of the RemoteClient entity.
+// If the RemoteClient object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RemoteClientMutation) OldTenantID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTenantID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTenantID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTenantID: %w", err)
+	}
+	return oldValue.TenantID, nil
+}
+
+// ResetTenantID resets all changes to the "tenant_id" field.
+func (m *RemoteClientMutation) ResetTenantID() {
+	m.tenant_id = nil
 }
 
 // SetTags sets the "tags" field.
@@ -417,9 +454,12 @@ func (m *RemoteClientMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RemoteClientMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 7)
 	if m.name != nil {
 		fields = append(fields, remoteclient.FieldName)
+	}
+	if m.tenant_id != nil {
+		fields = append(fields, remoteclient.FieldTenantID)
 	}
 	if m.tags != nil {
 		fields = append(fields, remoteclient.FieldTags)
@@ -446,6 +486,8 @@ func (m *RemoteClientMutation) Field(name string) (ent.Value, bool) {
 	switch name {
 	case remoteclient.FieldName:
 		return m.Name()
+	case remoteclient.FieldTenantID:
+		return m.TenantID()
 	case remoteclient.FieldTags:
 		return m.Tags()
 	case remoteclient.FieldTokenHash:
@@ -467,6 +509,8 @@ func (m *RemoteClientMutation) OldField(ctx context.Context, name string) (ent.V
 	switch name {
 	case remoteclient.FieldName:
 		return m.OldName(ctx)
+	case remoteclient.FieldTenantID:
+		return m.OldTenantID(ctx)
 	case remoteclient.FieldTags:
 		return m.OldTags(ctx)
 	case remoteclient.FieldTokenHash:
@@ -492,6 +536,13 @@ func (m *RemoteClientMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetName(v)
+		return nil
+	case remoteclient.FieldTenantID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTenantID(v)
 		return nil
 	case remoteclient.FieldTags:
 		v, ok := value.([]string)
@@ -580,6 +631,9 @@ func (m *RemoteClientMutation) ResetField(name string) error {
 	case remoteclient.FieldName:
 		m.ResetName()
 		return nil
+	case remoteclient.FieldTenantID:
+		m.ResetTenantID()
+		return nil
 	case remoteclient.FieldTags:
 		m.ResetTags()
 		return nil
@@ -654,6 +708,7 @@ type WorkflowMutation struct {
 	typ             string
 	id              *string
 	enabled         *bool
+	tenant_id       *string
 	json_definition *string
 	created_at      *time.Time
 	updated_at      *time.Time
@@ -803,6 +858,42 @@ func (m *WorkflowMutation) ResetEnabled() {
 	m.enabled = nil
 }
 
+// SetTenantID sets the "tenant_id" field.
+func (m *WorkflowMutation) SetTenantID(s string) {
+	m.tenant_id = &s
+}
+
+// TenantID returns the value of the "tenant_id" field in the mutation.
+func (m *WorkflowMutation) TenantID() (r string, exists bool) {
+	v := m.tenant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTenantID returns the old "tenant_id" field's value of the Workflow entity.
+// If the Workflow object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkflowMutation) OldTenantID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTenantID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTenantID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTenantID: %w", err)
+	}
+	return oldValue.TenantID, nil
+}
+
+// ResetTenantID resets all changes to the "tenant_id" field.
+func (m *WorkflowMutation) ResetTenantID() {
+	m.tenant_id = nil
+}
+
 // SetJSONDefinition sets the "json_definition" field.
 func (m *WorkflowMutation) SetJSONDefinition(s string) {
 	m.json_definition = &s
@@ -945,9 +1036,12 @@ func (m *WorkflowMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *WorkflowMutation) Fields() []string {
-	fields := make([]string, 0, 4)
+	fields := make([]string, 0, 5)
 	if m.enabled != nil {
 		fields = append(fields, workflow.FieldEnabled)
+	}
+	if m.tenant_id != nil {
+		fields = append(fields, workflow.FieldTenantID)
 	}
 	if m.json_definition != nil {
 		fields = append(fields, workflow.FieldJSONDefinition)
@@ -968,6 +1062,8 @@ func (m *WorkflowMutation) Field(name string) (ent.Value, bool) {
 	switch name {
 	case workflow.FieldEnabled:
 		return m.Enabled()
+	case workflow.FieldTenantID:
+		return m.TenantID()
 	case workflow.FieldJSONDefinition:
 		return m.JSONDefinition()
 	case workflow.FieldCreatedAt:
@@ -985,6 +1081,8 @@ func (m *WorkflowMutation) OldField(ctx context.Context, name string) (ent.Value
 	switch name {
 	case workflow.FieldEnabled:
 		return m.OldEnabled(ctx)
+	case workflow.FieldTenantID:
+		return m.OldTenantID(ctx)
 	case workflow.FieldJSONDefinition:
 		return m.OldJSONDefinition(ctx)
 	case workflow.FieldCreatedAt:
@@ -1006,6 +1104,13 @@ func (m *WorkflowMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetEnabled(v)
+		return nil
+	case workflow.FieldTenantID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTenantID(v)
 		return nil
 	case workflow.FieldJSONDefinition:
 		v, ok := value.(string)
@@ -1079,6 +1184,9 @@ func (m *WorkflowMutation) ResetField(name string) error {
 	switch name {
 	case workflow.FieldEnabled:
 		m.ResetEnabled()
+		return nil
+	case workflow.FieldTenantID:
+		m.ResetTenantID()
 		return nil
 	case workflow.FieldJSONDefinition:
 		m.ResetJSONDefinition()

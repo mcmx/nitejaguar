@@ -69,6 +69,11 @@ func Name(v string) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldEQ(FieldName, v))
 }
 
+// TenantID applies equality check predicate on the "tenant_id" field. It's identical to TenantIDEQ.
+func TenantID(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEQ(FieldTenantID, v))
+}
+
 // TokenHash applies equality check predicate on the "token_hash" field. It's identical to TokenHashEQ.
 func TokenHash(v string) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldEQ(FieldTokenHash, v))
@@ -152,6 +157,71 @@ func NameEqualFold(v string) predicate.RemoteClient {
 // NameContainsFold applies the ContainsFold predicate on the "name" field.
 func NameContainsFold(v string) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldContainsFold(FieldName, v))
+}
+
+// TenantIDEQ applies the EQ predicate on the "tenant_id" field.
+func TenantIDEQ(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEQ(FieldTenantID, v))
+}
+
+// TenantIDNEQ applies the NEQ predicate on the "tenant_id" field.
+func TenantIDNEQ(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldNEQ(FieldTenantID, v))
+}
+
+// TenantIDIn applies the In predicate on the "tenant_id" field.
+func TenantIDIn(vs ...string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldIn(FieldTenantID, vs...))
+}
+
+// TenantIDNotIn applies the NotIn predicate on the "tenant_id" field.
+func TenantIDNotIn(vs ...string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldNotIn(FieldTenantID, vs...))
+}
+
+// TenantIDGT applies the GT predicate on the "tenant_id" field.
+func TenantIDGT(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldGT(FieldTenantID, v))
+}
+
+// TenantIDGTE applies the GTE predicate on the "tenant_id" field.
+func TenantIDGTE(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldGTE(FieldTenantID, v))
+}
+
+// TenantIDLT applies the LT predicate on the "tenant_id" field.
+func TenantIDLT(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldLT(FieldTenantID, v))
+}
+
+// TenantIDLTE applies the LTE predicate on the "tenant_id" field.
+func TenantIDLTE(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldLTE(FieldTenantID, v))
+}
+
+// TenantIDContains applies the Contains predicate on the "tenant_id" field.
+func TenantIDContains(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldContains(FieldTenantID, v))
+}
+
+// TenantIDHasPrefix applies the HasPrefix predicate on the "tenant_id" field.
+func TenantIDHasPrefix(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldHasPrefix(FieldTenantID, v))
+}
+
+// TenantIDHasSuffix applies the HasSuffix predicate on the "tenant_id" field.
+func TenantIDHasSuffix(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldHasSuffix(FieldTenantID, v))
+}
+
+// TenantIDEqualFold applies the EqualFold predicate on the "tenant_id" field.
+func TenantIDEqualFold(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEqualFold(FieldTenantID, v))
+}
+
+// TenantIDContainsFold applies the ContainsFold predicate on the "tenant_id" field.
+func TenantIDContainsFold(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldContainsFold(FieldTenantID, v))
 }
 
 // TokenHashEQ applies the EQ predicate on the "token_hash" field.

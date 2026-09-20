@@ -32,7 +32,7 @@ type Service interface {
 	Close() error
 
 	// SaveWorkflow saves a workflow definition to the database
-	SaveWorkflow(workflowId string, jsonDef string) error
+	SaveWorkflow(workflowId string, jsonDef string, tenantID string) error
 
 	// GetWorkflow retrieves a workflow definition from the database
 	GetWorkflow(workflowId string) (*ent.Workflow, error)
@@ -42,7 +42,7 @@ type Service interface {
 	SetWorkflowEnabled(workflowID string, enabled bool) error
 
 	// Client database operations
-	RegisterClient(name string, tags []string) (*ent.RemoteClient, string, error)
+	RegisterClient(name string, tags []string, tenantID string) (*ent.RemoteClient, string, error)
 	HeartbeatClient(id string) error
 	PollClient(id string) error
 	GetClients() ([]*ent.RemoteClient, error)
@@ -163,7 +163,10 @@ func (s *service) Close() error {
 }
 
 // SaveWorkflow saves a workflow definition to the database
-func (s *service) SaveWorkflow(workflowId string, jsonDef string) error {
+func (s *service) SaveWorkflow(workflowId string, jsonDef string, tenantID string) error {
+	if tenantID == "" {
+		tenantID = "default"
+	}
 	w, err := s.client.Workflow.Query().Where(workflow.ID(workflowId)).Only(context.Background())
 	if err != nil && !ent.IsNotFound(err) {
 		return fmt.Errorf("failed to check existing workflow: %w", err)
@@ -172,6 +175,7 @@ func (s *service) SaveWorkflow(workflowId string, jsonDef string) error {
 		log.Printf("Workflow %s already exists, updating...", workflowId)
 		_, err := s.client.Workflow.UpdateOneID(workflowId).
 			SetJSONDefinition(jsonDef).
+			SetTenantID(tenantID).
 			Save(context.Background())
 		if err != nil {
 			return fmt.Errorf("failed to save workflow: %w", err)
@@ -180,6 +184,7 @@ func (s *service) SaveWorkflow(workflowId string, jsonDef string) error {
 	}
 	_, err = s.client.Workflow.Create().
 		SetJSONDefinition(jsonDef).
+		SetTenantID(tenantID).
 		SetID(workflowId).
 		Save(context.Background())
 
@@ -226,7 +231,10 @@ func hashToken(token string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func (s *service) RegisterClient(name string, tags []string) (*ent.RemoteClient, string, error) {
+func (s *service) RegisterClient(name string, tags []string, tenantID string) (*ent.RemoteClient, string, error) {
+	if tenantID == "" {
+		tenantID = "default"
+	}
 	tid, _ := typeid.WithPrefix("client")
 	buf := make([]byte, 32)
 	_, _ = rand.Read(buf)
@@ -236,6 +244,7 @@ func (s *service) RegisterClient(name string, tags []string) (*ent.RemoteClient,
 	c, err := s.client.RemoteClient.Create().
 		SetID(tid.String()).
 		SetName(name).
+		SetTenantID(tenantID).
 		SetTags(tags).
 		SetTokenHash(h).
 		Save(context.Background())

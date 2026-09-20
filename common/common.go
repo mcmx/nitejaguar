@@ -27,6 +27,7 @@ type ResultData struct {
 	ActionType  string    `json:"action_type"`
 	ActionName  string    `json:"action_name"`
 	ExecutorID  string    `json:"executor_id"`
+	TenantID    string    `json:"tenant_id"`
 	CreatedAt   time.Time `json:"created_at"`
 	Payload     any       `json:"payload"` // Generic payload for additional data
 }

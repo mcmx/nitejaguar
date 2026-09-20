@@ -34,6 +34,20 @@ func (_c *WorkflowCreate) SetNillableEnabled(v *bool) *WorkflowCreate {
 	return _c
 }
 
+// SetTenantID sets the "tenant_id" field.
+func (_c *WorkflowCreate) SetTenantID(v string) *WorkflowCreate {
+	_c.mutation.SetTenantID(v)
+	return _c
+}
+
+// SetNillableTenantID sets the "tenant_id" field if the given value is not nil.
+func (_c *WorkflowCreate) SetNillableTenantID(v *string) *WorkflowCreate {
+	if v != nil {
+		_c.SetTenantID(*v)
+	}
+	return _c
+}
+
 // SetJSONDefinition sets the "json_definition" field.
 func (_c *WorkflowCreate) SetJSONDefinition(v string) *WorkflowCreate {
 	_c.mutation.SetJSONDefinition(v)
@@ -113,6 +127,10 @@ func (_c *WorkflowCreate) defaults() {
 		v := workflow.DefaultEnabled
 		_c.mutation.SetEnabled(v)
 	}
+	if _, ok := _c.mutation.TenantID(); !ok {
+		v := workflow.DefaultTenantID
+		_c.mutation.SetTenantID(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := workflow.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -127,6 +145,9 @@ func (_c *WorkflowCreate) defaults() {
 func (_c *WorkflowCreate) check() error {
 	if _, ok := _c.mutation.Enabled(); !ok {
 		return &ValidationError{Name: "enabled", err: errors.New(`ent: missing required field "Workflow.enabled"`)}
+	}
+	if _, ok := _c.mutation.TenantID(); !ok {
+		return &ValidationError{Name: "tenant_id", err: errors.New(`ent: missing required field "Workflow.tenant_id"`)}
 	}
 	if _, ok := _c.mutation.JSONDefinition(); !ok {
 		return &ValidationError{Name: "json_definition", err: errors.New(`ent: missing required field "Workflow.json_definition"`)}
@@ -185,6 +206,10 @@ func (_c *WorkflowCreate) createSpec() (*Workflow, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Enabled(); ok {
 		_spec.SetField(workflow.FieldEnabled, field.TypeBool, value)
 		_node.Enabled = value
+	}
+	if value, ok := _c.mutation.TenantID(); ok {
+		_spec.SetField(workflow.FieldTenantID, field.TypeString, value)
+		_node.TenantID = value
 	}
 	if value, ok := _c.mutation.JSONDefinition(); ok {
 		_spec.SetField(workflow.FieldJSONDefinition, field.TypeString, value)

@@ -20,22 +20,26 @@ func init() {
 	remoteclientDescName := remoteclientFields[1].Descriptor()
 	// remoteclient.NameValidator is a validator for the "name" field. It is called by the builders before save.
 	remoteclient.NameValidator = remoteclientDescName.Validators[0].(func(string) error)
+	// remoteclientDescTenantID is the schema descriptor for tenant_id field.
+	remoteclientDescTenantID := remoteclientFields[2].Descriptor()
+	// remoteclient.DefaultTenantID holds the default value on creation for the tenant_id field.
+	remoteclient.DefaultTenantID = remoteclientDescTenantID.Default.(string)
 	// remoteclientDescTokenHash is the schema descriptor for token_hash field.
-	remoteclientDescTokenHash := remoteclientFields[3].Descriptor()
+	remoteclientDescTokenHash := remoteclientFields[4].Descriptor()
 	// remoteclient.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
 	remoteclient.TokenHashValidator = remoteclientDescTokenHash.Validators[0].(func(string) error)
 	// remoteclientDescRegisteredAt is the schema descriptor for registered_at field.
-	remoteclientDescRegisteredAt := remoteclientFields[4].Descriptor()
+	remoteclientDescRegisteredAt := remoteclientFields[5].Descriptor()
 	// remoteclient.DefaultRegisteredAt holds the default value on creation for the registered_at field.
 	remoteclient.DefaultRegisteredAt = remoteclientDescRegisteredAt.Default.(func() time.Time)
 	// remoteclientDescLastHeartbeat is the schema descriptor for last_heartbeat field.
-	remoteclientDescLastHeartbeat := remoteclientFields[5].Descriptor()
+	remoteclientDescLastHeartbeat := remoteclientFields[6].Descriptor()
 	// remoteclient.DefaultLastHeartbeat holds the default value on creation for the last_heartbeat field.
 	remoteclient.DefaultLastHeartbeat = remoteclientDescLastHeartbeat.Default.(func() time.Time)
 	// remoteclient.UpdateDefaultLastHeartbeat holds the default value on update for the last_heartbeat field.
 	remoteclient.UpdateDefaultLastHeartbeat = remoteclientDescLastHeartbeat.UpdateDefault.(func() time.Time)
 	// remoteclientDescLastPoll is the schema descriptor for last_poll field.
-	remoteclientDescLastPoll := remoteclientFields[6].Descriptor()
+	remoteclientDescLastPoll := remoteclientFields[7].Descriptor()
 	// remoteclient.DefaultLastPoll holds the default value on creation for the last_poll field.
 	remoteclient.DefaultLastPoll = remoteclientDescLastPoll.Default.(func() time.Time)
 	// remoteclient.UpdateDefaultLastPoll holds the default value on update for the last_poll field.
@@ -50,16 +54,20 @@ func init() {
 	workflowDescEnabled := workflowFields[1].Descriptor()
 	// workflow.DefaultEnabled holds the default value on creation for the enabled field.
 	workflow.DefaultEnabled = workflowDescEnabled.Default.(bool)
+	// workflowDescTenantID is the schema descriptor for tenant_id field.
+	workflowDescTenantID := workflowFields[2].Descriptor()
+	// workflow.DefaultTenantID holds the default value on creation for the tenant_id field.
+	workflow.DefaultTenantID = workflowDescTenantID.Default.(string)
 	// workflowDescJSONDefinition is the schema descriptor for json_definition field.
-	workflowDescJSONDefinition := workflowFields[2].Descriptor()
+	workflowDescJSONDefinition := workflowFields[3].Descriptor()
 	// workflow.JSONDefinitionValidator is a validator for the "json_definition" field. It is called by the builders before save.
 	workflow.JSONDefinitionValidator = workflowDescJSONDefinition.Validators[0].(func(string) error)
 	// workflowDescCreatedAt is the schema descriptor for created_at field.
-	workflowDescCreatedAt := workflowFields[3].Descriptor()
+	workflowDescCreatedAt := workflowFields[4].Descriptor()
 	// workflow.DefaultCreatedAt holds the default value on creation for the created_at field.
 	workflow.DefaultCreatedAt = workflowDescCreatedAt.Default.(func() time.Time)
 	// workflowDescUpdatedAt is the schema descriptor for updated_at field.
-	workflowDescUpdatedAt := workflowFields[4].Descriptor()
+	workflowDescUpdatedAt := workflowFields[5].Descriptor()
 	// workflow.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	workflow.DefaultUpdatedAt = workflowDescUpdatedAt.Default.(func() time.Time)
 	// workflow.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

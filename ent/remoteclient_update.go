@@ -43,6 +43,20 @@ func (_u *RemoteClientUpdate) SetNillableName(v *string) *RemoteClientUpdate {
 	return _u
 }
 
+// SetTenantID sets the "tenant_id" field.
+func (_u *RemoteClientUpdate) SetTenantID(v string) *RemoteClientUpdate {
+	_u.mutation.SetTenantID(v)
+	return _u
+}
+
+// SetNillableTenantID sets the "tenant_id" field if the given value is not nil.
+func (_u *RemoteClientUpdate) SetNillableTenantID(v *string) *RemoteClientUpdate {
+	if v != nil {
+		_u.SetTenantID(*v)
+	}
+	return _u
+}
+
 // SetTags sets the "tags" field.
 func (_u *RemoteClientUpdate) SetTags(v []string) *RemoteClientUpdate {
 	_u.mutation.SetTags(v)
@@ -156,6 +170,9 @@ func (_u *RemoteClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(remoteclient.FieldName, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.TenantID(); ok {
+		_spec.SetField(remoteclient.FieldTenantID, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.Tags(); ok {
 		_spec.SetField(remoteclient.FieldTags, field.TypeJSON, value)
 	}
@@ -203,6 +220,20 @@ func (_u *RemoteClientUpdateOne) SetName(v string) *RemoteClientUpdateOne {
 func (_u *RemoteClientUpdateOne) SetNillableName(v *string) *RemoteClientUpdateOne {
 	if v != nil {
 		_u.SetName(*v)
+	}
+	return _u
+}
+
+// SetTenantID sets the "tenant_id" field.
+func (_u *RemoteClientUpdateOne) SetTenantID(v string) *RemoteClientUpdateOne {
+	_u.mutation.SetTenantID(v)
+	return _u
+}
+
+// SetNillableTenantID sets the "tenant_id" field if the given value is not nil.
+func (_u *RemoteClientUpdateOne) SetNillableTenantID(v *string) *RemoteClientUpdateOne {
+	if v != nil {
+		_u.SetTenantID(*v)
 	}
 	return _u
 }
@@ -349,6 +380,9 @@ func (_u *RemoteClientUpdateOne) sqlSave(ctx context.Context) (_node *RemoteClie
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(remoteclient.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.TenantID(); ok {
+		_spec.SetField(remoteclient.FieldTenantID, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Tags(); ok {
 		_spec.SetField(remoteclient.FieldTags, field.TypeJSON, value)
