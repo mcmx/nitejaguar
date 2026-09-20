@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
 
 	"fmt"
 	"log"
@@ -50,9 +53,11 @@ func (s *Server) RegisterRoutes() http.Handler {
 	e.Use(middleware.Recover())
 	e.Static("/assets", "cmd/web/assets")
 
-	e.GET("/", echo.WrapHandler(templ.Handler(web.HelloForm())))
-	// e.POST("/hello", echo.WrapHandler(http.HandlerFunc(web.HelloWebHandler)))
-	e.POST("/hello", s.TriggerWebHandler)
+	e.GET("/", s.workflowsPage)
+	e.GET("/workflows/:id", s.workflowPage)
+	e.GET("/results", s.resultsPage)
+	e.POST("/workflows/:id/enabled", s.setWorkflowEnabled)
+	e.POST("/triggers/stop", s.TriggerWebHandler)
 
 	e.GET("/websocket", s.websocketHandler)
 
@@ -261,6 +266,64 @@ func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostRes
 	return out, nil
 }
 
+func (s *Server) workflowsPage(c echo.Context) error {
+	workflows, err := s.db.GetWorkflows(true, true)
+	data := &web.WorkflowPageData{Workflows: workflows}
+	if err != nil {
+		data.Error = "Unable to load workflows"
+	}
+	templ.Handler(web.WorkflowsPage(data, "")).ServeHTTP(c.Response(), c.Request())
+	return nil
+}
+
+func (s *Server) workflowPage(c echo.Context) error {
+	row, err := s.db.GetWorkflow(c.Param("id"))
+	data := &web.WorkflowDetailData{Workflow: row}
+	if err != nil {
+		data.Error = "Workflow not found"
+	} else if err := json.Unmarshal([]byte(row.JSONDefinition), &data.Definition); err != nil {
+		data.Error = "Workflow definition is invalid"
+	}
+	templ.Handler(web.WorkflowDetailPage(data)).ServeHTTP(c.Response(), c.Request())
+	return nil
+}
+
+func (s *Server) resultsPage(c echo.Context) error {
+	data := &web.ResultsPageData{}
+	entries, err := os.ReadDir("./results")
+	if err != nil && !os.IsNotExist(err) {
+		data.Error = "Unable to read results"
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		name := entry.Name()
+		if filepath.Base(name) != name {
+			continue
+		}
+		contents, readErr := os.ReadFile(filepath.Join("./results", name))
+		if readErr != nil {
+			continue
+		}
+		var result common.ResultData
+		if json.Unmarshal(contents, &result) == nil {
+			data.Results = append(data.Results, result)
+		}
+	}
+	sort.Slice(data.Results, func(i, j int) bool { return data.Results[i].CreatedAt.After(data.Results[j].CreatedAt) })
+	templ.Handler(web.ResultsPage(data)).ServeHTTP(c.Response(), c.Request())
+	return nil
+}
+
+func (s *Server) setWorkflowEnabled(c echo.Context) error {
+	enabled := c.FormValue("enabled") == "true"
+	if err := s.db.SetWorkflowEnabled(c.Param("id"), enabled); err != nil {
+		return c.String(http.StatusNotFound, "workflow not found")
+	}
+	return c.Redirect(http.StatusSeeOther, "/workflows/"+c.Param("id"))
+}
+
 func (s *Server) TriggerWebHandler(c echo.Context) error {
 	value := c.FormValue("id")
 	if value == "" {
@@ -279,7 +342,7 @@ func (s *Server) TriggerWebHandler(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, "Trigger not found")
 	}
 
-	return c.JSON(http.StatusOK, "Ok Hello")
+	return c.JSON(http.StatusOK, map[string]string{"status": "trigger stopped", "id": id})
 }
 
 func (s *Server) GetWorkflows(c context.Context, input *struct{}) (*WorkflowsResponse, error) {

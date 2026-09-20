@@ -34,6 +34,7 @@ type Service interface {
 
 	// GetWorkflows retrieves all workflow definitions from the database
 	GetWorkflows(all, isEnabled bool) ([]*ent.Workflow, error)
+	SetWorkflowEnabled(workflowID string, enabled bool) error
 }
 
 type service struct {
@@ -202,4 +203,8 @@ func (s *service) GetWorkflows(all, isEnabled bool) ([]*ent.Workflow, error) {
 		return nil, fmt.Errorf("failed to get workflows: %w", err)
 	}
 	return ws, nil
+}
+
+func (s *service) SetWorkflowEnabled(workflowID string, enabled bool) error {
+	return s.client.Workflow.UpdateOneID(workflowID).SetEnabled(enabled).Exec(context.Background())
 }
