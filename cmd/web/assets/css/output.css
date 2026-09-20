@@ -270,9 +270,6 @@
   .justify-between {
     justify-content: space-between;
   }
-  .justify-end {
-    justify-content: flex-end;
-  }
   .gap-2 {
     gap: calc(var(--spacing) * 2);
   }
@@ -411,6 +408,9 @@
   .text-black {
     color: var(--color-black);
   }
+  .text-foreground {
+    color: var(--foreground);
+  }
   .text-green-600 {
     color: var(--color-green-600);
   }
@@ -445,6 +445,13 @@
     &:hover {
       @media (hover: hover) {
         background-color: var(--muted);
+      }
+    }
+  }
+  .hover\:text-red-500 {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--color-red-500);
       }
     }
   }

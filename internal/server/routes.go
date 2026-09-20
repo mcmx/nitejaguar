@@ -39,6 +39,22 @@ type WorkflowsResponse struct {
 	}
 }
 
+type ClientStatus struct {
+	ID            string    `json:"client_id"`
+	Name          string    `json:"name"`
+	Tags          []string  `json:"tags"`
+	RegisteredAt  time.Time `json:"registered_at"`
+	LastHeartbeat time.Time `json:"last_heartbeat"`
+	LastPoll      time.Time `json:"last_poll"`
+	Online        bool      `json:"online"`
+}
+
+type ClientsResponse struct {
+	Body struct {
+		Clients []ClientStatus `json:"clients"`
+	}
+}
+
 func (s *Server) RegisterRoutes() http.Handler {
 	e := echo.New()
 	config := huma.DefaultConfig(
@@ -57,6 +73,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	e.GET("/", s.workflowsPage)
 	e.GET("/workflows/:id", s.workflowPage)
 	e.GET("/results", s.resultsPage)
+	e.GET("/clients", s.clientsPage)
 	e.POST("/workflows/:id/enabled", s.setWorkflowEnabled)
 	e.POST("/triggers/stop", s.TriggerWebHandler)
 
@@ -111,6 +128,12 @@ func addApiRoutes(api huma.API, s *Server) {
 		Path:        "/results",
 		Summary:     "Ingest a node result and advance the workflow",
 	}, s.PostResult)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "get-clients",
+		Method:      http.MethodGet,
+		Path:        "/clients",
+		Summary:     "Registered polling clients and connection status",
+	}, s.GetClients)
 }
 
 type RegisterClientInput struct {
@@ -173,6 +196,7 @@ type PostResultInput struct {
 		ActionID    string    `json:"action_id,omitempty"`
 		ActionType  string    `json:"action_type,omitempty"`
 		ActionName  string    `json:"action_name,omitempty"`
+		ExecutorID  string    `json:"executor_id,omitempty"`
 		CreatedAt   time.Time `json:"created_at,omitempty"`
 		Payload     any       `json:"payload,omitempty"`
 	}
@@ -196,6 +220,7 @@ func (s *Server) RegisterClient(_ context.Context, input *RegisterClientInput) (
 		return nil, huma.Error400BadRequest("name is required")
 	}
 	c, token := s.registry().register(input.Body.Name, input.Body.Tags)
+	log.Printf("client registered: id=%s name=%q tags=%v", c.ID, c.Name, c.Tags)
 	return &RegisterClientOutput{
 		Body: struct {
 			ClientID string `json:"client_id"`
@@ -211,9 +236,11 @@ func (s *Server) ClientHeartbeat(_ context.Context, input *HeartbeatInput) (*Hea
 	if input.Body.ClientID == "" {
 		return nil, huma.Error400BadRequest("client_id is required")
 	}
-	if _, ok := s.registry().heartbeat(input.Body.ClientID); !ok {
+	c, ok := s.registry().heartbeat(input.Body.ClientID)
+	if !ok {
 		return nil, huma.Error404NotFound("client not found")
 	}
+	log.Printf("client heartbeat: id=%s name=%q", c.ID, c.Name)
 	return &HeartbeatOutput{
 		Body: struct {
 			Ok bool `json:"ok"`
@@ -225,11 +252,13 @@ func (s *Server) GetAssignments(_ context.Context, input *AssignmentsInput) (*As
 	if !s.registry().authenticate(input.ID, bearerToken(input.Authorization, input.Token)) {
 		return nil, huma.Error401Unauthorized("invalid or missing client token")
 	}
-	client, ok := s.registry().get(input.ID)
+	client, ok := s.registry().poll(input.ID)
 	if !ok {
 		return nil, huma.Error404NotFound("client not found")
 	}
-	rows, err := s.db.GetWorkflows(true, true)
+	log.Printf("client assignment poll: id=%s name=%q", client.ID, client.Name)
+	// Remote clients should only receive workflows that are currently enabled.
+	rows, err := s.db.GetWorkflows(false, true)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to get workflows")
 	}
@@ -263,13 +292,32 @@ func (s *Server) GetAssignments(_ context.Context, input *AssignmentsInput) (*As
 	}, nil
 }
 
+func (s *Server) GetClients(_ context.Context, _ *struct{}) (*ClientsResponse, error) {
+	now := time.Now()
+	clients := s.registry().list()
+	out := make([]ClientStatus, 0, len(clients))
+	for _, c := range clients {
+		out = append(out, ClientStatus{
+			ID: c.ID, Name: c.Name, Tags: c.Tags, RegisteredAt: c.RegisteredAt,
+			LastHeartbeat: c.LastHeartbeat, LastPoll: c.LastPoll,
+			Online: now.Sub(c.LastHeartbeat) <= 15*time.Second,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return &ClientsResponse{Body: struct {
+		Clients []ClientStatus `json:"clients"`
+	}{Clients: out}}, nil
+}
+
 func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostResultOutput, error) {
-	if !s.registry().authenticate("", bearerToken(input.Authorization, input.Token)) {
+	executorID, ok := s.registry().identity(bearerToken(input.Authorization, input.Token))
+	if !ok {
 		return nil, huma.Error401Unauthorized("invalid or missing client token")
 	}
 	if input.Body.ActionID == "" {
 		return nil, huma.Error400BadRequest("action_id is required")
 	}
+	log.Printf("client result received: action=%s name=%q", input.Body.ActionID, input.Body.ActionName)
 	result := common.ResultData{
 		ResultID:    input.Body.ResultID,
 		WorkflowID:  input.Body.WorkflowID,
@@ -277,6 +325,7 @@ func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostRes
 		ActionID:    input.Body.ActionID,
 		ActionType:  input.Body.ActionType,
 		ActionName:  input.Body.ActionName,
+		ExecutorID:  executorID,
 		CreatedAt:   input.Body.CreatedAt,
 		Payload:     input.Body.Payload,
 	}
@@ -353,6 +402,22 @@ func (s *Server) resultsPage(c echo.Context) error {
 	}
 	sort.Slice(data.Results, func(i, j int) bool { return data.Results[i].CreatedAt.After(data.Results[j].CreatedAt) })
 	templ.Handler(web.ResultsPage(data)).ServeHTTP(c.Response(), c.Request())
+	return nil
+}
+
+func (s *Server) clientsPage(c echo.Context) error {
+	data := &web.ClientsPageData{}
+	for _, client := range s.registry().list() {
+		data.Clients = append(data.Clients, web.ClientView{
+			ID: client.ID, Name: client.Name, Tags: client.Tags,
+			RegisteredAt:  client.RegisteredAt.Format("2006-01-02 15:04:05 MST"),
+			LastHeartbeat: client.LastHeartbeat.Format("2006-01-02 15:04:05 MST"),
+			LastPoll:      client.LastPoll.Format("2006-01-02 15:04:05 MST"),
+			Online:        time.Since(client.LastHeartbeat) <= 15*time.Second,
+		})
+	}
+	sort.Slice(data.Clients, func(i, j int) bool { return data.Clients[i].Name < data.Clients[j].Name })
+	templ.Handler(web.ClientsPage(data)).ServeHTTP(c.Response(), c.Request())
 	return nil
 }
 

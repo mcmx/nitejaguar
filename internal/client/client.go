@@ -26,7 +26,8 @@ type Config struct {
 	PollInterval, RetryInitial    time.Duration
 }
 type RegisterRequest struct {
-	Name string `json:"name"`
+	Name string   `json:"name"`
+	Tags []string `json:"tags"`
 }
 type RegisterResponse struct {
 	ClientID string `json:"client_id"`
@@ -98,7 +99,7 @@ func (a API) request(ctx context.Context, method, path string, body, out any) er
 }
 func (a API) Register(ctx context.Context, name string) (RegisterResponse, error) {
 	var out RegisterResponse
-	err := a.request(ctx, http.MethodPost, "/api/clients/register", RegisterRequest{Name: name}, &out)
+	err := a.request(ctx, http.MethodPost, "/api/clients/register", RegisterRequest{Name: name, Tags: []string{}}, &out)
 	return out, err
 }
 func (a API) Heartbeat(ctx context.Context, id string) error {
@@ -200,6 +201,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		if id == "" {
 			reg, err := api.Register(ctx, cfg.Name)
 			if err != nil {
+				logger.Warn("client registration failed; retrying", "server", cfg.Server, "error", err, "after", backoff)
 				if !wait(ctx, backoff) {
 					return ctx.Err()
 				}
@@ -208,10 +210,12 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 			}
 			id = reg.ClientID
 			api.Token = reg.Token
+			r.api.Token = reg.Token
 			backoff = cfg.RetryInitial
-			logger.Info("registered client", "client_id", id)
+			logger.Info("client registered", "server", cfg.Server, "client_id", id, "name", cfg.Name)
 		}
 		if err := api.Heartbeat(ctx, id); err != nil {
+			logger.Warn("client heartbeat failed; retrying", "client_id", id, "error", err, "after", backoff)
 			if cfg.ClientID == "" {
 				id = ""
 			}
@@ -223,6 +227,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		}
 		assignments, err := api.Assignments(ctx, id)
 		if err != nil {
+			logger.Warn("client assignment poll failed; retrying", "client_id", id, "error", err, "after", backoff)
 			if cfg.ClientID == "" {
 				id = ""
 			}
@@ -233,6 +238,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 			continue
 		}
 		backoff = cfg.RetryInitial
+		logger.Debug("client assignment poll succeeded", "client_id", id, "workflows", len(assignments.Workflows))
 		for _, w := range assignments.Workflows {
 			r.install(w)
 		}
@@ -240,6 +246,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		case result := <-r.events:
 			r.mu.Lock()
 			result.WorkflowID = r.nodeWorkflow[result.ActionID]
+			result.ExecutorID = id
 			r.mu.Unlock()
 			r.runResult(ctx, result)
 		case <-time.After(cfg.PollInterval):

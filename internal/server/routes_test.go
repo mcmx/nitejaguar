@@ -131,6 +131,27 @@ func TestClientAssignmentFlow(t *testing.T) {
 		t.Fatalf("heartbeat status = %v, body = %s", resp.Code, resp.Body.String())
 	}
 
+	// client status lists registration metadata without exposing credentials.
+	resp = api.Get("/api/clients")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("clients status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	var clients struct {
+		Clients []struct {
+			ID            string `json:"client_id"`
+			Name          string `json:"name"`
+			Online        bool   `json:"online"`
+			RegisteredAt  string `json:"registered_at"`
+			LastHeartbeat string `json:"last_heartbeat"`
+		} `json:"clients"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &clients)
+	if len(clients.Clients) != 1 || clients.Clients[0].ID != registered.ClientID ||
+		clients.Clients[0].Name != "gpu-worker" || !clients.Clients[0].Online ||
+		clients.Clients[0].RegisteredAt == "" || clients.Clients[0].LastHeartbeat == "" {
+		t.Fatalf("unexpected client status: %s", resp.Body.String())
+	}
+
 	// assignments for gpu client: broadcast trigger + gpu action
 	resp = api.Get("/api/clients/"+registered.ClientID+"/assignments", "Authorization: Bearer "+registered.Token)
 	if resp.Code != http.StatusOK {
@@ -224,6 +245,9 @@ func TestClientAssignmentFlow(t *testing.T) {
 	if resultOut.ExecutionID == "" {
 		t.Errorf("expected minted execution_id, got empty")
 	}
+	if resultOut.WorkflowID == "" {
+		t.Errorf("expected workflow id for client result")
+	}
 	found := false
 	for _, n := range resultOut.Nexts {
 		if n == "action_01kassignmentgpufilter0001" {
@@ -268,5 +292,43 @@ func TestClientAssignmentFlow(t *testing.T) {
 	resp = api.Get("/api/clients/client_doesnotexist00001/assignments", "Authorization: Bearer "+registered.Token)
 	if resp.Code != http.StatusUnauthorized {
 		t.Errorf("unknown client assignments status = %v, want 401", resp.Code)
+	}
+}
+
+func TestClientAssignmentsExcludeDisabledWorkflows(t *testing.T) {
+	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
+	wm := workflow.NewWorkflowManager(false, db)
+	s := &Server{db: db, wm: wm}
+	_, api := humatest.New(t)
+	addApiRoutes(api, s)
+	if err := wm.ImportWorkflowJSON(assignmentFlowWorkflow); err != nil {
+		t.Fatalf("seed workflow: %v", err)
+	}
+	if err := db.SetWorkflowEnabled("workflow_01kassignmentsync1test0001", false); err != nil {
+		t.Fatalf("disable workflow: %v", err)
+	}
+	resp := api.Post("/api/clients/register", map[string]any{"name": "disabled-test", "tags": []string{"gpu"}})
+	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+		t.Fatalf("register status = %v", resp.Code)
+	}
+	var registered struct {
+		ClientID string `json:"client_id"`
+		Token    string `json:"token"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &registered)
+	resp = api.Get("/api/clients/"+registered.ClientID+"/assignments", "Authorization: Bearer "+registered.Token)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("assignments status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	var assignments struct {
+		Workflows []any `json:"workflows"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &assignments)
+	if len(assignments.Workflows) != 0 {
+		t.Fatalf("disabled workflow was assigned: %s", resp.Body.String())
 	}
 }

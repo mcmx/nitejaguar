@@ -14,8 +14,10 @@ var rootCmd = &cobra.Command{
 	Use:   "nitejaguar",
 	Short: "NiteJaguar - A server/client application",
 	Long:  `NiteJaguar is a server/client application that handles triggers and actions.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		clientCmd.Run(cmd, args) // <-- Here I'm invoking the default command
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// RunE is the client's entry point. Calling Run directly is unsafe because
+		// clientCmd only defines RunE.
+		return clientCmd.RunE(cmd, args)
 	},
 }
 
