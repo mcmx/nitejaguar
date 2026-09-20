@@ -111,17 +111,24 @@ func (t *filechange) Execute(executionId string, inputs []any) {
 	eventType := fsnotify.Create | fsnotify.Write | fsnotify.Rename | fsnotify.Remove | fsnotify.Chmod
 
 	if ok {
-		switch eventTypeParam {
-		case "create":
-			eventType = fsnotify.Create
-		case "write":
-			eventType = fsnotify.Write
-		case "rename":
-			eventType = fsnotify.Rename
-		case "remove":
-			eventType = fsnotify.Remove
-		case "chmod":
-			eventType = fsnotify.Chmod
+		eventType = 0
+		for _, part := range strings.Split(eventTypeParam, ",") {
+			part = strings.TrimSpace(strings.ToLower(part))
+			switch part {
+			case "create":
+				eventType |= fsnotify.Create
+			case "write":
+				eventType |= fsnotify.Write
+			case "rename":
+				eventType |= fsnotify.Rename
+			case "remove":
+				eventType |= fsnotify.Remove
+			case "chmod":
+				eventType |= fsnotify.Chmod
+			}
+		}
+		if eventType == 0 {
+			eventType = fsnotify.Create | fsnotify.Write | fsnotify.Rename | fsnotify.Remove | fsnotify.Chmod
 		}
 	}
 	log.Printf("Adding watcher to: '%s' on events: %s", args["path"], eventType)
@@ -134,7 +141,7 @@ func (t *filechange) Execute(executionId string, inputs []any) {
 					log.Println("Watcher closed")
 					return
 				}
-				if event.Op.Has(eventType) {
+				if event.Op&eventType != 0 {
 					if shouldIgnore(event.Name, args) || t.debounced(event.Name, args) {
 						continue
 					}
