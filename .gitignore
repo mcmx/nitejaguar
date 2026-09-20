@@ -33,6 +33,7 @@ tmp/
 
 # Project build
 main
+nitejaguar
 *templ.go
 *templ.txt
 
@@ -43,3 +44,4 @@ log/
 tailwindcss
 
 *.db
+client_state.json
