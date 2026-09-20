@@ -46,9 +46,9 @@ func (ts *TriggerManager) AddTrigger(data common.ActionArgs) (common.Action, str
 		// TODO: Add an error handler to the trigger execution
 		go trigger.Execute("", nil)
 		return trigger, data.Id, nil
+	default:
+		return nil, "", fmt.Errorf("unknown action_name: %q", data.ActionName)
 	}
-
-	return nil, "", nil
 }
 
 func (ts *TriggerManager) RemoveTrigger(id string) error {

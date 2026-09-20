@@ -196,6 +196,7 @@ func (wm *workflowManager) AddWorkflow(data Workflow) error {
 			nt, id, err := wm.TriggerManager.AddTrigger(cArgs)
 			if err != nil {
 				log.Printf("Cannot create new trigger: %s", err)
+				continue
 			}
 			wm.Workflows[data.Id].TriggerList[id] = nt
 			wm.Actions2Workflow[id] = data.Id

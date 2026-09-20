@@ -44,6 +44,8 @@ func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, strin
 
 	case "fileAction":
 		action, err = fileaction.New(am.events, data)
+	default:
+		return nil, "", fmt.Errorf("unknown action_name: %q", data.ActionName)
 	}
 
 	if err != nil {
