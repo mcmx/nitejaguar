@@ -3,6 +3,8 @@ package workflow
 import (
 	"fmt"
 	"testing"
+
+	"github.com/mcmx/nitejaguar/common"
 )
 
 // ejemplo:
@@ -43,5 +45,131 @@ func TestCondition(t *testing.T) {
 	strings3, _ := dict.getNextsIfTrue("condition3")
 	if strings3 != nil {
 		t.Error("Strings for condition3 should be nil")
+	}
+}
+
+func TestConditionRegexMatch(t *testing.T) {
+	c := newComparison("statement-2024.pdf", "=~", `^statement-.*\.pdf$`)
+	ok, err := c.evaluate(common.ActionArgs{}, nil, common.ResultData{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("expected regex to match")
+	}
+}
+
+func TestConditionRegexNoMatch(t *testing.T) {
+	c := newComparison("invoice-2024.pdf", "=~", `^statement-.*\.pdf$`)
+	ok, err := c.evaluate(common.ActionArgs{}, nil, common.ResultData{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("expected regex not to match")
+	}
+}
+
+func TestConditionRegexInvalidPattern(t *testing.T) {
+	c := newComparison("statement.pdf", "=~", `([a-z`)
+	_, err := c.evaluate(common.ActionArgs{}, nil, common.ResultData{})
+	if err == nil {
+		t.Fatal("expected error for invalid regex pattern, got nil")
+	}
+}
+
+func TestConditionRegexNonStringOperand(t *testing.T) {
+	c := newComparison(123, "=~", `^\d+$`)
+	_, err := c.evaluate(common.ActionArgs{}, nil, common.ResultData{})
+	if err == nil {
+		t.Fatal("expected error for non-string left operand, got nil")
+	}
+	c = newComparison("123", "=~", 123)
+	_, err = c.evaluate(common.ActionArgs{}, nil, common.ResultData{})
+	if err == nil {
+		t.Fatal("expected error for non-string right operand, got nil")
+	}
+}
+
+func TestConditionRegexResultResolution(t *testing.T) {
+	result := common.ResultData{Payload: map[string]any{"file": "statement-jan.pdf"}}
+	c := newComparison("$.result.file", "=~", `^statement-.*\.pdf$`)
+	ok, err := c.evaluate(common.ActionArgs{}, nil, result)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("expected regex to match resolved $.result.file")
+	}
+	result = common.ResultData{Payload: map[string]any{"file": "notes.txt"}}
+	ok, err = c.evaluate(common.ActionArgs{}, nil, result)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("expected regex not to match resolved $.result.file")
+	}
+}
+
+func TestConditionGlobMatch(t *testing.T) {
+	c := newComparison("statement-jan.pdf", "glob", "statement-*.pdf")
+	ok, err := c.evaluate(common.ActionArgs{}, nil, common.ResultData{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("expected glob to match")
+	}
+}
+
+func TestConditionGlobNoMatch(t *testing.T) {
+	c := newComparison("invoice-jan.pdf", "glob", "statement-*.pdf")
+	ok, err := c.evaluate(common.ActionArgs{}, nil, common.ResultData{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("expected glob not to match")
+	}
+}
+
+func TestConditionGlobInvalidPattern(t *testing.T) {
+	c := newComparison("statement.pdf", "glob", "[")
+	_, err := c.evaluate(common.ActionArgs{}, nil, common.ResultData{})
+	if err == nil {
+		t.Fatal("expected error for invalid glob pattern, got nil")
+	}
+}
+
+func TestConditionGlobNonStringOperand(t *testing.T) {
+	c := newComparison(123, "glob", "statement-*.pdf")
+	_, err := c.evaluate(common.ActionArgs{}, nil, common.ResultData{})
+	if err == nil {
+		t.Fatal("expected error for non-string left operand, got nil")
+	}
+	c = newComparison("statement.pdf", "glob", 123)
+	_, err = c.evaluate(common.ActionArgs{}, nil, common.ResultData{})
+	if err == nil {
+		t.Fatal("expected error for non-string right operand, got nil")
+	}
+}
+
+func TestConditionGlobResultResolution(t *testing.T) {
+	result := common.ResultData{Payload: map[string]any{"file": "statement-feb.pdf"}}
+	c := newComparison("$.result.file", "glob", "statement-*.pdf")
+	ok, err := c.evaluate(common.ActionArgs{}, nil, result)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("expected glob to match resolved $.result.file")
+	}
+	result = common.ResultData{Payload: map[string]any{"file": "notes.txt"}}
+	ok, err = c.evaluate(common.ActionArgs{}, nil, result)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("expected glob not to match resolved $.result.file")
 	}
 }

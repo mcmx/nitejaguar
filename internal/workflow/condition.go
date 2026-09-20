@@ -2,7 +2,9 @@ package workflow
 
 import (
 	"fmt"
+	"path"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -84,6 +86,10 @@ func (c *condition) evaluate(actionArgs common.ActionArgs, inputs []any, result 
 		return compareValues(leftOperand, rightOperand, "<")
 	case "<=":
 		return compareValues(leftOperand, rightOperand, "<=")
+	case "=~":
+		return matchRegex(leftOperand, rightOperand)
+	case "glob":
+		return matchGlob(leftOperand, rightOperand)
 	default:
 		return false, fmt.Errorf("unsupported operator: %s", c.Operator)
 	}
@@ -248,6 +254,66 @@ func lookupIndex(cur any, idx int, fullPath string) (any, error) {
 	default:
 		return nil, fmt.Errorf("unsupported path %q: cannot index %d on %s", fullPath, idx, v.Kind())
 	}
+}
+
+// matchRegex reports whether the string value s matches the regular
+// expression pattern. Both operands must already be resolved to strings:
+// left is the value, right is the regex pattern (Go RE2 syntax, as in
+// regexp.Compile). The pattern is unanchored, so use ^...$ to require a
+// full match. An invalid pattern or non-string operand returns an explicit
+// error, never a panic.
+func matchRegex(left, right any) (bool, error) {
+	leftStr, ok := left.(string)
+	if !ok {
+		return false, fmt.Errorf("operator \"=~\" requires string operands: left operand is %T (%v)", left, left)
+	}
+	rightStr, ok := right.(string)
+	if !ok {
+		return false, fmt.Errorf("operator \"=~\" requires string operands: right operand is %T (%v)", right, right)
+	}
+	re, err := regexp.Compile(rightStr)
+	if err != nil {
+		return false, fmt.Errorf("invalid regex pattern %q: %w", rightStr, err)
+	}
+	return re.MatchString(leftStr), nil
+}
+
+// matchGlob reports whether the string value s matches the glob pattern.
+// Both operands must already be resolved to strings: left is the value
+// (e.g. a file path or name), right is the glob pattern (e.g.
+// "statement-*.pdf"). Matching uses path.Match semantics: '*' matches any
+// sequence of non-separator characters, '?' matches any single
+// non-separator character, '[...]' denotes character classes/ranges, and
+// '\\' escapes. The pattern must match the entire value, and '/' is the
+// separator ('*' does not cross it). As trigger payloads are full paths
+// (e.g. "/home/u/Downloads/statement-x.pdf"), a non-matching full path
+// falls back to matching path.Base(value), so "statement-*.pdf" matches.
+// An invalid pattern or non-string operand returns an explicit error,
+// never a panic.
+func matchGlob(left, right any) (bool, error) {
+	leftStr, ok := left.(string)
+	if !ok {
+		return false, fmt.Errorf("operator \"glob\" requires string operands: left operand is %T (%v)", left, left)
+	}
+	rightStr, ok := right.(string)
+	if !ok {
+		return false, fmt.Errorf("operator \"glob\" requires string operands: right operand is %T (%v)", right, right)
+	}
+	matched, err := path.Match(rightStr, leftStr)
+	if err != nil {
+		return false, fmt.Errorf("invalid glob pattern %q: %w", rightStr, err)
+	}
+	if matched {
+		return true, nil
+	}
+	if strings.Contains(leftStr, "/") {
+		baseMatched, err := path.Match(rightStr, path.Base(leftStr))
+		if err != nil {
+			return false, fmt.Errorf("invalid glob pattern %q: %w", rightStr, err)
+		}
+		return baseMatched, nil
+	}
+	return false, nil
 }
 
 // Helper function for comparing numerical values (unchanged)
