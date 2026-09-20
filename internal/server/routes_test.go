@@ -110,14 +110,21 @@ func TestClientAssignmentFlow(t *testing.T) {
 	}
 	var registered struct {
 		ClientID string `json:"client_id"`
+		Token    string `json:"token"`
 	}
 	decodeBody(t, strings.NewReader(resp.Body.String()), &registered)
 	if !strings.HasPrefix(registered.ClientID, "client_") {
 		t.Fatalf("client id %q missing client_ prefix", registered.ClientID)
 	}
 
+	// protected routes reject missing credentials.
+	resp = api.Post("/api/clients/heartbeat", map[string]any{"client_id": registered.ClientID})
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized heartbeat status = %v", resp.Code)
+	}
+
 	// heartbeat
-	resp = api.Post("/api/clients/heartbeat", map[string]any{
+	resp = api.Post("/api/clients/heartbeat", "Authorization: Bearer "+registered.Token, map[string]any{
 		"client_id": registered.ClientID,
 	})
 	if resp.Code != http.StatusOK {
@@ -125,7 +132,7 @@ func TestClientAssignmentFlow(t *testing.T) {
 	}
 
 	// assignments for gpu client: broadcast trigger + gpu action
-	resp = api.Get("/api/clients/" + registered.ClientID + "/assignments")
+	resp = api.Get("/api/clients/"+registered.ClientID+"/assignments", "Authorization: Bearer "+registered.Token)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("assignments status = %v, body = %s", resp.Code, resp.Body.String())
 	}
@@ -169,9 +176,10 @@ func TestClientAssignmentFlow(t *testing.T) {
 	}
 	var cpuRegistered struct {
 		ClientID string `json:"client_id"`
+		Token    string `json:"token"`
 	}
 	decodeBody(t, strings.NewReader(resp.Body.String()), &cpuRegistered)
-	resp = api.Get("/api/clients/" + cpuRegistered.ClientID + "/assignments")
+	resp = api.Get("/api/clients/"+cpuRegistered.ClientID+"/assignments", "Authorization: Bearer "+cpuRegistered.Token)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("cpu assignments status = %v", resp.Code)
 	}
@@ -195,7 +203,7 @@ func TestClientAssignmentFlow(t *testing.T) {
 	}
 
 	// post a result for the trigger: server advances to the gpu action
-	resp = api.Post("/api/results", map[string]any{
+	resp = api.Post("/api/results", "Authorization: Bearer "+registered.Token, map[string]any{
 		"action_id":   "trigger_01kassignmentbroadcast00001",
 		"action_type": "trigger",
 		"action_name": "filechangeTrigger",
@@ -226,21 +234,39 @@ func TestClientAssignmentFlow(t *testing.T) {
 		t.Errorf("expected nexts to contain gpu action, got %v", resultOut.Nexts)
 	}
 
+	// Replaying the same result is idempotent and returns the stable response.
+	duplicate := api.Post("/api/results", "Authorization: Bearer "+registered.Token, map[string]any{
+		"result_id":   "result_duplicate_test",
+		"action_id":   "trigger_01kassignmentbroadcast00001",
+		"action_type": "trigger",
+	})
+	if duplicate.Code != http.StatusOK {
+		t.Fatalf("duplicate seed status = %v", duplicate.Code)
+	}
+	replay := api.Post("/api/results", "Authorization: Bearer "+registered.Token, map[string]any{
+		"result_id":   "result_duplicate_test",
+		"action_id":   "trigger_01kassignmentbroadcast00001",
+		"action_type": "trigger",
+	})
+	if replay.Code != http.StatusOK || replay.Body.String() != duplicate.Body.String() {
+		t.Fatalf("duplicate result response changed: first=%s replay=%s", duplicate.Body.String(), replay.Body.String())
+	}
+
 	// unknown action -> 404
-	resp = api.Post("/api/results", map[string]any{"action_id": "action_doesnotexist00000001"})
+	resp = api.Post("/api/results", "Authorization: Bearer "+registered.Token, map[string]any{"action_id": "action_doesnotexist00000001"})
 	if resp.Code != http.StatusNotFound {
 		t.Errorf("unknown action result status = %v, want 404", resp.Code)
 	}
 
-	// unknown client heartbeat -> 404
-	resp = api.Post("/api/clients/heartbeat", map[string]any{"client_id": "client_doesnotexist00001"})
-	if resp.Code != http.StatusNotFound {
-		t.Errorf("unknown client heartbeat status = %v, want 404", resp.Code)
+	// unknown client heartbeat -> unauthorized without the unknown client token
+	resp = api.Post("/api/clients/heartbeat", "Authorization: Bearer "+registered.Token, map[string]any{"client_id": "client_doesnotexist00001"})
+	if resp.Code != http.StatusUnauthorized {
+		t.Errorf("unknown client heartbeat status = %v, want 401", resp.Code)
 	}
 
-	// unknown client assignments -> 404
-	resp = api.Get("/api/clients/client_doesnotexist00001/assignments")
-	if resp.Code != http.StatusNotFound {
-		t.Errorf("unknown client assignments status = %v, want 404", resp.Code)
+	// unknown client assignments -> unauthorized without the unknown client token
+	resp = api.Get("/api/clients/client_doesnotexist00001/assignments", "Authorization: Bearer "+registered.Token)
+	if resp.Code != http.StatusUnauthorized {
+		t.Errorf("unknown client assignments status = %v, want 401", resp.Code)
 	}
 }
