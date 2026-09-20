@@ -4,7 +4,7 @@ before:
   - go mod tidy
 
 env:
-  - PACKAGE_PATH=github.com/<user>/<repo>/cmd
+  - PACKAGE_PATH=github.com/mcmx/nitejaguar/cmd.Version
 
 builds:
 - binary: "{{ .ProjectName }}"
