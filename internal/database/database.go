@@ -59,11 +59,11 @@ var (
 	dbInstance *service
 )
 
-func New() Service {
+func New() (Service, error) {
 	// Reuse Connection
 	dburl = os.Getenv("DB_URL")
 	if dbInstance != nil {
-		return dbInstance
+		return dbInstance, nil
 	}
 	if dburl == "" {
 		fmt.Println("DB_URL is empty, you could set it to: file:ent.db?mode=memory&cache=shared&_fk=1, to start in memory only")
@@ -74,7 +74,7 @@ func New() Service {
 	if err != nil {
 		// This will not be a connection error, but a DSN parse error or
 		// another initialization error.
-		log.Fatal(err)
+		return nil, fmt.Errorf("failed opening database connection: %w", err)
 	}
 
 	db := drv.DB()
@@ -85,9 +85,9 @@ func New() Service {
 		db:     db,
 	}
 	if err := client.Schema.Create(context.Background()); err != nil {
-		log.Fatalf("failed creating schema resources: %v", err)
+		return nil, fmt.Errorf("failed creating schema resources: %w", err)
 	}
-	return dbInstance
+	return dbInstance, nil
 }
 
 // Health checks the health of the database connection by pinging the database.
@@ -103,7 +103,6 @@ func (s *service) Health() *HealthResponse {
 	if err != nil {
 		stats.Status = "down"
 		stats.Error = fmt.Sprintf("db down: %v", err)
-		log.Fatalf("db down: %v", err) // Log the error and terminate the program
 		return stats
 	}
 

@@ -68,7 +68,10 @@ func TestWorkflowImportAndClone(t *testing.T) {
 	// internal/database caches its connection in a package singleton, so all
 	// subtests must share a single in-memory database.
 	t.Setenv("DB_URL", "file:test_import_clone?mode=memory&cache=shared&_fk=1")
-	db := database.New()
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
 	wmmInstance = nil
 	wm := NewWorkflowManager(false, db)
 	t.Cleanup(func() {
