@@ -64,18 +64,6 @@ func (r *clientRegistry) heartbeat(id string) (*clientInfo, bool) {
 	return c, true
 }
 
-func (r *clientRegistry) get(id string) (*clientInfo, bool) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	c, ok := r.clients[id]
-	if !ok {
-		return nil, false
-	}
-	copy := *c
-	copy.Tags = append([]string(nil), c.Tags...)
-	return &copy, true
-}
-
 func (r *clientRegistry) poll(id string) (*clientInfo, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
