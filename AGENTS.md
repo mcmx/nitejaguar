@@ -21,6 +21,14 @@ Workflow automation app (Go). Module `github.com/mcmx/nitejaguar`. Entrypoint `c
 - `server -i file.json` imports a workflow verbatim (upsert; ids/name untouched)
 - `server -c file.json` clones a workflow with fresh ids (mints new `workflow_`/`trigger_`/`action_` ids and rewrites every `conditions.nexts`/`dependencies` edge through the old→new map; name gets `"Clone of: "`). Literal-import vs clone are separate paths (`ImportWorkflowJSON` ≠ `CloneWorkflowJSON`), so don't conflate them.
 
+## Git workflow
+
+- Start every task from fresh `main`: `git checkout main && git pull`.
+- One feature branch per task: `git checkout -b <type>/short-desc` (`fix/`, `feat/`, `chore/`).
+- Verify with `make lint` and `make test` before pushing.
+- Push and open a PR (`gh pr create`); reference issues as `Fixes #N` so they auto-close on merge.
+- Merge only with CI (lint + test jobs) green. Never push directly to `main`.
+
 ## Runtime / env
 
 - `.env` is loaded via `godotenv` autoload and is gitignored. Server mode needs `DB_URL` (e.g. `file:./test.db?_fk=1&cache=shared`); without it the app falls back to in-memory SQLite. `PORT` defaults to 8080.
