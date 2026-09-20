@@ -51,11 +51,32 @@ func (ts *TriggerManager) AddTrigger(data common.ActionArgs) (common.Action, str
 	return nil, "", nil
 }
 
-func (ts *TriggerManager) RemoveTrigger(id string) {
-	err := ts.triggers[id].Stop()
+func (ts *TriggerManager) RemoveTrigger(id string) error {
+	trigger, ok := ts.triggers[id]
+	if !ok || trigger == nil {
+		return fmt.Errorf("trigger not found: %s", id)
+	}
+	err := trigger.Stop()
+	delete(ts.triggers, id)
 	if err != nil {
 		fmt.Println("Error while stopping action:", err)
+		return err
 	}
+	return nil
+}
+
+// FindTriggerIDByName resolves a trigger name to its registry id.
+// It returns false when no trigger with the given name exists.
+func (ts *TriggerManager) FindTriggerIDByName(name string) (string, bool) {
+	for id, trigger := range ts.triggers {
+		if trigger == nil {
+			continue
+		}
+		if trigger.GetArgs().Name == name {
+			return id, true
+		}
+	}
+	return "", false
 }
 
 func (ts *TriggerManager) Run(wmEvents chan common.ResultData, ctx context.Context) {
