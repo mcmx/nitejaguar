@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
+	"github.com/mcmx/nitejaguar/ent/remoteclient"
 	"github.com/mcmx/nitejaguar/ent/workflow"
 )
 
@@ -22,6 +23,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// RemoteClient is the client for interacting with the RemoteClient builders.
+	RemoteClient *RemoteClientClient
 	// Workflow is the client for interacting with the Workflow builders.
 	Workflow *WorkflowClient
 }
@@ -35,6 +38,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.RemoteClient = NewRemoteClientClient(c.config)
 	c.Workflow = NewWorkflowClient(c.config)
 }
 
@@ -126,9 +130,10 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:      ctx,
-		config:   cfg,
-		Workflow: NewWorkflowClient(cfg),
+		ctx:          ctx,
+		config:       cfg,
+		RemoteClient: NewRemoteClientClient(cfg),
+		Workflow:     NewWorkflowClient(cfg),
 	}, nil
 }
 
@@ -146,16 +151,17 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:      ctx,
-		config:   cfg,
-		Workflow: NewWorkflowClient(cfg),
+		ctx:          ctx,
+		config:       cfg,
+		RemoteClient: NewRemoteClientClient(cfg),
+		Workflow:     NewWorkflowClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Workflow.
+//		RemoteClient.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -177,22 +183,159 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.RemoteClient.Use(hooks...)
 	c.Workflow.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.RemoteClient.Intercept(interceptors...)
 	c.Workflow.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *RemoteClientMutation:
+		return c.RemoteClient.mutate(ctx, m)
 	case *WorkflowMutation:
 		return c.Workflow.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// RemoteClientClient is a client for the RemoteClient schema.
+type RemoteClientClient struct {
+	config
+}
+
+// NewRemoteClientClient returns a client for the RemoteClient from the given config.
+func NewRemoteClientClient(c config) *RemoteClientClient {
+	return &RemoteClientClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `remoteclient.Hooks(f(g(h())))`.
+func (c *RemoteClientClient) Use(hooks ...Hook) {
+	c.hooks.RemoteClient = append(c.hooks.RemoteClient, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `remoteclient.Intercept(f(g(h())))`.
+func (c *RemoteClientClient) Intercept(interceptors ...Interceptor) {
+	c.inters.RemoteClient = append(c.inters.RemoteClient, interceptors...)
+}
+
+// Create returns a builder for creating a RemoteClient entity.
+func (c *RemoteClientClient) Create() *RemoteClientCreate {
+	mutation := newRemoteClientMutation(c.config, OpCreate)
+	return &RemoteClientCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of RemoteClient entities.
+func (c *RemoteClientClient) CreateBulk(builders ...*RemoteClientCreate) *RemoteClientCreateBulk {
+	return &RemoteClientCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *RemoteClientClient) MapCreateBulk(slice any, setFunc func(*RemoteClientCreate, int)) *RemoteClientCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &RemoteClientCreateBulk{err: fmt.Errorf("calling to RemoteClientClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*RemoteClientCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &RemoteClientCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for RemoteClient.
+func (c *RemoteClientClient) Update() *RemoteClientUpdate {
+	mutation := newRemoteClientMutation(c.config, OpUpdate)
+	return &RemoteClientUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *RemoteClientClient) UpdateOne(_m *RemoteClient) *RemoteClientUpdateOne {
+	mutation := newRemoteClientMutation(c.config, OpUpdateOne, withRemoteClient(_m))
+	return &RemoteClientUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *RemoteClientClient) UpdateOneID(id string) *RemoteClientUpdateOne {
+	mutation := newRemoteClientMutation(c.config, OpUpdateOne, withRemoteClientID(id))
+	return &RemoteClientUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for RemoteClient.
+func (c *RemoteClientClient) Delete() *RemoteClientDelete {
+	mutation := newRemoteClientMutation(c.config, OpDelete)
+	return &RemoteClientDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *RemoteClientClient) DeleteOne(_m *RemoteClient) *RemoteClientDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *RemoteClientClient) DeleteOneID(id string) *RemoteClientDeleteOne {
+	builder := c.Delete().Where(remoteclient.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &RemoteClientDeleteOne{builder}
+}
+
+// Query returns a query builder for RemoteClient.
+func (c *RemoteClientClient) Query() *RemoteClientQuery {
+	return &RemoteClientQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeRemoteClient},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a RemoteClient entity by its id.
+func (c *RemoteClientClient) Get(ctx context.Context, id string) (*RemoteClient, error) {
+	return c.Query().Where(remoteclient.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *RemoteClientClient) GetX(ctx context.Context, id string) *RemoteClient {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *RemoteClientClient) Hooks() []Hook {
+	return c.hooks.RemoteClient
+}
+
+// Interceptors returns the client interceptors.
+func (c *RemoteClientClient) Interceptors() []Interceptor {
+	return c.inters.RemoteClient
+}
+
+func (c *RemoteClientClient) mutate(ctx context.Context, m *RemoteClientMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&RemoteClientCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&RemoteClientUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&RemoteClientUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&RemoteClientDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown RemoteClient mutation op: %q", m.Op())
 	}
 }
 
@@ -332,9 +475,9 @@ func (c *WorkflowClient) mutate(ctx context.Context, m *WorkflowMutation) (Value
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Workflow []ent.Hook
+		RemoteClient, Workflow []ent.Hook
 	}
 	inters struct {
-		Workflow []ent.Interceptor
+		RemoteClient, Workflow []ent.Interceptor
 	}
 )

@@ -5,6 +5,7 @@ package ent
 import (
 	"time"
 
+	"github.com/mcmx/nitejaguar/ent/remoteclient"
 	"github.com/mcmx/nitejaguar/ent/schema"
 	"github.com/mcmx/nitejaguar/ent/workflow"
 )
@@ -13,6 +14,36 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	remoteclientFields := schema.RemoteClient{}.Fields()
+	_ = remoteclientFields
+	// remoteclientDescName is the schema descriptor for name field.
+	remoteclientDescName := remoteclientFields[1].Descriptor()
+	// remoteclient.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	remoteclient.NameValidator = remoteclientDescName.Validators[0].(func(string) error)
+	// remoteclientDescTokenHash is the schema descriptor for token_hash field.
+	remoteclientDescTokenHash := remoteclientFields[3].Descriptor()
+	// remoteclient.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
+	remoteclient.TokenHashValidator = remoteclientDescTokenHash.Validators[0].(func(string) error)
+	// remoteclientDescRegisteredAt is the schema descriptor for registered_at field.
+	remoteclientDescRegisteredAt := remoteclientFields[4].Descriptor()
+	// remoteclient.DefaultRegisteredAt holds the default value on creation for the registered_at field.
+	remoteclient.DefaultRegisteredAt = remoteclientDescRegisteredAt.Default.(func() time.Time)
+	// remoteclientDescLastHeartbeat is the schema descriptor for last_heartbeat field.
+	remoteclientDescLastHeartbeat := remoteclientFields[5].Descriptor()
+	// remoteclient.DefaultLastHeartbeat holds the default value on creation for the last_heartbeat field.
+	remoteclient.DefaultLastHeartbeat = remoteclientDescLastHeartbeat.Default.(func() time.Time)
+	// remoteclient.UpdateDefaultLastHeartbeat holds the default value on update for the last_heartbeat field.
+	remoteclient.UpdateDefaultLastHeartbeat = remoteclientDescLastHeartbeat.UpdateDefault.(func() time.Time)
+	// remoteclientDescLastPoll is the schema descriptor for last_poll field.
+	remoteclientDescLastPoll := remoteclientFields[6].Descriptor()
+	// remoteclient.DefaultLastPoll holds the default value on creation for the last_poll field.
+	remoteclient.DefaultLastPoll = remoteclientDescLastPoll.Default.(func() time.Time)
+	// remoteclient.UpdateDefaultLastPoll holds the default value on update for the last_poll field.
+	remoteclient.UpdateDefaultLastPoll = remoteclientDescLastPoll.UpdateDefault.(func() time.Time)
+	// remoteclientDescID is the schema descriptor for id field.
+	remoteclientDescID := remoteclientFields[0].Descriptor()
+	// remoteclient.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	remoteclient.IDValidator = remoteclientDescID.Validators[0].(func(string) error)
 	workflowFields := schema.Workflow{}.Fields()
 	_ = workflowFields
 	// workflowDescEnabled is the schema descriptor for enabled field.

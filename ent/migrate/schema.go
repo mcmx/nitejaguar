@@ -8,6 +8,22 @@ import (
 )
 
 var (
+	// RemoteClientsColumns holds the columns for the "remote_clients" table.
+	RemoteClientsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "name", Type: field.TypeString},
+		{Name: "tags", Type: field.TypeJSON},
+		{Name: "token_hash", Type: field.TypeString},
+		{Name: "registered_at", Type: field.TypeTime},
+		{Name: "last_heartbeat", Type: field.TypeTime},
+		{Name: "last_poll", Type: field.TypeTime},
+	}
+	// RemoteClientsTable holds the schema information for the "remote_clients" table.
+	RemoteClientsTable = &schema.Table{
+		Name:       "remote_clients",
+		Columns:    RemoteClientsColumns,
+		PrimaryKey: []*schema.Column{RemoteClientsColumns[0]},
+	}
 	// WorkflowsColumns holds the columns for the "workflows" table.
 	WorkflowsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
@@ -24,6 +40,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		RemoteClientsTable,
 		WorkflowsTable,
 	}
 )

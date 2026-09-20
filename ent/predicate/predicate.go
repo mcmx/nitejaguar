@@ -6,5 +6,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// RemoteClient is the predicate function for remoteclient builders.
+type RemoteClient func(*sql.Selector)
+
 // Workflow is the predicate function for workflow builders.
 type Workflow func(*sql.Selector)

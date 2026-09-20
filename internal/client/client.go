@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +46,28 @@ type AssignmentsResponse struct {
 type API struct {
 	BaseURL, Token string
 	HTTPClient     *http.Client
+}
+
+type clientState struct {
+	ClientID string `json:"client_id"`
+	Token    string `json:"token"`
+}
+
+const stateFileName = "client_state.json"
+
+func loadClientState() clientState {
+	b, err := os.ReadFile(stateFileName)
+	if err != nil {
+		return clientState{}
+	}
+	var state clientState
+	_ = json.Unmarshal(b, &state)
+	return state
+}
+
+func saveClientState(state clientState) {
+	b, _ := json.MarshalIndent(state, "", "  ")
+	_ = os.WriteFile(stateFileName, b, 0600)
 }
 
 func (c Config) normalized() Config {
@@ -192,6 +215,19 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 	if logger == nil {
 		logger = slog.Default()
 	}
+
+	state := loadClientState()
+	if cfg.ClientID == "" && cfg.Token == "" {
+		if state.ClientID != "" && state.Token != "" {
+			cfg.ClientID = state.ClientID
+			cfg.Token = state.Token
+		}
+	} else if cfg.ClientID != "" && cfg.Token == "" {
+		if state.ClientID == cfg.ClientID && state.Token != "" {
+			cfg.Token = state.Token
+		}
+	}
+
 	api := API{BaseURL: cfg.Server, Token: cfg.Token}
 	r := newRunner(api, logger)
 	defer r.close()
@@ -211,14 +247,16 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 			id = reg.ClientID
 			api.Token = reg.Token
 			r.api.Token = reg.Token
+			saveClientState(clientState{ClientID: id, Token: reg.Token})
 			backoff = cfg.RetryInitial
 			logger.Info("client registered", "server", cfg.Server, "client_id", id, "name", cfg.Name)
 		}
 		if err := api.Heartbeat(ctx, id); err != nil {
 			logger.Warn("client heartbeat failed; retrying", "client_id", id, "error", err, "after", backoff)
-			if cfg.ClientID == "" {
-				id = ""
-			}
+			id = ""
+			api.Token = ""
+			r.api.Token = ""
+			saveClientState(clientState{})
 			if !wait(ctx, backoff) {
 				return ctx.Err()
 			}
@@ -228,9 +266,10 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		assignments, err := api.Assignments(ctx, id)
 		if err != nil {
 			logger.Warn("client assignment poll failed; retrying", "client_id", id, "error", err, "after", backoff)
-			if cfg.ClientID == "" {
-				id = ""
-			}
+			id = ""
+			api.Token = ""
+			r.api.Token = ""
+			saveClientState(clientState{})
 			if !wait(ctx, backoff) {
 				return ctx.Err()
 			}
