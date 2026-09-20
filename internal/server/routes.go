@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"fmt"
@@ -9,8 +10,10 @@ import (
 	"time"
 
 	"github.com/mcmx/nitejaguar/cmd/web"
+	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/ent"
 	"github.com/mcmx/nitejaguar/internal/database"
+	"github.com/mcmx/nitejaguar/internal/workflow"
 
 	"github.com/a-h/templ"
 	"github.com/coder/websocket"
@@ -78,6 +81,184 @@ func addApiRoutes(api huma.API, s *Server) {
 		Path:        "/events",
 		Summary:     "Workflow events",
 	}, s.WorkflowEvents)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "register-client",
+		Method:      http.MethodPost,
+		Path:        "/clients/register",
+		Summary:     "Register a polling client",
+	}, s.RegisterClient)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "client-heartbeat",
+		Method:      http.MethodPost,
+		Path:        "/clients/heartbeat",
+		Summary:     "Client heartbeat",
+	}, s.ClientHeartbeat)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "get-assignments",
+		Method:      http.MethodGet,
+		Path:        "/clients/{id}/assignments",
+		Summary:     "Poll workflow/node assignments for a client",
+	}, s.GetAssignments)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "post-result",
+		Method:      http.MethodPost,
+		Path:        "/results",
+		Summary:     "Ingest a node result and advance the workflow",
+	}, s.PostResult)
+}
+
+type RegisterClientInput struct {
+	Body struct {
+		Name string   `json:"name"`
+		Tags []string `json:"tags"`
+	}
+}
+
+type RegisterClientOutput struct {
+	Body struct {
+		ClientID string `json:"client_id"`
+	}
+}
+
+type HeartbeatInput struct {
+	Body struct {
+		ClientID string `json:"client_id"`
+	}
+}
+
+type HeartbeatOutput struct {
+	Body struct {
+		Ok bool `json:"ok"`
+	}
+}
+
+// WorkflowDefinition is the public workflow shape returned to polling clients.
+// It intentionally has a distinct name from ent.Workflow so Huma can register
+// both schemas without a name collision.
+type WorkflowDefinition struct {
+	ID    string                   `json:"id"`
+	Name  string                   `json:"name"`
+	Nodes map[string]workflow.Node `json:"nodes"`
+}
+
+type AssignmentsOutput struct {
+	Body struct {
+		ClientID  string               `json:"client_id"`
+		Workflows []WorkflowDefinition `json:"workflows"`
+	}
+}
+
+type PostResultInput struct {
+	Body struct {
+		ResultID    string    `json:"result_id,omitempty"`
+		WorkflowID  string    `json:"workflow_id,omitempty"`
+		ExecutionID string    `json:"execution_id,omitempty"`
+		ActionID    string    `json:"action_id,omitempty"`
+		ActionType  string    `json:"action_type,omitempty"`
+		ActionName  string    `json:"action_name,omitempty"`
+		CreatedAt   time.Time `json:"created_at,omitempty"`
+		Payload     any       `json:"payload,omitempty"`
+	}
+}
+
+type PostResultOutput struct {
+	Body struct {
+		WorkflowID  string   `json:"workflow_id"`
+		ExecutionID string   `json:"execution_id"`
+		Nexts       []string `json:"nexts"`
+	}
+}
+
+func (s *Server) RegisterClient(_ context.Context, input *RegisterClientInput) (*RegisterClientOutput, error) {
+	if input.Body.Name == "" {
+		return nil, huma.Error400BadRequest("name is required")
+	}
+	c := s.registry().register(input.Body.Name, input.Body.Tags)
+	return &RegisterClientOutput{
+		Body: struct {
+			ClientID string `json:"client_id"`
+		}{ClientID: c.ID},
+	}, nil
+}
+
+func (s *Server) ClientHeartbeat(_ context.Context, input *HeartbeatInput) (*HeartbeatOutput, error) {
+	if input.Body.ClientID == "" {
+		return nil, huma.Error400BadRequest("client_id is required")
+	}
+	if _, ok := s.registry().heartbeat(input.Body.ClientID); !ok {
+		return nil, huma.Error404NotFound("client not found")
+	}
+	return &HeartbeatOutput{
+		Body: struct {
+			Ok bool `json:"ok"`
+		}{Ok: true},
+	}, nil
+}
+
+func (s *Server) GetAssignments(_ context.Context, input *struct {
+	ID string `path:"id"`
+}) (*AssignmentsOutput, error) {
+	client, ok := s.registry().get(input.ID)
+	if !ok {
+		return nil, huma.Error404NotFound("client not found")
+	}
+	rows, err := s.db.GetWorkflows(true, true)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to get workflows")
+	}
+	workflows := []WorkflowDefinition{}
+	for _, row := range rows {
+		var def workflow.Workflow
+		if err := json.Unmarshal([]byte(row.JSONDefinition), &def); err != nil {
+			continue
+		}
+		filtered := make(map[string]workflow.Node, len(def.Nodes))
+		for id, n := range def.Nodes {
+			if n.AssignedTo(client.ID, client.Tags) {
+				filtered[id] = n
+			}
+		}
+		if len(filtered) == 0 {
+			continue
+		}
+		def.Nodes = filtered
+		workflows = append(workflows, WorkflowDefinition{
+			ID:    def.Id,
+			Name:  def.Name,
+			Nodes: def.Nodes,
+		})
+	}
+	return &AssignmentsOutput{
+		Body: struct {
+			ClientID  string               `json:"client_id"`
+			Workflows []WorkflowDefinition `json:"workflows"`
+		}{ClientID: client.ID, Workflows: workflows},
+	}, nil
+}
+
+func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostResultOutput, error) {
+	if input.Body.ActionID == "" {
+		return nil, huma.Error400BadRequest("action_id is required")
+	}
+	result := common.ResultData{
+		ResultID:    input.Body.ResultID,
+		WorkflowID:  input.Body.WorkflowID,
+		ExecutionID: input.Body.ExecutionID,
+		ActionID:    input.Body.ActionID,
+		ActionType:  input.Body.ActionType,
+		ActionName:  input.Body.ActionName,
+		CreatedAt:   input.Body.CreatedAt,
+		Payload:     input.Body.Payload,
+	}
+	stored, nexts, err := s.wm.IngestResult(result)
+	if err != nil {
+		return nil, huma.Error404NotFound(err.Error())
+	}
+	out := &PostResultOutput{}
+	out.Body.WorkflowID = stored.WorkflowID
+	out.Body.ExecutionID = stored.ExecutionID
+	out.Body.Nexts = nexts
+	return out, nil
 }
 
 func (s *Server) TriggerWebHandler(c echo.Context) error {

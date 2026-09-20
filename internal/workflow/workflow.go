@@ -38,6 +38,7 @@ type WorkflowManager interface {
 	GetTriggerManager() actions.TriggerManager
 	ImportWorkflowJSON(string) error
 	CloneWorkflowJSON(string) error
+	IngestResult(common.ResultData) (common.ResultData, []string, error)
 }
 
 type workflowManager struct {
@@ -140,6 +141,33 @@ type Node struct {
 	Arguments    map[string]string    `json:"arguments"`
 	Conditions   *conditionDictionary `json:"conditions"` // Dictionary of conditions, it has the next nodes id according to each condition
 	Dependencies []string             `json:"dependencies"`
+	Client       string               `json:"client,omitempty"`
+	ClientTags   []string             `json:"client_tags,omitempty"`
+}
+
+// AssignedTo reports whether a node is assigned to the given client.
+// A node with no client targeting (empty Client and ClientTags) is
+// broadcast and assigned to every client. Otherwise the node matches
+// when the client ID equals Client or when any tag overlaps.
+func (n *Node) AssignedTo(clientID string, tags []string) bool {
+	if n.Client == "" && len(n.ClientTags) == 0 {
+		return true
+	}
+	if n.Client != "" && n.Client == clientID {
+		return true
+	}
+	if len(n.ClientTags) > 0 && len(tags) > 0 {
+		set := make(map[string]struct{}, len(tags))
+		for _, t := range tags {
+			set[t] = struct{}{}
+		}
+		for _, t := range n.ClientTags {
+			if _, ok := set[t]; ok {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // args how this node was called
@@ -352,6 +380,96 @@ func (wm *workflowManager) CloneWorkflowJSON(jsonDef string) error {
 	jData, _ := json.MarshalIndent(data, "", "  ")
 	log.Printf("Cloned workflow %s\n%s\n", data.Id, string(jData))
 	return wm.saveWorkflow(data)
+}
+
+// IngestResult ingests a remotely reported ResultData (POST /api/results path).
+// It mirrors what the Run loop does for local results: resolve the workflow,
+// mint an ExecutionID for trigger roots, persist via saveResult, compute the
+// next nodes and kick off downstream actions. It returns the next node IDs.
+func (wm *workflowManager) IngestResult(result common.ResultData) (common.ResultData, []string, error) {
+	if result.ActionID == "" {
+		return result, nil, errors.New("action_id is required")
+	}
+	if result.ResultID == "" {
+		rID, _ := typeid.WithPrefix("result")
+		result.ResultID = rID.String()
+	}
+	if result.CreatedAt.IsZero() {
+		result.CreatedAt = time.Now()
+	}
+
+	// Resolve workflow ID: prefer explicit field, then in-memory index,
+	// then scan in-memory definitions and the DB for the node.
+	workflowID := result.WorkflowID
+	if workflowID == "" {
+		workflowID = wm.Actions2Workflow[result.ActionID]
+	}
+	var node Node
+	var nodeFound bool
+	if workflowID != "" {
+		if wf, ok := wm.Workflows[workflowID]; ok {
+			if n, ok := wf.Definition.Nodes[result.ActionID]; ok {
+				node = n
+				nodeFound = true
+			}
+		}
+	}
+	if !nodeFound {
+		for id, wf := range wm.Workflows {
+			if n, ok := wf.Definition.Nodes[result.ActionID]; ok {
+				node = n
+				nodeFound = true
+				workflowID = id
+				break
+			}
+		}
+	}
+	if !nodeFound && wm.db != nil {
+		rows, err := wm.db.GetWorkflows(true, true)
+		if err == nil {
+			for _, row := range rows {
+				var def Workflow
+				if err := json.Unmarshal([]byte(row.JSONDefinition), &def); err != nil {
+					continue
+				}
+				if n, ok := def.Nodes[result.ActionID]; ok {
+					node = n
+					nodeFound = true
+					workflowID = def.Id
+					if workflowID == "" {
+						workflowID = row.ID
+					}
+					break
+				}
+			}
+		}
+	}
+	if !nodeFound {
+		return result, nil, fmt.Errorf("unknown action_id %q", result.ActionID)
+	}
+	result.WorkflowID = workflowID
+
+	if node.ActionType == "trigger" && result.ExecutionID == "" {
+		eID, _ := typeid.WithPrefix("execution")
+		result.ExecutionID = eID.String()
+	}
+	wm.saveResult(result)
+
+	nexts := node.GetNextNodes([]any{}, result)
+	for _, next := range nexts {
+		if !wm.enableActions {
+			continue
+		}
+		if err := wm.ActionManager.ExecuteAction(next, result.ExecutionID, []any{result}); err != nil {
+			// Best effort: remote clients may own the downstream node, so
+			// a locally unknown action is not fatal.
+			log.Printf("IngestResult: skipping local execute of %s: %s", next, err)
+		}
+	}
+	if nexts == nil {
+		nexts = []string{}
+	}
+	return result, nexts, nil
 }
 
 func (wm *workflowManager) saveWorkflow(data Workflow) error {
