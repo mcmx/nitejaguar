@@ -78,7 +78,7 @@ func (t *fileaction) sendResult(executionId string, payload payload) {
 		ExecutionID: executionId,
 		ActionID:    t.data.Id,
 		ActionType:  t.data.ActionType,
-		ActionName:  t.data.Name,
+		ActionName:  t.data.ActionName,
 		Payload:     payload,
 	}
 }
