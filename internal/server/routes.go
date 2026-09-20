@@ -81,13 +81,22 @@ func addApiRoutes(api huma.API, s *Server) {
 }
 
 func (s *Server) TriggerWebHandler(c echo.Context) error {
-	name := c.FormValue("name")
-	if name == "" {
-		return c.JSON(http.StatusBadRequest, "Missing name")
+	value := c.FormValue("id")
+	if value == "" {
+		value = c.FormValue("name")
 	}
-	fmt.Println("Form value Stopping Trigger:", name)
+	if value == "" {
+		return c.JSON(http.StatusBadRequest, "Missing id or name")
+	}
+	fmt.Println("Form value Stopping Trigger:", value)
 	t := s.wm.GetTriggerManager()
-	t.RemoveTrigger(name)
+	id := value
+	if resolved, ok := t.FindTriggerIDByName(value); ok {
+		id = resolved
+	}
+	if err := t.RemoveTrigger(id); err != nil {
+		return c.JSON(http.StatusNotFound, "Trigger not found")
+	}
 
 	return c.JSON(http.StatusOK, "Ok Hello")
 }
