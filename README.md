@@ -60,6 +60,35 @@ that require authentication. These options also accept `NITEJAGUAR_SERVER`,
 retries registration and polling with exponential backoff and stops cleanly on context
 cancellation (for example, SIGINT).
 
+## Downloads PDF rename POC
+
+Import and run the example on the server (the `-e` flag enables local actions):
+
+```bash
+./nitejaguar server -i examples/workflow-poc-downloads.json -e
+```
+
+The workflow watches `~/Downloads` for create and write events, debounces bursts from
+common download programs, and renames each PDF to `stem-YYYYMMDD.pdf` using the local
+date. Files already ending in `-YYYYMMDD.pdf` are ignored, so the rename cannot loop.
+The destination is never overwritten; a collision is reported as an error result.
+
+For client mode, start the server with the imported workflow and run this in another
+terminal (the same JSON is assigned without changes; the `~` path is expanded on the
+client):
+
+```bash
+./nitejaguar client --server http://127.0.0.1:8080 --name downloads
+```
+
+To test either mode, remove any old dated destination, copy a PDF into `~/Downloads`,
+and verify that it becomes `name-YYYYMMDD.pdf`. Check `./results/` for the trigger and
+action result JSON. Run the focused tests with:
+
+```bash
+go test ./internal/actions/filechange ./internal/workflow
+```
+
 ## Workflows
 
 Workflows are stored in the workflows table in the database, currently we have the following fields:
