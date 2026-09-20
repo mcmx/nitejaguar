@@ -3,6 +3,7 @@ package workflow
 import (
 	"encoding/json"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -10,8 +11,9 @@ import (
 )
 
 const (
-	workflow1Path = "../../examples/workflow1.json"
-	workflow2Path = "../../examples/workflow2.json"
+	workflow1Path    = "../../examples/workflow1.json"
+	workflow2Path    = "../../examples/workflow2.json"
+	pocDownloadsPath = "../../examples/workflow-poc-downloads.json"
 
 	workflow1ID   = "workflow_01jq9c43qhejts98g7n1krqpgd"
 	workflow1Name = "First Workflow from json"
@@ -62,6 +64,36 @@ func assertEdgeIntegrity(t *testing.T, wf Workflow) {
 			}
 		}
 	}
+}
+
+func TestDownloadsPOCDefinition(t *testing.T) {
+	var wf Workflow
+	if err := json.Unmarshal([]byte(readWorkflow(t, pocDownloadsPath)), &wf); err != nil {
+		t.Fatalf("unmarshal Downloads POC: %v", err)
+	}
+	if wf.Id == "" || len(wf.Nodes) != 2 {
+		t.Fatalf("invalid POC workflow identity or node count: %q, %d", wf.Id, len(wf.Nodes))
+	}
+	var trigger, action Node
+	for _, node := range wf.Nodes {
+		switch node.ActionType {
+		case "trigger":
+			trigger = node
+		case "action":
+			action = node
+		}
+	}
+	if trigger.ActionName != "filechangeTrigger" || trigger.Arguments["path"] != "~/Downloads" || trigger.Arguments["event_type"] != "create,write" {
+		t.Fatalf("unexpected POC trigger: %+v", trigger)
+	}
+	entry := trigger.Conditions.Entries["pdf_file"]
+	if entry.Condition.Operator != "=~" || entry.Condition.LeftOperand != "$.result.file" || regexp.MustCompile(entry.Condition.RightOperand.(string)).MatchString("report-20260920.pdf") {
+		t.Fatalf("POC condition does not exclude dated PDFs: %+v", entry.Condition)
+	}
+	if action.ActionName != "fileAction" || action.Arguments["action"] != "rename" || action.Arguments["file"] != "$.result.file" || action.Arguments["new_file"] != "{{stem}}-{{date}}{{ext}}" {
+		t.Fatalf("unexpected POC action: %+v", action)
+	}
+	assertEdgeIntegrity(t, wf)
 }
 
 func TestWorkflowImportAndClone(t *testing.T) {

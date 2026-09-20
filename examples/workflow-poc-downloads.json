@@ -1,0 +1,51 @@
+{
+  "id": "workflow_01jsasmn2de0brpwy9r8109cmf",
+  "name": "POC: Rename Downloads PDFs with date suffix",
+  "nodes": {
+    "trigger_01jr12v81gfk6t359nvqg86t9g": {
+      "id": "trigger_01jr12v81gfk6t359nvqg86t9g",
+      "name": "Trigger: Downloads PDF create/write",
+      "description": "Watch ~/Downloads for PDF create/write events",
+      "action_type": "trigger",
+      "action_name": "filechangeTrigger",
+      "arguments": {
+        "path": "~/Downloads",
+        "event_type": "create,write",
+        "debounce_ms": "750"
+      },
+      "conditions": {
+        "entries": {
+          "pdf_file": {
+            "condition": {
+              "leftOperand": "$.result.file",
+              "operator": "=~",
+              "rightOperand": "(?i)^.*(?:-[0-9]{1,7}|-[0-9]{9,}|[^-0-9])\\.pdf$"
+            },
+            "nexts": [
+              "action_01jr12v81gfk6t359nvqg86t9g"
+            ]
+          }
+        }
+      },
+      "dependencies": null
+    },
+    "action_01jr12v81gfk6t359nvqg86t9g": {
+      "id": "action_01jr12v81gfk6t359nvqg86t9g",
+      "name": "Action: rename PDF with date",
+      "description": "Rename the downloaded PDF to stem-YYYYMMDD.ext",
+      "action_type": "action",
+      "action_name": "fileAction",
+      "arguments": {
+        "action": "rename",
+        "file": "$.result.file",
+        "new_file": "{{stem}}-{{date}}{{ext}}"
+      },
+      "conditions": {
+        "entries": {}
+      },
+      "dependencies": [
+        "trigger_01jr12v81gfk6t359nvqg86t9g"
+      ]
+    }
+  }
+}
