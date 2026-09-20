@@ -1,0 +1,127 @@
+package web
+
+import (
+    "encoding/json"
+    "fmt"
+    "github.com/mcmx/nitejaguar/common"
+    "github.com/mcmx/nitejaguar/ent"
+    "github.com/mcmx/nitejaguar/internal/workflow"
+)
+
+type WorkflowPageData struct {
+    Workflows []*ent.Workflow
+    Error string
+}
+
+type WorkflowDetailData struct {
+    Workflow *ent.Workflow
+    Definition workflow.Workflow
+    Error string
+}
+
+type ResultsPageData struct {
+    Results []common.ResultData
+    Error string
+}
+
+func jsonText(value any) string {
+    data, err := json.MarshalIndent(value, "", "  ")
+    if err != nil { return fmt.Sprintf("%v", value) }
+    return string(data)
+}
+
+templ pageTitle(title string) {
+    <div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <p class="text-sm font-medium text-red-500">Nite Jaguar</p>
+            <h1 class="text-3xl font-bold tracking-tight">{ title }</h1>
+        </div>
+    </div>
+}
+
+templ WorkflowsPage(data *WorkflowPageData, _ string) {
+    @Base() {
+        <main class="container mx-auto max-w-6xl px-4 py-8">
+            @pageTitle("Workflows")
+            if data.Error != "" {
+                <p class="rounded-lg border border-red-500/50 p-6 text-red-500">{ data.Error }</p>
+            }
+            if data.Error == "" && len(data.Workflows) == 0 {
+                <div class="rounded-lg border border-border p-6"><p class="font-medium">No workflows found</p><p class="mt-2 text-sm text-muted-foreground">Import a workflow with <code>server -i file.json</code>.</p></div>
+            }
+            if data.Error == "" && len(data.Workflows) > 0 {
+                <div class="grid gap-4 md:grid-cols-2">
+                    for _, wf := range data.Workflows {
+                        <a href={ templ.URL("/workflows/" + wf.ID) } class="rounded-lg border border-border p-5 transition hover:border-red-500 hover:bg-muted">
+                            <div class="flex items-start justify-between gap-4">
+                                <h2 class="font-semibold">{ workflowName(wf) }</h2>
+                                if wf.Enabled {
+                                    <span class="rounded-full bg-green-500/15 px-2 py-1 text-xs text-green-600">enabled</span>
+                                } else {
+                                    <span class="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">disabled</span>
+                                }
+                            </div>
+                            <p class="mt-3 break-all font-mono text-xs text-muted-foreground">{ wf.ID }</p>
+                        </a>
+                    }
+                </div>
+            }
+        </main>
+    }
+}
+
+func workflowName(wf *ent.Workflow) string {
+    var def workflow.Workflow
+    if json.Unmarshal([]byte(wf.JSONDefinition), &def) == nil && def.Name != "" { return def.Name }
+    return wf.ID
+}
+
+templ WorkflowDetailPage(data *WorkflowDetailData) {
+    @Base() {
+        <main class="container mx-auto max-w-6xl px-4 py-8">
+            if data.Error != "" {
+                <p class="rounded-lg border border-red-500/50 p-6 text-red-500">{ data.Error }</p>
+            } else {
+                @pageTitle(data.Definition.Name)
+                <div class="mb-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground"><span class="break-all font-mono">{ data.Definition.Id }</span><span class="rounded-full border border-border px-2 py-1">{ fmt.Sprintf("%d nodes", len(data.Definition.Nodes)) }</span><a href="/results" class="text-red-500 hover:underline">View executions</a></div>
+                <form method="post" action={ templ.URL("/workflows/" + data.Workflow.ID + "/enabled") } class="mb-6"><input type="hidden" name="enabled" value={ fmt.Sprintf("%t", !data.Workflow.Enabled) }/>if data.Workflow.Enabled {
+                        <button class="rounded border border-border px-3 py-2 text-sm hover:border-red-500" type="submit">Disable workflow</button>
+                    } else {
+                        <button class="rounded border border-border px-3 py-2 text-sm hover:border-red-500" type="submit">Enable workflow</button>
+                    }</form>
+                <div class="space-y-4">
+                    for id, node := range data.Definition.Nodes {
+                        <article class="rounded-lg border border-border p-5">
+                            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p class="text-xs uppercase tracking-wide text-red-500">{ node.ActionType }</p><h2 class="font-semibold">{ node.Name }</h2><p class="mt-1 break-all font-mono text-xs text-muted-foreground">{ id }</p></div><span class="rounded bg-muted px-2 py-1 font-mono text-xs">{ node.ActionName }</span></div>
+                            <div class="mt-4 grid gap-4 text-sm md:grid-cols-2"><div><h3 class="mb-1 font-medium">Arguments</h3><pre class="overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(node.Arguments) }</pre></div><div><h3 class="mb-1 font-medium">Conditions / next nodes</h3><pre class="overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(node.Conditions) }</pre></div><div><h3 class="mb-1 font-medium">Dependencies</h3><p class="break-all rounded bg-muted p-3 font-mono text-xs">{ fmt.Sprint(node.Dependencies) }</p></div><div><h3 class="mb-1 font-medium">Client targeting</h3><p class="break-all rounded bg-muted p-3 text-xs">client: { node.Client }<br/>tags: { fmt.Sprint(node.ClientTags) }</p></div></div>
+                        </article>
+                    }
+                </div>
+            }
+        </main>
+    }
+}
+
+templ ResultsPage(data *ResultsPageData) {
+    @Base() {
+        <main class="container mx-auto max-w-6xl px-4 py-8">
+            @pageTitle("Executions and results")
+            <p class="mb-6 text-sm text-muted-foreground">Results are read from the local <code>./results</code> directory.</p>
+            if data.Error != "" {
+                <p class="rounded-lg border border-red-500/50 p-6 text-red-500">{ data.Error }</p>
+            } else if len(data.Results) == 0 {
+                <p class="rounded-lg border border-border p-6">No results recorded yet.</p>
+            } else {
+                <div class="space-y-3">
+                    for _, result := range data.Results {
+                        <article class="rounded-lg border border-border p-4">
+                            <div class="flex flex-wrap justify-between gap-2"><span class="font-semibold">{ result.ActionName }</span><span class="font-mono text-xs text-muted-foreground">{ result.CreatedAt.Format("2006-01-02 15:04:05") }</span></div>
+                            <p class="mt-3 break-all font-mono text-xs">workflow: { result.WorkflowID }<br/>execution: { result.ExecutionID }<br/>node: { result.ActionID }</p>
+                            <pre class="mt-3 overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(result.Payload) }</pre>
+                        </article>
+                    }
+                </div>
+            }
+        </main>
+    }
+}

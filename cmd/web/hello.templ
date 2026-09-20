@@ -1,45 +1,10 @@
 package web
 
-import (
-	"github.com/axzilla/templui/component/form"
-	"github.com/axzilla/templui/component/input"
-)
-
 templ HelloForm() {
-	@Base() {
-		<div class="w-full max-w-sm">
-		<form hx-post="/hello" method="POST" hx-target="#hello-container">
-		<div id="hello-container"></div>
-
-		@form.Item() {
-			@form.Label(form.LabelProps{
-				For: "email-form",
-			}) {
-				Email
-			}
-			@input.Input(input.Props{
-				ID:          "email-form",
-				Name:        "name",
-				Type:        input.TypeEmail,
-				Placeholder: "m@example.com",
-				HasError:    true,
-			})
-			@form.Description() {
-				Enter your email address for notifications.
-			}
-			@form.Message(form.MessageProps{
-				Variant: form.MessageVariantError,
-			}) {
-				Please enter a valid email address
-			}
-		}
-		<button type="submit">Submit</button>
-		</form>
-
-		</div>
-	}
+    @WorkflowsPage(nil, "")
 }
 
+// HelloPost is retained for compatibility with generated callers.
 templ HelloPost(name string) {
-	<div>Hello, { name }</div>
+    <div>{ name }</div>
 }
