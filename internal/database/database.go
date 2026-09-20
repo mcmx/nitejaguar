@@ -151,7 +151,10 @@ func (s *service) Close() error {
 
 // SaveWorkflow saves a workflow definition to the database
 func (s *service) SaveWorkflow(workflowId string, jsonDef string) error {
-	w, _ := s.client.Workflow.Query().Where(workflow.ID(workflowId)).Only(context.Background())
+	w, err := s.client.Workflow.Query().Where(workflow.ID(workflowId)).Only(context.Background())
+	if err != nil && !ent.IsNotFound(err) {
+		return fmt.Errorf("failed to check existing workflow: %w", err)
+	}
 	if w != nil {
 		log.Printf("Workflow %s already exists, updating...", workflowId)
 		_, err := s.client.Workflow.UpdateOneID(workflowId).
@@ -162,7 +165,7 @@ func (s *service) SaveWorkflow(workflowId string, jsonDef string) error {
 		}
 		return nil
 	}
-	_, err := s.client.Workflow.Create().
+	_, err = s.client.Workflow.Create().
 		SetJSONDefinition(jsonDef).
 		SetID(workflowId).
 		Save(context.Background())
@@ -188,9 +191,15 @@ func (s *service) GetWorkflow(workflowId string) (*ent.Workflow, error) {
 // GetWorkflows retrieves all workflow definitions from the database
 func (s *service) GetWorkflows(all, isEnabled bool) ([]*ent.Workflow, error) {
 	if all {
-		return s.client.Workflow.Query().All(context.Background())
-	} else {
-		ws, _ := s.client.Workflow.Query().Where(workflow.Enabled(isEnabled)).All(context.Background())
+		ws, err := s.client.Workflow.Query().All(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get workflows: %w", err)
+		}
 		return ws, nil
 	}
+	ws, err := s.client.Workflow.Query().Where(workflow.Enabled(isEnabled)).All(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflows: %w", err)
+	}
+	return ws, nil
 }
