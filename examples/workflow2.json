@@ -1,0 +1,45 @@
+{
+    "id": "workflow_01jsasmn2de0brpwy9r8109cmf",
+    "name": "Imported Workflow: Workflow check downloads",
+    "nodes": {
+      "trigger_01jr12v81gfk6t359nvqg86t9g": {
+        "id": "trigger_01jr12v81gfk6t359nvqg86t9g",
+        "name": "Trigger: filechangeTrigger",
+        "description": "Trigger: on Downloads",
+        "action_type": "trigger",
+        "action_name": "filechangeTrigger",
+        "arguments": {
+          "path": "/home/sergio/Downloads",
+          "event_type": "create"
+        },
+        "conditions": {
+          "entries": {
+            "entry1": {
+                "condition": {
+                    "leftOperand": true,
+                    "operator": "",
+                    "rightOperand": null
+                },
+                "nexts": ["action_01jr12v81gfk6t359nvqg86t9g"]
+            }
+          }
+        },
+        "dependencies": null
+      },
+    "action_01jr12v81gfk6t359nvqg86t9g": {
+      "id": "action_01jr12v81gfk6t359nvqg86t9g",
+      "name": "Action: fileaction",
+      "description": "Action: fileaction",
+      "action_type": "action",
+      "action_name": "fileAction",
+      "arguments": {
+        "action": "create",
+        "file": "/tmp/sergio-was-here.txt"
+      },
+      "conditions": {
+        "entries": {}
+      },
+      "dependencies": ["trigger_01jr12v81gfk6t359nvqg86t9g"]
+    }
+  }
+}

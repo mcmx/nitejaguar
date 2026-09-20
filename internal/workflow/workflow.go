@@ -37,6 +37,7 @@ type WorkflowManager interface {
 	SaveWorkflowToDB(string) error
 	GetTriggerManager() actions.TriggerManager
 	ImportWorkflowJSON(string) error
+	CloneWorkflowJSON(string) error
 }
 
 type workflowManager struct {
@@ -248,6 +249,9 @@ func (wm *workflowManager) GetTriggerManager() actions.TriggerManager {
 	return wm.TriggerManager
 }
 
+// ImportWorkflowJSON saves a workflow definition verbatim, keeping the ids
+// and name from the JSON. If a workflow with the same id already exists it is
+// overwritten (upsert).
 func (wm *workflowManager) ImportWorkflowJSON(jsonDef string) error {
 	data := Workflow{}
 	err := json.Unmarshal([]byte(jsonDef), &data)
@@ -255,36 +259,77 @@ func (wm *workflowManager) ImportWorkflowJSON(jsonDef string) error {
 		log.Printf("Cannot unmarshal workflow: %s", err)
 		return err
 	}
-	w, err := wm.db.GetWorkflow(data.Id)
+	log.Printf("Importing workflow %s", data.Id)
+	return wm.saveWorkflow(data)
+}
+
+// CloneWorkflowJSON creates a new independent copy of a workflow definition:
+// it mints a fresh id for the workflow and for every node, rewrites the
+// conditions and dependencies edges accordingly, and prefixes the name. The
+// original definition is left untouched.
+func (wm *workflowManager) CloneWorkflowJSON(jsonDef string) error {
+	data := Workflow{}
+	err := json.Unmarshal([]byte(jsonDef), &data)
 	if err != nil {
-		log.Printf("Cannot get workflow: %s", err)
+		log.Printf("Cannot unmarshal workflow: %s", err)
 		return err
 	}
-	// if workflow doesn't exist let's create it with new ids
-	if w == nil {
-		dId, _ := typeid.WithPrefix("workflow")
-		data.Id = dId.String()
 
-		for i, n := range data.Nodes {
-			switch n.ActionType {
-			case "trigger":
-				nId, _ := typeid.WithPrefix("trigger")
-				n.Id = nId.String()
-			case "action":
-				nId, _ := typeid.WithPrefix("action")
-				n.Id = nId.String()
-			}
-			data.Nodes[n.Id] = n
-			delete(data.Nodes, i)
-			// TODO update the nexts and dependencies
+	dId, _ := typeid.WithPrefix("workflow")
+	data.Id = dId.String()
+
+	idMap := make(map[string]string, len(data.Nodes))
+	clonedNodes := make(map[string]Node, len(data.Nodes))
+	for oldID, n := range data.Nodes {
+		newID := oldID
+		switch n.ActionType {
+		case "trigger":
+			nId, _ := typeid.WithPrefix("trigger")
+			newID = nId.String()
+		case "action":
+			nId, _ := typeid.WithPrefix("action")
+			newID = nId.String()
 		}
-		data.Name = "Imported Workflow: " + data.Name
-		jData, _ := json.MarshalIndent(data, "", "  ")
-		log.Printf("Imported new workflow %s\n%s\n", data.Id, string(jData))
+		if newID != oldID {
+			idMap[oldID] = newID
+		}
+		n.Id = newID
+		clonedNodes[newID] = n
+	}
+	data.Nodes = clonedNodes
+
+	// Rewrite the edges that referenced the original node ids
+	for id, n := range data.Nodes {
+		if n.Conditions != nil {
+			for cid, entry := range n.Conditions.Entries {
+				for i, next := range entry.Nexts {
+					if mapped, ok := idMap[next]; ok {
+						entry.Nexts[i] = mapped
+					}
+				}
+				n.Conditions.Entries[cid] = entry
+			}
+		}
+		for i, dep := range n.Dependencies {
+			if mapped, ok := idMap[dep]; ok {
+				n.Dependencies[i] = mapped
+			}
+		}
+		data.Nodes[id] = n
 	}
 
-	jsonData, _ := json.Marshal(data)
-	log.Printf("Updated workflow %s", data.Id)
+	data.Name = "Clone of: " + data.Name
 
+	jData, _ := json.MarshalIndent(data, "", "  ")
+	log.Printf("Cloned workflow %s\n%s\n", data.Id, string(jData))
+	return wm.saveWorkflow(data)
+}
+
+func (wm *workflowManager) saveWorkflow(data Workflow) error {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("Cannot marshal workflow: %s", err)
+		return err
+	}
 	return wm.db.SaveWorkflow(data.Id, string(jsonData))
 }

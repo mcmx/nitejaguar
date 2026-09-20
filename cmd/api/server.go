@@ -20,6 +20,7 @@ import (
 type ServerArgs struct {
 	EnableActions  bool
 	ImportWorkflow string
+	CloneWorkflow  string
 }
 
 func RunServer(args ServerArgs) {
@@ -81,6 +82,18 @@ func RunServer(args ServerArgs) {
 			e = wm.ImportWorkflowJSON(string(wImportJSON))
 			if e != nil {
 				log.Println("error importing workflow 2", e)
+			}
+		}
+	}
+	if args.CloneWorkflow != "" {
+		log.Println("Cloning workflow:", args.CloneWorkflow)
+		wCloneJSON, e := os.ReadFile(args.CloneWorkflow)
+		if e != nil {
+			log.Println("error cloning workflow 1", e)
+		} else {
+			e = wm.CloneWorkflowJSON(string(wCloneJSON))
+			if e != nil {
+				log.Println("error cloning workflow 2", e)
 			}
 		}
 	}

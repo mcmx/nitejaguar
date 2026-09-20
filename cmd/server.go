@@ -13,6 +13,7 @@ import (
 var (
 	enableActions  bool
 	importWorkflow string
+	cloneWorkflow  string
 )
 
 // serverCmd represents the server command
@@ -24,6 +25,7 @@ var serverCmd = &cobra.Command{
 		sArgs := api.ServerArgs{
 			EnableActions:  enableActions,
 			ImportWorkflow: importWorkflow,
+			CloneWorkflow:  cloneWorkflow,
 		}
 		api.RunServer(sArgs)
 	},
@@ -62,5 +64,6 @@ func init() {
 	// serverCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	serverCmd.Flags().BoolVarP(&enableActions, "enable-actions", "e", false, "Enable server action")
 	serverCmd.Flags().StringVarP(&importWorkflow, "import", "i", "", "Imports a workflow into the database")
+	serverCmd.Flags().StringVarP(&cloneWorkflow, "clone", "c", "", "Clones a workflow into the database with new ids")
 	// serverCmd.Flags().StringVarP(&actionArgs, "args", "r", "/tmp", "Comma-separated arguments for the server action")
 }
