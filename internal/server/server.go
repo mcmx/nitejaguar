@@ -24,11 +24,11 @@ type Server struct {
 	results  map[string]postResultRecord
 }
 
-// registry returns the in-memory client registry, lazily creating it so
+// registry returns the client registry, lazily creating it so
 // handlers stay safe when Server is built struct-literally (e.g. in tests).
 func (s *Server) registry() *clientRegistry {
 	if s.clients == nil {
-		s.clients = newClientRegistry()
+		s.clients = newClientRegistry(s.db)
 	}
 	return s.clients
 }
@@ -39,7 +39,7 @@ func NewServer(myDb database.Service, myWm workflow.WorkflowManager) *http.Serve
 		port:    port,
 		db:      myDb,
 		wm:      myWm,
-		clients: newClientRegistry(),
+		clients: newClientRegistry(myDb),
 	}
 	if port == 0 {
 		intServer.port = 8080

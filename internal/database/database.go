@@ -2,7 +2,11 @@ package database
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
 	dsql "database/sql"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -11,6 +15,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/mcmx/nitejaguar/ent"
 	"github.com/mcmx/nitejaguar/ent/workflow"
+	"go.jetify.com/typeid"
 
 	_ "github.com/joho/godotenv/autoload"
 	_ "github.com/mattn/go-sqlite3"
@@ -35,6 +40,13 @@ type Service interface {
 	// GetWorkflows retrieves all workflow definitions from the database
 	GetWorkflows(all, isEnabled bool) ([]*ent.Workflow, error)
 	SetWorkflowEnabled(workflowID string, enabled bool) error
+
+	// Client database operations
+	RegisterClient(name string, tags []string) (*ent.RemoteClient, string, error)
+	HeartbeatClient(id string) error
+	PollClient(id string) error
+	GetClients() ([]*ent.RemoteClient, error)
+	AuthenticateClient(id, token string) (string, bool)
 }
 
 type service struct {
@@ -207,4 +219,80 @@ func (s *service) GetWorkflows(all, isEnabled bool) ([]*ent.Workflow, error) {
 
 func (s *service) SetWorkflowEnabled(workflowID string, enabled bool) error {
 	return s.client.Workflow.UpdateOneID(workflowID).SetEnabled(enabled).Exec(context.Background())
+}
+
+func hashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
+
+func (s *service) RegisterClient(name string, tags []string) (*ent.RemoteClient, string, error) {
+	tid, _ := typeid.WithPrefix("client")
+	buf := make([]byte, 32)
+	_, _ = rand.Read(buf)
+	token := hex.EncodeToString(buf)
+	h := hashToken(token)
+
+	c, err := s.client.RemoteClient.Create().
+		SetID(tid.String()).
+		SetName(name).
+		SetTags(tags).
+		SetTokenHash(h).
+		Save(context.Background())
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to register client: %w", err)
+	}
+	return c, token, nil
+}
+
+func (s *service) HeartbeatClient(id string) error {
+	err := s.client.RemoteClient.UpdateOneID(id).
+		SetLastHeartbeat(time.Now()).
+		Exec(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to update client heartbeat: %w", err)
+	}
+	return nil
+}
+
+func (s *service) PollClient(id string) error {
+	err := s.client.RemoteClient.UpdateOneID(id).
+		SetLastPoll(time.Now()).
+		Exec(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to update client poll: %w", err)
+	}
+	return nil
+}
+
+func (s *service) GetClients() ([]*ent.RemoteClient, error) {
+	cs, err := s.client.RemoteClient.Query().All(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get clients: %w", err)
+	}
+	return cs, nil
+}
+
+func (s *service) AuthenticateClient(id, token string) (string, bool) {
+	if token == "" {
+		return "", false
+	}
+	h := hashToken(token)
+	if id != "" {
+		c, err := s.client.RemoteClient.Get(context.Background(), id)
+		if err != nil {
+			return "", false
+		}
+		return c.ID, subtle.ConstantTimeCompare([]byte(c.TokenHash), []byte(h)) == 1
+	}
+	cs, err := s.client.RemoteClient.Query().All(context.Background())
+	if err != nil {
+		return "", false
+	}
+	for _, c := range cs {
+		if subtle.ConstantTimeCompare([]byte(c.TokenHash), []byte(h)) == 1 {
+			return c.ID, true
+		}
+	}
+	return "", false
 }
