@@ -3,6 +3,7 @@ package workflow
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/mcmx/nitejaguar/common"
@@ -47,13 +48,10 @@ func (c *condition) evaluate(actionArgs common.ActionArgs, inputs []any, result 
 	leftOperand := c.LeftOperand
 	rightOperand := c.RightOperand
 
-	if reflect.TypeOf(leftOperand).Kind() == reflect.String {
-		if leftOperand != nil && strings.HasPrefix(leftOperand.(string), "$.input.") {
-			leftOperand = resolveInput(actionArgs, leftOperand.(string))
-		}
-		if leftOperand != nil && strings.HasPrefix(leftOperand.(string), "$.result.") {
-			leftOperand = resolveResult(result, leftOperand.(string))
-		}
+	var err error
+	leftOperand, err = resolveOperand(leftOperand, actionArgs, result)
+	if err != nil {
+		return false, err
 	}
 
 	// Handle the case of a standalone boolean expression
@@ -67,14 +65,9 @@ func (c *condition) evaluate(actionArgs common.ActionArgs, inputs []any, result 
 		}
 		return boolValue, nil
 	}
-	if reflect.TypeOf(rightOperand).Kind() == reflect.String {
-		if rightOperand != nil && strings.HasPrefix(rightOperand.(string), "$.input.") {
-			rightOperand = resolveInput(actionArgs, rightOperand.(string))
-		}
-
-		if rightOperand != nil && strings.HasPrefix(rightOperand.(string), "$.result.") {
-			rightOperand = resolveResult(result, rightOperand.(string))
-		}
+	rightOperand, err = resolveOperand(rightOperand, actionArgs, result)
+	if err != nil {
+		return false, err
 	}
 
 	// Handle comparison operators as before
@@ -96,12 +89,165 @@ func (c *condition) evaluate(actionArgs common.ActionArgs, inputs []any, result 
 	}
 }
 
-func resolveInput(input common.ActionArgs, path string) any {
-	return input.Args
+// resolveOperand resolves a single operand if it is a $.input.* or $.result.*
+// path string. Non-string operands (including nil/JSON null) are returned
+// unchanged. Resolution failures return an explicit error, never a panic.
+func resolveOperand(operand any, actionArgs common.ActionArgs, result common.ResultData) (any, error) {
+	s, ok := operand.(string)
+	if !ok {
+		return operand, nil
+	}
+	if strings.HasPrefix(s, "$.input.") {
+		return resolveInput(actionArgs, s)
+	}
+	if strings.HasPrefix(s, "$.result.") {
+		return resolveResult(result, s)
+	}
+	return operand, nil
 }
 
-func resolveResult(result common.ResultData, path string) any {
-	return result.Payload
+func resolveInput(input common.ActionArgs, path string) (any, error) {
+	const prefix = "$.input."
+	rest := strings.TrimPrefix(path, prefix)
+	if rest == "" {
+		return nil, fmt.Errorf("unsupported path %q: empty key after %q", path, prefix)
+	}
+	return lookupPath(input.Args, rest, path)
+}
+
+func resolveResult(result common.ResultData, path string) (any, error) {
+	const prefix = "$.result."
+	rest := strings.TrimPrefix(path, prefix)
+	if rest == "" {
+		return nil, fmt.Errorf("unsupported path %q: empty key after %q", path, prefix)
+	}
+	return lookupPath(result.Payload, rest, path)
+}
+
+// lookupPath walks dot-separated segments (with optional [index] suffixes)
+// starting at root. Missing keys, type mismatches, and out-of-range indices
+// return explicit errors instead of panicking. A leaf that resolves to nil
+// (JSON null) returns (nil, nil).
+func lookupPath(root any, rest, fullPath string) (any, error) {
+	cur := root
+	for _, seg := range strings.Split(rest, ".") {
+		if seg == "" {
+			return nil, fmt.Errorf("unsupported path %q: empty segment", fullPath)
+		}
+		field, indices, err := parseSegment(seg, fullPath)
+		if err != nil {
+			return nil, err
+		}
+		if field != "" {
+			cur, err = lookupField(cur, field, fullPath)
+			if err != nil {
+				return nil, err
+			}
+		} else if len(indices) == 0 {
+			return nil, fmt.Errorf("unsupported path %q: empty segment", fullPath)
+		}
+		for _, idx := range indices {
+			cur, err = lookupIndex(cur, idx, fullPath)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	return cur, nil
+}
+
+// parseSegment splits e.g. "items[0][2]" into field "items" and indices [0 2].
+// A segment like "[0]" yields an empty field with indices [0].
+func parseSegment(seg, fullPath string) (string, []int, error) {
+	open := strings.IndexByte(seg, '[')
+	if open == -1 {
+		return seg, nil, nil
+	}
+	field := seg[:open]
+	rest := seg[open:]
+	var indices []int
+	for len(rest) > 0 {
+		if !strings.HasPrefix(rest, "[") {
+			return "", nil, fmt.Errorf("unsupported path %q: malformed segment %q", fullPath, seg)
+		}
+		closeIdx := strings.IndexByte(rest, ']')
+		if closeIdx == -1 {
+			return "", nil, fmt.Errorf("unsupported path %q: malformed segment %q", fullPath, seg)
+		}
+		n, err := strconv.Atoi(rest[1:closeIdx])
+		if err != nil {
+			return "", nil, fmt.Errorf("unsupported path %q: invalid index in segment %q", fullPath, seg)
+		}
+		indices = append(indices, n)
+		rest = rest[closeIdx+1:]
+	}
+	return field, indices, nil
+}
+
+func derefValue(v reflect.Value) reflect.Value {
+	for v.Kind() == reflect.Interface || v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return v
+		}
+		v = v.Elem()
+	}
+	return v
+}
+
+func lookupField(cur any, field, fullPath string) (any, error) {
+	if cur == nil {
+		return nil, fmt.Errorf("unsupported path %q: key %q not found (nil)", fullPath, field)
+	}
+	v := derefValue(reflect.ValueOf(cur))
+	switch v.Kind() {
+	case reflect.Map:
+		if v.Type().Key().Kind() != reflect.String {
+			return nil, fmt.Errorf("unsupported path %q: cannot resolve key %q on non-string map", fullPath, field)
+		}
+		key := reflect.ValueOf(field)
+		if key.Type() != v.Type().Key() {
+			if !key.CanConvert(v.Type().Key()) {
+				return nil, fmt.Errorf("unsupported path %q: cannot resolve key %q", fullPath, field)
+			}
+			key = key.Convert(v.Type().Key())
+		}
+		mv := v.MapIndex(key)
+		if !mv.IsValid() {
+			return nil, fmt.Errorf("unsupported path %q: key %q not found", fullPath, field)
+		}
+		return mv.Interface(), nil
+	case reflect.Struct:
+		t := v.Type()
+		for i := 0; i < t.NumField(); i++ {
+			f := t.Field(i)
+			if !f.IsExported() {
+				continue
+			}
+			tag := strings.Split(f.Tag.Get("json"), ",")[0]
+			if tag == field || f.Name == field {
+				return v.Field(i).Interface(), nil
+			}
+		}
+		return nil, fmt.Errorf("unsupported path %q: key %q not found", fullPath, field)
+	default:
+		return nil, fmt.Errorf("unsupported path %q: cannot resolve key %q on %s", fullPath, field, v.Kind())
+	}
+}
+
+func lookupIndex(cur any, idx int, fullPath string) (any, error) {
+	if cur == nil {
+		return nil, fmt.Errorf("unsupported path %q: index %d out of range (nil)", fullPath, idx)
+	}
+	v := derefValue(reflect.ValueOf(cur))
+	switch v.Kind() {
+	case reflect.Slice, reflect.Array:
+		if idx < 0 || idx >= v.Len() {
+			return nil, fmt.Errorf("unsupported path %q: index %d out of range (len %d)", fullPath, idx, v.Len())
+		}
+		return v.Index(idx).Interface(), nil
+	default:
+		return nil, fmt.Errorf("unsupported path %q: cannot index %d on %s", fullPath, idx, v.Kind())
+	}
 }
 
 // Helper function for comparing numerical values (unchanged)
