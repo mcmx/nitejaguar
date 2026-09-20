@@ -112,9 +112,20 @@ func (wm *workflowManager) Run(ctx context.Context) {
 }
 
 func (wm *workflowManager) saveResult(result common.ResultData) {
-	jsonResult, _ := json.MarshalIndent(result, "", "  ")
+	jsonResult, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		log.Printf("Cannot marshal result %s: %s", result.ResultID, err)
+		return
+	}
+	if err := os.MkdirAll("./results", 0o755); err != nil {
+		log.Printf("Cannot create results directory: %s", err)
+		return
+	}
 	jsonFileName := "./results/" + result.ResultID + ".json"
-	_ = os.WriteFile(jsonFileName, jsonResult, 0600)
+	if err := os.WriteFile(jsonFileName, jsonResult, 0o600); err != nil {
+		log.Printf("Cannot save result JSON file %s: %s", jsonFileName, err)
+		return
+	}
 	log.Println("Node Result JSON file saved:", jsonFileName)
 }
 
