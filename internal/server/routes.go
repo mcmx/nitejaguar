@@ -40,10 +40,10 @@ func (s *Server) RegisterRoutes() http.Handler {
 	)
 	//	config.DocsPath = "/docs"
 
-	api := humaecho.New(e, config)
+	api := humaecho.NewV4(e, config)
 	addApiRoutes(api, s)
 
-	e.Use(middleware.Logger())
+	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 	e.Static("/assets", "cmd/web/assets")
 

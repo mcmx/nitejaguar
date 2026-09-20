@@ -48,7 +48,7 @@ func (*Workflow) scanValues(columns []string) ([]any, error) {
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
 // to the Workflow fields.
-func (w *Workflow) assignValues(columns []string, values []any) error {
+func (_m *Workflow) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
@@ -58,34 +58,34 @@ func (w *Workflow) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
-				w.ID = value.String
+				_m.ID = value.String
 			}
 		case workflow.FieldEnabled:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field enabled", values[i])
 			} else if value.Valid {
-				w.Enabled = value.Bool
+				_m.Enabled = value.Bool
 			}
 		case workflow.FieldJSONDefinition:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field json_definition", values[i])
 			} else if value.Valid {
-				w.JSONDefinition = value.String
+				_m.JSONDefinition = value.String
 			}
 		case workflow.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
 			} else if value.Valid {
-				w.CreatedAt = value.Time
+				_m.CreatedAt = value.Time
 			}
 		case workflow.FieldUpdatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field updated_at", values[i])
 			} else if value.Valid {
-				w.UpdatedAt = value.Time
+				_m.UpdatedAt = value.Time
 			}
 		default:
-			w.selectValues.Set(columns[i], values[i])
+			_m.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
@@ -93,44 +93,44 @@ func (w *Workflow) assignValues(columns []string, values []any) error {
 
 // Value returns the ent.Value that was dynamically selected and assigned to the Workflow.
 // This includes values selected through modifiers, order, etc.
-func (w *Workflow) Value(name string) (ent.Value, error) {
-	return w.selectValues.Get(name)
+func (_m *Workflow) Value(name string) (ent.Value, error) {
+	return _m.selectValues.Get(name)
 }
 
 // Update returns a builder for updating this Workflow.
 // Note that you need to call Workflow.Unwrap() before calling this method if this Workflow
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (w *Workflow) Update() *WorkflowUpdateOne {
-	return NewWorkflowClient(w.config).UpdateOne(w)
+func (_m *Workflow) Update() *WorkflowUpdateOne {
+	return NewWorkflowClient(_m.config).UpdateOne(_m)
 }
 
 // Unwrap unwraps the Workflow entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (w *Workflow) Unwrap() *Workflow {
-	_tx, ok := w.config.driver.(*txDriver)
+func (_m *Workflow) Unwrap() *Workflow {
+	_tx, ok := _m.config.driver.(*txDriver)
 	if !ok {
 		panic("ent: Workflow is not a transactional entity")
 	}
-	w.config.driver = _tx.drv
-	return w
+	_m.config.driver = _tx.drv
+	return _m
 }
 
 // String implements the fmt.Stringer.
-func (w *Workflow) String() string {
+func (_m *Workflow) String() string {
 	var builder strings.Builder
 	builder.WriteString("Workflow(")
-	builder.WriteString(fmt.Sprintf("id=%v, ", w.ID))
+	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("enabled=")
-	builder.WriteString(fmt.Sprintf("%v", w.Enabled))
+	builder.WriteString(fmt.Sprintf("%v", _m.Enabled))
 	builder.WriteString(", ")
 	builder.WriteString("json_definition=")
-	builder.WriteString(w.JSONDefinition)
+	builder.WriteString(_m.JSONDefinition)
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
-	builder.WriteString(w.CreatedAt.Format(time.ANSIC))
+	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))
 	builder.WriteString(", ")
 	builder.WriteString("updated_at=")
-	builder.WriteString(w.UpdatedAt.Format(time.ANSIC))
+	builder.WriteString(_m.UpdatedAt.Format(time.ANSIC))
 	builder.WriteByte(')')
 	return builder.String()
 }

@@ -22,11 +22,14 @@ jobs:
           go-version: stable
       - name: Install templ
         shell: bash
-        run: go install github.com/a-h/templ/cmd/templ@latest
+        # Pinned to the templ runtime version in go.mod: newer generators
+        # emit code (e.g. templ.ResolveAttributeValue) the pinned runtime
+        # does not have, which breaks the build.
+        run: go install github.com/a-h/templ/cmd/templ@v0.3.1020
       - name: Run templ generate
         shell: bash
         run: templ generate -path .
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.64
+          version: v2.13.2

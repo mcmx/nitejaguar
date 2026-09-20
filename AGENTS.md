@@ -5,6 +5,7 @@ Workflow automation app (Go). Module `github.com/mcmx/nitejaguar`. Entrypoint `c
 ## Build prerequisites — codegen first
 
 - `*.templ` files are the source of truth; `*_templ.go` and `*_templ.txt` are **gitignored and generated**. After editing a `.templ` file you must run `templ generate -path .` before build/test/lint (CI does this explicitly). The generated files exist in the working tree but are not committed.
+- The templ **generator** version must match the templ **runtime** in `go.mod` (`v0.3.1020`, pinned in the Makefile and all CI workflows). A newer generator emits code (e.g. `templ.ResolveAttributeValue`) the pinned runtime lacks, which breaks `go build` and lint. Never install/generate with `templ@latest`.
 - `ent/` is checked in, but schema lives in `ent/schema/workflow.go` — regenerate with `make ent` (`go generate ./ent`) after schema changes.
 - `tailwindcss` is a downloaded standalone binary (gitignored), fetched by `make tailwind`. CSS pipeline: `cmd/web/assets/css/input.css` → `output.css`.
 - `make build` calls ent, tailwind, and templ generation, then builds binary `main`.
@@ -12,7 +13,8 @@ Workflow automation app (Go). Module `github.com/mcmx/nitejaguar`. Entrypoint `c
 ## Commands
 
 - `make all` — build + test
-- `make test` — `go test ./... -v`
+- `make test` — mirrors CI (`templ generate -path .`, then `go build -v ./...`, then `go test ./... -v`)
+- `make lint` — mirrors CI (`templ generate -path .`, then `golangci-lint run ./...`)
 - `make run` — `go run main.go server -e` (`-e` enables action execution, required for triggers/actions to run)
 - `make watch` — runs air + templ-watch + tailwind-watch in parallel; requires `templ` and the `tailwindcss` binary
 - `make clean` — removes the `main` binary
@@ -36,4 +38,5 @@ Workflow automation app (Go). Module `github.com/mcmx/nitejaguar`. Entrypoint `c
 
 ## Lint
 
-- Local linting is via trunk (`trunk check`) using golangci-lint v1.64.8 and gofmt, configured in `.trunk/trunk.yaml`. CI runs the same golangci-lint version (v1.64) after `templ generate`. Run `golangci-lint run` (or `trunk check`) after changes; remember to regenerate templ first so generated `_templ.go` files are linted/typed too.
+- Local linting is via `make lint`, which mirrors CI (`templ generate -path .`, then `golangci-lint run ./...` with golangci-lint v2.13.2). Run it after changes; remember to regenerate templ first so generated `_templ.go` files are linted/typed too.
+- The repo targets Go 1.26 (`go`/`toolchain` in `go.mod`); golangci-lint binaries built with older Go refuse to analyze the module, so the local binary must be built with Go ≥ 1.26 (`make lint` installs the pinned version if missing).

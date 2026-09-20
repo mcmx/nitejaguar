@@ -2,17 +2,34 @@
 
 # Build the application
 all: build test
+# NOTE: the templ generator version must match the templ runtime version in
+# go.mod. A newer generator emits code (e.g. templ.ResolveAttributeValue)
+# that the pinned runtime does not have, which breaks `go build` and lint.
+# Keep this in sync with go.mod and the "Install templ" steps in
+# .github/workflows/*.yml.
+TEMPL_VERSION := v0.3.1020
+GOLANGCI_VERSION := v2.13.2
+
 templ-install:
 	@if ! command -v templ > /dev/null; then \
 		read -p "Go's 'templ' is not installed on your machine. Do you want to install it? [Y/n] " choice; \
 		if [ "$$choice" != "n" ] && [ "$$choice" != "N" ]; then \
-			go install github.com/a-h/templ/cmd/templ@latest; \
+			go install github.com/a-h/templ/cmd/templ@$(TEMPL_VERSION); \
 			if [ ! -x "$$(command -v templ)" ]; then \
 				echo "templ installation failed. Exiting..."; \
 				exit 1; \
 			fi; \
 		else \
 			echo "You chose not to install templ. Exiting..."; \
+			exit 1; \
+		fi; \
+	fi
+golangci-install:
+	@if ! command -v golangci-lint > /dev/null; then \
+		echo "Installing golangci-lint $(GOLANGCI_VERSION) (matches CI)..."; \
+		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION); \
+		if [ ! -x "$$(command -v golangci-lint)" ]; then \
+			echo "golangci-lint installation failed. Exiting..."; \
 			exit 1; \
 		fi; \
 	fi
@@ -41,9 +58,19 @@ run:
 	@go run main.go server -e
 
 # Test the application
-test:
+# Mirrors .github/workflows/go-test.yml: templ generate, build, test.
+test: templ-install
 	@echo "Testing..."
+	@templ generate -path .
+	@go build -v ./...
 	@go test ./... -v
+
+# Lint the application
+# Mirrors .github/workflows/go-lint.yml: templ generate, golangci-lint.
+lint: templ-install golangci-install
+	@echo "Linting..."
+	@templ generate -path .
+	@golangci-lint run ./...
 
 # Clean the binary
 clean:
@@ -70,7 +97,7 @@ air:
 watch:
 	make -j 3 tailwind-watch templ-watch air
 
-.PHONY: all build run test clean watch tailwind templ-install ent
+.PHONY: all build run test clean watch tailwind templ-install golangci-install lint ent
 
 
 
