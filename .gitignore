@@ -37,7 +37,7 @@ main
 *templ.txt
 
 results/
-workflows/
+/workflows/
 log/
 
 tailwindcss
