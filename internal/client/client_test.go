@@ -15,7 +15,14 @@ func TestAPIProtocol(t *testing.T) {
 	var got common.ResultData
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/clients/register" {
-			_ = json.NewEncoder(w).Encode(RegisterResponse{ClientID: "client_test"})
+			var request RegisterRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Fatal(err)
+			}
+			if request.Name != "test" || request.Tags == nil {
+				t.Fatalf("registration request: %#v", request)
+			}
+			_ = json.NewEncoder(w).Encode(RegisterResponse{ClientID: "client_test", Token: "token_test"})
 			return
 		}
 		if r.URL.Path == "/api/clients/client_test/assignments" {
@@ -23,6 +30,9 @@ func TestAPIProtocol(t *testing.T) {
 			return
 		}
 		if r.URL.Path == "/api/results" {
+			if r.Header.Get("Authorization") != "Bearer token_test" || r.Header.Get("X-Client-Token") != "token_test" {
+				t.Errorf("missing client token headers")
+			}
 			if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
 				t.Error(err)
 			}
@@ -37,11 +47,12 @@ func TestAPIProtocol(t *testing.T) {
 	if err != nil || reg.ClientID != "client_test" {
 		t.Fatalf("register: %#v %v", reg, err)
 	}
+	a.Token = reg.Token
 	assign, err := a.Assignments(context.Background(), reg.ClientID)
 	if err != nil || assign.ClientID != reg.ClientID {
 		t.Fatalf("assignments: %#v %v", assign, err)
 	}
-	nexts, err := a.PostResult(context.Background(), common.ResultData{WorkflowID: "workflow_1", ActionID: "trigger_1", ActionName: "filechangeTrigger", Payload: map[string]any{"file": "x.pdf"}})
+	nexts, err := a.PostResult(context.Background(), common.ResultData{WorkflowID: "workflow_1", ActionID: "trigger_1", ActionName: "filechangeTrigger", ExecutorID: "client_test", Payload: map[string]any{"file": "x.pdf"}})
 	if err != nil || len(nexts) != 1 || got.WorkflowID != "workflow_1" {
 		t.Fatalf("result: %#v %#v %v", nexts, got, err)
 	}

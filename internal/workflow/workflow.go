@@ -49,6 +49,7 @@ type workflowManager struct {
 	eventsChan       chan common.ResultData
 	db               database.Service
 	enableActions    bool
+	executorID       string
 }
 
 var wmmInstance *workflowManager
@@ -68,6 +69,7 @@ func NewWorkflowManager(enableActions bool, db database.Service) WorkflowManager
 		ActionManager:    *actions.NewActionManager(enableActions),
 		eventsChan:       make(chan common.ResultData),
 		db:               db,
+		executorID:       "server",
 	}
 	return wmmInstance
 }
@@ -81,6 +83,9 @@ func (wm *workflowManager) Run(ctx context.Context) {
 	for {
 		select {
 		case result = <-wm.eventsChan:
+			if result.ExecutorID == "" {
+				result.ExecutorID = wm.executorID
+			}
 			result.WorkflowID = wm.Actions2Workflow[result.ActionID]
 
 			n := wm.Workflows[result.WorkflowID].Definition.Nodes[result.ActionID]
@@ -396,6 +401,9 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 	}
 	if result.CreatedAt.IsZero() {
 		result.CreatedAt = time.Now()
+	}
+	if result.ExecutorID == "" {
+		result.ExecutorID = wm.executorID
 	}
 
 	// Resolve workflow ID: prefer explicit field, then in-memory index,

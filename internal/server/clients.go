@@ -18,7 +18,9 @@ type clientInfo struct {
 	ID            string    `json:"client_id"`
 	Name          string    `json:"name"`
 	Tags          []string  `json:"tags"`
+	RegisteredAt  time.Time `json:"registered_at"`
 	LastHeartbeat time.Time `json:"last_heartbeat"`
+	LastPoll      time.Time `json:"last_poll"`
 	tokenHash     string
 }
 
@@ -41,6 +43,7 @@ func (r *clientRegistry) register(name string, tags []string) (*clientInfo, stri
 		ID:            tid.String(),
 		Name:          name,
 		Tags:          append([]string{}, tags...),
+		RegisteredAt:  time.Now(),
 		LastHeartbeat: time.Now(),
 		tokenHash:     hashToken(token),
 	}
@@ -68,7 +71,34 @@ func (r *clientRegistry) get(id string) (*clientInfo, bool) {
 	if !ok {
 		return nil, false
 	}
-	return c, true
+	copy := *c
+	copy.Tags = append([]string(nil), c.Tags...)
+	return &copy, true
+}
+
+func (r *clientRegistry) poll(id string) (*clientInfo, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	c, ok := r.clients[id]
+	if !ok {
+		return nil, false
+	}
+	c.LastPoll = time.Now()
+	copy := *c
+	copy.Tags = append([]string(nil), c.Tags...)
+	return &copy, true
+}
+
+func (r *clientRegistry) list() []*clientInfo {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	clients := make([]*clientInfo, 0, len(r.clients))
+	for _, c := range r.clients {
+		copy := *c
+		copy.Tags = append([]string(nil), c.Tags...)
+		clients = append(clients, &copy)
+	}
+	return clients
 }
 
 func hashToken(token string) string {
@@ -77,22 +107,34 @@ func hashToken(token string) string {
 }
 
 func (r *clientRegistry) authenticate(id, token string) bool {
+	_, ok := r.identityForClient(id, token)
+	return ok
+}
+
+func (r *clientRegistry) identity(token string) (string, bool) {
+	return r.identityForClient("", token)
+}
+
+func (r *clientRegistry) identityForClient(id, token string) (string, bool) {
 	if token == "" {
-		return false
+		return "", false
 	}
 	h := hashToken(token)
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if id != "" {
 		c, ok := r.clients[id]
-		return ok && subtle.ConstantTimeCompare([]byte(c.tokenHash), []byte(h)) == 1
+		if !ok {
+			return "", false
+		}
+		return c.ID, subtle.ConstantTimeCompare([]byte(c.tokenHash), []byte(h)) == 1
 	}
 	for _, c := range r.clients {
 		if subtle.ConstantTimeCompare([]byte(c.tokenHash), []byte(h)) == 1 {
-			return true
+			return c.ID, true
 		}
 	}
-	return false
+	return "", false
 }
 
 func bearerToken(authorization, compatible string) string {
