@@ -20,6 +20,8 @@ type RemoteClient struct {
 	ID string `json:"id,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
+	// TenantID holds the value of the "tenant_id" field.
+	TenantID string `json:"tenant_id,omitempty"`
 	// Tags holds the value of the "tags" field.
 	Tags []string `json:"tags,omitempty"`
 	// TokenHash holds the value of the "token_hash" field.
@@ -40,7 +42,7 @@ func (*RemoteClient) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case remoteclient.FieldTags:
 			values[i] = new([]byte)
-		case remoteclient.FieldID, remoteclient.FieldName, remoteclient.FieldTokenHash:
+		case remoteclient.FieldID, remoteclient.FieldName, remoteclient.FieldTenantID, remoteclient.FieldTokenHash:
 			values[i] = new(sql.NullString)
 		case remoteclient.FieldRegisteredAt, remoteclient.FieldLastHeartbeat, remoteclient.FieldLastPoll:
 			values[i] = new(sql.NullTime)
@@ -70,6 +72,12 @@ func (_m *RemoteClient) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field name", values[i])
 			} else if value.Valid {
 				_m.Name = value.String
+			}
+		case remoteclient.FieldTenantID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field tenant_id", values[i])
+			} else if value.Valid {
+				_m.TenantID = value.String
 			}
 		case remoteclient.FieldTags:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -141,6 +149,9 @@ func (_m *RemoteClient) String() string {
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("name=")
 	builder.WriteString(_m.Name)
+	builder.WriteString(", ")
+	builder.WriteString("tenant_id=")
+	builder.WriteString(_m.TenantID)
 	builder.WriteString(", ")
 	builder.WriteString("tags=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Tags))

@@ -26,6 +26,8 @@ func (RemoteClient) Fields() []ent.Field {
 			NotEmpty(),
 		field.String("name").
 			NotEmpty(),
+		field.String("tenant_id").
+			Default("default"),
 		field.Strings("tags"),
 		field.String("token_hash").
 			NotEmpty(),

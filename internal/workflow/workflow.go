@@ -16,9 +16,10 @@ import (
 )
 
 type Workflow struct {
-	Id    string          `json:"id"`
-	Name  string          `json:"name"`
-	Nodes map[string]Node `json:"nodes"`
+	Id       string          `json:"id"`
+	Name     string          `json:"name"`
+	TenantID string          `json:"tenant_id,omitempty"`
+	Nodes    map[string]Node `json:"nodes"`
 }
 
 type WorkflowInt struct {
@@ -304,7 +305,9 @@ func (wm *workflowManager) SaveWorkflowToDB(workflowId string) error {
 	if err != nil {
 		return err
 	}
-	return wm.db.SaveWorkflow(workflowId, jsonDef)
+	var data Workflow
+	_ = json.Unmarshal([]byte(jsonDef), &data)
+	return wm.db.SaveWorkflow(workflowId, jsonDef, data.TenantID)
 }
 
 func (wm *workflowManager) GetTriggerManager() actions.TriggerManager {
@@ -486,5 +489,5 @@ func (wm *workflowManager) saveWorkflow(data Workflow) error {
 		log.Printf("Cannot marshal workflow: %s", err)
 		return err
 	}
-	return wm.db.SaveWorkflow(data.Id, string(jsonData))
+	return wm.db.SaveWorkflow(data.Id, string(jsonData), data.TenantID)
 }

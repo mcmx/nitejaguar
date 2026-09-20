@@ -42,6 +42,20 @@ func (_u *WorkflowUpdate) SetNillableEnabled(v *bool) *WorkflowUpdate {
 	return _u
 }
 
+// SetTenantID sets the "tenant_id" field.
+func (_u *WorkflowUpdate) SetTenantID(v string) *WorkflowUpdate {
+	_u.mutation.SetTenantID(v)
+	return _u
+}
+
+// SetNillableTenantID sets the "tenant_id" field if the given value is not nil.
+func (_u *WorkflowUpdate) SetNillableTenantID(v *string) *WorkflowUpdate {
+	if v != nil {
+		_u.SetTenantID(*v)
+	}
+	return _u
+}
+
 // SetJSONDefinition sets the "json_definition" field.
 func (_u *WorkflowUpdate) SetJSONDefinition(v string) *WorkflowUpdate {
 	_u.mutation.SetJSONDefinition(v)
@@ -128,6 +142,9 @@ func (_u *WorkflowUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Enabled(); ok {
 		_spec.SetField(workflow.FieldEnabled, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.TenantID(); ok {
+		_spec.SetField(workflow.FieldTenantID, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.JSONDefinition(); ok {
 		_spec.SetField(workflow.FieldJSONDefinition, field.TypeString, value)
 	}
@@ -164,6 +181,20 @@ func (_u *WorkflowUpdateOne) SetEnabled(v bool) *WorkflowUpdateOne {
 func (_u *WorkflowUpdateOne) SetNillableEnabled(v *bool) *WorkflowUpdateOne {
 	if v != nil {
 		_u.SetEnabled(*v)
+	}
+	return _u
+}
+
+// SetTenantID sets the "tenant_id" field.
+func (_u *WorkflowUpdateOne) SetTenantID(v string) *WorkflowUpdateOne {
+	_u.mutation.SetTenantID(v)
+	return _u
+}
+
+// SetNillableTenantID sets the "tenant_id" field if the given value is not nil.
+func (_u *WorkflowUpdateOne) SetNillableTenantID(v *string) *WorkflowUpdateOne {
+	if v != nil {
+		_u.SetTenantID(*v)
 	}
 	return _u
 }
@@ -283,6 +314,9 @@ func (_u *WorkflowUpdateOne) sqlSave(ctx context.Context) (_node *Workflow, err 
 	}
 	if value, ok := _u.mutation.Enabled(); ok {
 		_spec.SetField(workflow.FieldEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.TenantID(); ok {
+		_spec.SetField(workflow.FieldTenantID, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.JSONDefinition(); ok {
 		_spec.SetField(workflow.FieldJSONDefinition, field.TypeString, value)

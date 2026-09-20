@@ -27,6 +27,7 @@ type ResultsPageData struct {
 type ClientView struct {
     ID string
     Name string
+    TenantID string
     Tags []string
     RegisteredAt string
     LastHeartbeat string
@@ -61,7 +62,7 @@ templ WorkflowsPage(data *WorkflowPageData, _ string) {
                 <p class="rounded-lg border border-red-500/50 p-6 text-red-500">{ data.Error }</p>
             }
             if data.Error == "" && len(data.Workflows) == 0 {
-                <div class="rounded-lg border border-border p-6"><p class="font-medium">No workflows found</p><p class="mt-2 text-sm text-muted-foreground">Import a workflow with <code>server -i file.json</code>.</p></div>
+                <div class="rounded-lg border border-border p-6"><p class="font-medium">No workflows found</p><p class="mt-2 text-sm text-muted-foreground">Import a workflow with <code>server -i file.json</code> or use the <a href="/designer" class="text-red-500 hover:underline">Visual Designer</a>.</p></div>
             }
             if data.Error == "" && len(data.Workflows) > 0 {
                 <div class="grid gap-4 md:grid-cols-2">
@@ -159,11 +160,152 @@ templ ClientsPage(data *ClientsPageData) {
                                     <span class="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">stale</span>
                                 }
                             </div>
-                            <div class="mt-4 grid gap-2 text-sm text-muted-foreground"><p><strong class="text-foreground">Tags:</strong> { fmt.Sprint(client.Tags) }</p><p><strong class="text-foreground">Registered:</strong> { client.RegisteredAt }</p><p><strong class="text-foreground">Last heartbeat:</strong> { client.LastHeartbeat }</p><p><strong class="text-foreground">Last assignment poll:</strong> { client.LastPoll }</p></div>
+                            <div class="mt-4 grid gap-2 text-sm text-muted-foreground"><p><strong class="text-foreground">Tenant:</strong> { client.TenantID }</p><p><strong class="text-foreground">Tags:</strong> { fmt.Sprint(client.Tags) }</p><p><strong class="text-foreground">Registered:</strong> { client.RegisteredAt }</p><p><strong class="text-foreground">Last heartbeat:</strong> { client.LastHeartbeat }</p><p><strong class="text-foreground">Last assignment poll:</strong> { client.LastPoll }</p></div>
                         </article>
                     }
                 </div>
             }
+        </main>
+    }
+}
+
+templ DesignerPage() {
+    @Base() {
+        <script>
+        function designerData() {
+            return {
+                workflowId: 'workflow_' + Math.random().toString(36).substring(2, 9),
+                name: 'New Workflow',
+                tenantId: 'default',
+                nodes: [
+                    {
+                        id: 'trigger_1',
+                        name: 'File Trigger',
+                        action_type: 'trigger',
+                        action_name: 'filechangeTrigger',
+                        arguments: '{\n  "path": "/tmp",\n  "event_type": "create"\n}',
+                        client_tags: 'gpu'
+                    },
+                    {
+                        id: 'action_1',
+                        name: 'File Action',
+                        action_type: 'action',
+                        action_name: 'fileAction',
+                        arguments: '{\n  "action": "create",\n  "file": "/tmp/out.txt"\n}',
+                        client_tags: 'gpu'
+                    }
+                ],
+                addNode() {
+                    this.nodes.push({
+                        id: 'node_' + Math.random().toString(36).substring(2, 9),
+                        name: 'New Node',
+                        action_type: 'action',
+                        action_name: 'fileAction',
+                        arguments: '{\n  "action": "create"\n}',
+                        client_tags: ''
+                    });
+                },
+                removeNode(index) {
+                    this.nodes.splice(index, 1);
+                },
+                getJSON() {
+                    let obj = {
+                        id: this.workflowId,
+                        name: this.name,
+                        tenant_id: this.tenantId,
+                        nodes: {}
+                    };
+                    this.nodes.forEach(n => {
+                        let args = {};
+                        try { args = JSON.parse(n.arguments); } catch(e) {}
+                        obj.nodes[n.id] = {
+                            id: n.id,
+                            name: n.name,
+                            action_type: n.action_type,
+                            action_name: n.action_name,
+                            arguments: args,
+                            conditions: { entries: {} },
+                            client_tags: n.client_tags ? n.client_tags.split(',').map(s => s.trim()).filter(Boolean) : []
+                        };
+                    });
+                    return JSON.stringify(obj, null, 2);
+                }
+            }
+        }
+        </script>
+        <main class="container mx-auto max-w-4xl px-4 py-8" x-data="designerData()">
+            @pageTitle("Visual Workflow Designer")
+            <p class="mb-6 text-sm text-muted-foreground">Create, connect, and configure workflows, nodes, and multi-tenant targeting visually.</p>
+            
+            <form method="post" action="/designer/save" class="space-y-6">
+                <input type="hidden" name="workflow_json" x-model="getJSON()"/>
+                
+                <div class="grid gap-4 md:grid-cols-3 rounded-lg border border-border p-5">
+                    <div>
+                        <label class="block text-xs font-medium mb-1">Workflow ID</label>
+                        <input type="text" x-model="workflowId" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1">Workflow Name</label>
+                        <input type="text" x-model="name" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1">Tenant ID</label>
+                        <input type="text" x-model="tenantId" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-bold">Nodes</h2>
+                    <button type="button" @click="addNode()" class="rounded bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">Add Node</button>
+                </div>
+
+                <div class="space-y-4">
+                    <template x-for="(node, index) in nodes" :key="index">
+                        <div class="rounded-lg border border-border p-5 space-y-4 relative bg-card">
+                            <button type="button" @click="removeNode(index)" class="absolute top-4 right-4 text-xs text-red-500 hover:underline">Remove</button>
+                            <div class="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label class="block text-xs font-medium mb-1">Node ID</label>
+                                    <input type="text" x-model="node.id" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1">Node Name</label>
+                                    <input type="text" x-model="node.name" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1">Action Type</label>
+                                    <select x-model="node.action_type" class="w-full rounded border border-border bg-background px-3 py-2 text-sm">
+                                        <option value="trigger">Trigger</option>
+                                        <option value="action">Action</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1">Action Name</label>
+                                    <input type="text" x-model="node.action_name" placeholder="filechangeTrigger / fileAction" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1">Arguments (JSON)</label>
+                                <textarea x-model="node.arguments" rows="3" class="w-full rounded border border-border bg-background p-3 text-xs font-mono"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1">Client Tags (comma separated)</label>
+                                <input type="text" x-model="node.client_tags" placeholder="gpu, tenant-a" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="rounded-lg border border-border p-5 space-y-2">
+                    <h3 class="font-medium text-sm">JSON Preview</h3>
+                    <pre class="overflow-x-auto rounded bg-muted p-3 text-xs font-mono" x-text="getJSON()"></pre>
+                </div>
+
+                <div>
+                    <button type="submit" class="w-full rounded bg-red-500 px-4 py-3 font-semibold text-white hover:bg-red-600">Save & Import Workflow</button>
+                </div>
+            </form>
         </main>
     }
 }

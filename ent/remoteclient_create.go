@@ -26,6 +26,20 @@ func (_c *RemoteClientCreate) SetName(v string) *RemoteClientCreate {
 	return _c
 }
 
+// SetTenantID sets the "tenant_id" field.
+func (_c *RemoteClientCreate) SetTenantID(v string) *RemoteClientCreate {
+	_c.mutation.SetTenantID(v)
+	return _c
+}
+
+// SetNillableTenantID sets the "tenant_id" field if the given value is not nil.
+func (_c *RemoteClientCreate) SetNillableTenantID(v *string) *RemoteClientCreate {
+	if v != nil {
+		_c.SetTenantID(*v)
+	}
+	return _c
+}
+
 // SetTags sets the "tags" field.
 func (_c *RemoteClientCreate) SetTags(v []string) *RemoteClientCreate {
 	_c.mutation.SetTags(v)
@@ -121,6 +135,10 @@ func (_c *RemoteClientCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *RemoteClientCreate) defaults() {
+	if _, ok := _c.mutation.TenantID(); !ok {
+		v := remoteclient.DefaultTenantID
+		_c.mutation.SetTenantID(v)
+	}
 	if _, ok := _c.mutation.RegisteredAt(); !ok {
 		v := remoteclient.DefaultRegisteredAt()
 		_c.mutation.SetRegisteredAt(v)
@@ -144,6 +162,9 @@ func (_c *RemoteClientCreate) check() error {
 		if err := remoteclient.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "RemoteClient.name": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.TenantID(); !ok {
+		return &ValidationError{Name: "tenant_id", err: errors.New(`ent: missing required field "RemoteClient.tenant_id"`)}
 	}
 	if _, ok := _c.mutation.Tags(); !ok {
 		return &ValidationError{Name: "tags", err: errors.New(`ent: missing required field "RemoteClient.tags"`)}
@@ -208,6 +229,10 @@ func (_c *RemoteClientCreate) createSpec() (*RemoteClient, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.Name(); ok {
 		_spec.SetField(remoteclient.FieldName, field.TypeString, value)
 		_node.Name = value
+	}
+	if value, ok := _c.mutation.TenantID(); ok {
+		_spec.SetField(remoteclient.FieldTenantID, field.TypeString, value)
+		_node.TenantID = value
 	}
 	if value, ok := _c.mutation.Tags(); ok {
 		_spec.SetField(remoteclient.FieldTags, field.TypeJSON, value)

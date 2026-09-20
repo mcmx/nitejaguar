@@ -11,6 +11,7 @@ import (
 type clientInfo struct {
 	ID            string    `json:"client_id"`
 	Name          string    `json:"name"`
+	TenantID      string    `json:"tenant_id"`
 	Tags          []string  `json:"tags"`
 	RegisteredAt  time.Time `json:"registered_at"`
 	LastHeartbeat time.Time `json:"last_heartbeat"`
@@ -26,22 +27,47 @@ func newClientRegistry(db database.Service) *clientRegistry {
 	return &clientRegistry{db: db}
 }
 
-func (r *clientRegistry) register(name string, tags []string) (*clientInfo, string) {
+func (r *clientRegistry) register(name string, tags []string, tenantID string) (*clientInfo, string) {
 	if r.db == nil {
 		return nil, ""
 	}
-	c, token, err := r.db.RegisterClient(name, tags)
+	c, token, err := r.db.RegisterClient(name, tags, tenantID)
 	if err != nil {
 		return nil, ""
 	}
 	return &clientInfo{
 		ID:            c.ID,
 		Name:          c.Name,
+		TenantID:      c.TenantID,
 		Tags:          append([]string(nil), c.Tags...),
 		RegisteredAt:  c.RegisteredAt,
 		LastHeartbeat: c.LastHeartbeat,
 		LastPoll:      c.LastPoll,
 	}, token
+}
+
+func (r *clientRegistry) getClient(id string) (*clientInfo, bool) {
+	if r.db == nil {
+		return nil, false
+	}
+	cs, err := r.db.GetClients()
+	if err != nil {
+		return nil, false
+	}
+	for _, c := range cs {
+		if c.ID == id {
+			return &clientInfo{
+				ID:            c.ID,
+				Name:          c.Name,
+				TenantID:      c.TenantID,
+				Tags:          append([]string(nil), c.Tags...),
+				RegisteredAt:  c.RegisteredAt,
+				LastHeartbeat: c.LastHeartbeat,
+				LastPoll:      c.LastPoll,
+			}, true
+		}
+	}
+	return nil, false
 }
 
 func (r *clientRegistry) heartbeat(id string) (*clientInfo, bool) {
@@ -52,23 +78,7 @@ func (r *clientRegistry) heartbeat(id string) (*clientInfo, bool) {
 	if err != nil {
 		return nil, false
 	}
-	cs, err := r.db.GetClients()
-	if err != nil {
-		return nil, false
-	}
-	for _, c := range cs {
-		if c.ID == id {
-			return &clientInfo{
-				ID:            c.ID,
-				Name:          c.Name,
-				Tags:          append([]string(nil), c.Tags...),
-				RegisteredAt:  c.RegisteredAt,
-				LastHeartbeat: c.LastHeartbeat,
-				LastPoll:      c.LastPoll,
-			}, true
-		}
-	}
-	return nil, false
+	return r.getClient(id)
 }
 
 func (r *clientRegistry) poll(id string) (*clientInfo, bool) {
@@ -76,23 +86,7 @@ func (r *clientRegistry) poll(id string) (*clientInfo, bool) {
 		return nil, false
 	}
 	_ = r.db.PollClient(id)
-	cs, err := r.db.GetClients()
-	if err != nil {
-		return nil, false
-	}
-	for _, c := range cs {
-		if c.ID == id {
-			return &clientInfo{
-				ID:            c.ID,
-				Name:          c.Name,
-				Tags:          append([]string(nil), c.Tags...),
-				RegisteredAt:  c.RegisteredAt,
-				LastHeartbeat: c.LastHeartbeat,
-				LastPoll:      c.LastPoll,
-			}, true
-		}
-	}
-	return nil, false
+	return r.getClient(id)
 }
 
 func (r *clientRegistry) list() []*clientInfo {
@@ -108,6 +102,7 @@ func (r *clientRegistry) list() []*clientInfo {
 		list = append(list, &clientInfo{
 			ID:            c.ID,
 			Name:          c.Name,
+			TenantID:      c.TenantID,
 			Tags:          append([]string(nil), c.Tags...),
 			RegisteredAt:  c.RegisteredAt,
 			LastHeartbeat: c.LastHeartbeat,

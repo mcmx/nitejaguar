@@ -72,6 +72,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	e.GET("/", s.workflowsPage)
 	e.GET("/workflows/:id", s.workflowPage)
+	e.GET("/designer", s.designerPage)
+	e.POST("/designer/save", s.designerSaveWorkflow)
 	e.GET("/results", s.resultsPage)
 	e.GET("/clients", s.clientsPage)
 	e.POST("/workflows/:id/enabled", s.setWorkflowEnabled)
@@ -138,8 +140,9 @@ func addApiRoutes(api huma.API, s *Server) {
 
 type RegisterClientInput struct {
 	Body struct {
-		Name string   `json:"name"`
-		Tags []string `json:"tags"`
+		Name     string   `json:"name"`
+		TenantID string   `json:"tenant_id,omitempty"`
+		Tags     []string `json:"tags"`
 	}
 }
 
@@ -219,8 +222,8 @@ func (s *Server) RegisterClient(_ context.Context, input *RegisterClientInput) (
 	if input.Body.Name == "" {
 		return nil, huma.Error400BadRequest("name is required")
 	}
-	c, token := s.registry().register(input.Body.Name, input.Body.Tags)
-	log.Printf("client registered: id=%s name=%q tags=%v", c.ID, c.Name, c.Tags)
+	c, token := s.registry().register(input.Body.Name, input.Body.Tags, input.Body.TenantID)
+	log.Printf("client registered: id=%s name=%q tenant=%s tags=%v", c.ID, c.Name, c.TenantID, c.Tags)
 	return &RegisterClientOutput{
 		Body: struct {
 			ClientID string `json:"client_id"`
@@ -264,6 +267,10 @@ func (s *Server) GetAssignments(_ context.Context, input *AssignmentsInput) (*As
 	}
 	workflows := []WorkflowDefinition{}
 	for _, row := range rows {
+		// Tenant isolation check
+		if row.TenantID != "" && row.TenantID != "default" && client.TenantID != "" && client.TenantID != "default" && row.TenantID != client.TenantID {
+			continue
+		}
 		var def workflow.Workflow
 		if err := json.Unmarshal([]byte(row.JSONDefinition), &def); err != nil {
 			continue
@@ -544,4 +551,24 @@ func (s *Server) websocketHandler(c echo.Context) error {
 		time.Sleep(time.Second * 2)
 	}
 	return nil
+}
+
+func (s *Server) designerPage(c echo.Context) error {
+	templ.Handler(web.DesignerPage()).ServeHTTP(c.Response(), c.Request())
+	return nil
+}
+
+func (s *Server) designerSaveWorkflow(c echo.Context) error {
+	jsonDef := c.FormValue("workflow_json")
+	if jsonDef == "" {
+		return c.String(http.StatusBadRequest, "workflow_json is required")
+	}
+	if err := s.wm.ImportWorkflowJSON(jsonDef); err != nil {
+		return c.String(http.StatusBadRequest, "Failed to import workflow: "+err.Error())
+	}
+	var wf workflow.Workflow
+	if err := json.Unmarshal([]byte(jsonDef), &wf); err == nil && wf.Id != "" {
+		return c.Redirect(http.StatusSeeOther, "/workflows/"+wf.Id)
+	}
+	return c.Redirect(http.StatusSeeOther, "/")
 }
