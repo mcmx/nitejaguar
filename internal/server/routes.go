@@ -200,6 +200,7 @@ type PostResultInput struct {
 		ActionType  string    `json:"action_type,omitempty"`
 		ActionName  string    `json:"action_name,omitempty"`
 		ExecutorID  string    `json:"executor_id,omitempty"`
+		TenantID    string    `json:"tenant_id,omitempty"`
 		CreatedAt   time.Time `json:"created_at,omitempty"`
 		Payload     any       `json:"payload,omitempty"`
 	}
@@ -333,6 +334,7 @@ func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostRes
 		ActionType:  input.Body.ActionType,
 		ActionName:  input.Body.ActionName,
 		ExecutorID:  executorID,
+		TenantID:    input.Body.TenantID,
 		CreatedAt:   input.Body.CreatedAt,
 		Payload:     input.Body.Payload,
 	}
