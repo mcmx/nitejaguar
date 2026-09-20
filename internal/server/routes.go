@@ -171,9 +171,9 @@ func (s *Server) websocketHandler(c echo.Context) error {
 
 	if err != nil {
 		log.Printf("could not open websocket: %v", err)
-		_, _ = w.Write([]byte("could not open websocket"))
 		w.WriteHeader(http.StatusInternalServerError)
-		return nil
+		_, _ = w.Write([]byte("could not open websocket"))
+		return err
 	}
 
 	defer func() {
