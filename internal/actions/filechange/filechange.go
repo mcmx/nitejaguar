@@ -119,7 +119,7 @@ func (t *filechange) sendResult(executionId string, eventType string, file strin
 		ExecutionID: executionId,
 		ActionID:    t.data.Id,
 		ActionType:  t.data.ActionType,
-		ActionName:  t.data.Name,
+		ActionName:  t.data.ActionName,
 		Payload:     event{Type: eventType, File: file},
 	}
 }
