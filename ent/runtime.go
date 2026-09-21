@@ -58,16 +58,22 @@ func init() {
 	workflowDescTenantID := workflowFields[2].Descriptor()
 	// workflow.DefaultTenantID holds the default value on creation for the tenant_id field.
 	workflow.DefaultTenantID = workflowDescTenantID.Default.(string)
+	// workflowDescRevision is the schema descriptor for revision field.
+	workflowDescRevision := workflowFields[3].Descriptor()
+	// workflow.DefaultRevision holds the default value on creation for the revision field.
+	workflow.DefaultRevision = workflowDescRevision.Default.(string)
+	// workflow.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
+	workflow.RevisionValidator = workflowDescRevision.Validators[0].(func(string) error)
 	// workflowDescJSONDefinition is the schema descriptor for json_definition field.
-	workflowDescJSONDefinition := workflowFields[3].Descriptor()
+	workflowDescJSONDefinition := workflowFields[4].Descriptor()
 	// workflow.JSONDefinitionValidator is a validator for the "json_definition" field. It is called by the builders before save.
 	workflow.JSONDefinitionValidator = workflowDescJSONDefinition.Validators[0].(func(string) error)
 	// workflowDescCreatedAt is the schema descriptor for created_at field.
-	workflowDescCreatedAt := workflowFields[4].Descriptor()
+	workflowDescCreatedAt := workflowFields[5].Descriptor()
 	// workflow.DefaultCreatedAt holds the default value on creation for the created_at field.
 	workflow.DefaultCreatedAt = workflowDescCreatedAt.Default.(func() time.Time)
 	// workflowDescUpdatedAt is the schema descriptor for updated_at field.
-	workflowDescUpdatedAt := workflowFields[5].Descriptor()
+	workflowDescUpdatedAt := workflowFields[6].Descriptor()
 	// workflow.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	workflow.DefaultUpdatedAt = workflowDescUpdatedAt.Default.(func() time.Time)
 	// workflow.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

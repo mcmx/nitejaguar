@@ -48,6 +48,20 @@ func (_c *WorkflowCreate) SetNillableTenantID(v *string) *WorkflowCreate {
 	return _c
 }
 
+// SetRevision sets the "revision" field.
+func (_c *WorkflowCreate) SetRevision(v string) *WorkflowCreate {
+	_c.mutation.SetRevision(v)
+	return _c
+}
+
+// SetNillableRevision sets the "revision" field if the given value is not nil.
+func (_c *WorkflowCreate) SetNillableRevision(v *string) *WorkflowCreate {
+	if v != nil {
+		_c.SetRevision(*v)
+	}
+	return _c
+}
+
 // SetJSONDefinition sets the "json_definition" field.
 func (_c *WorkflowCreate) SetJSONDefinition(v string) *WorkflowCreate {
 	_c.mutation.SetJSONDefinition(v)
@@ -131,6 +145,10 @@ func (_c *WorkflowCreate) defaults() {
 		v := workflow.DefaultTenantID
 		_c.mutation.SetTenantID(v)
 	}
+	if _, ok := _c.mutation.Revision(); !ok {
+		v := workflow.DefaultRevision
+		_c.mutation.SetRevision(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := workflow.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -148,6 +166,14 @@ func (_c *WorkflowCreate) check() error {
 	}
 	if _, ok := _c.mutation.TenantID(); !ok {
 		return &ValidationError{Name: "tenant_id", err: errors.New(`ent: missing required field "Workflow.tenant_id"`)}
+	}
+	if _, ok := _c.mutation.Revision(); !ok {
+		return &ValidationError{Name: "revision", err: errors.New(`ent: missing required field "Workflow.revision"`)}
+	}
+	if v, ok := _c.mutation.Revision(); ok {
+		if err := workflow.RevisionValidator(v); err != nil {
+			return &ValidationError{Name: "revision", err: fmt.Errorf(`ent: validator failed for field "Workflow.revision": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.JSONDefinition(); !ok {
 		return &ValidationError{Name: "json_definition", err: errors.New(`ent: missing required field "Workflow.json_definition"`)}
@@ -210,6 +236,10 @@ func (_c *WorkflowCreate) createSpec() (*Workflow, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.TenantID(); ok {
 		_spec.SetField(workflow.FieldTenantID, field.TypeString, value)
 		_node.TenantID = value
+	}
+	if value, ok := _c.mutation.Revision(); ok {
+		_spec.SetField(workflow.FieldRevision, field.TypeString, value)
+		_node.Revision = value
 	}
 	if value, ok := _c.mutation.JSONDefinition(); ok {
 		_spec.SetField(workflow.FieldJSONDefinition, field.TypeString, value)

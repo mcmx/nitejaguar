@@ -167,6 +167,7 @@ func (s *service) SaveWorkflow(workflowId string, jsonDef string, tenantID strin
 	if tenantID == "" {
 		tenantID = "default"
 	}
+	revID, _ := typeid.WithPrefix("revision")
 	w, err := s.client.Workflow.Query().Where(workflow.ID(workflowId)).Only(context.Background())
 	if err != nil && !ent.IsNotFound(err) {
 		return fmt.Errorf("failed to check existing workflow: %w", err)
@@ -176,6 +177,7 @@ func (s *service) SaveWorkflow(workflowId string, jsonDef string, tenantID strin
 		_, err := s.client.Workflow.UpdateOneID(workflowId).
 			SetJSONDefinition(jsonDef).
 			SetTenantID(tenantID).
+			SetRevision(revID.String()).
 			Save(context.Background())
 		if err != nil {
 			return fmt.Errorf("failed to save workflow: %w", err)
@@ -186,6 +188,7 @@ func (s *service) SaveWorkflow(workflowId string, jsonDef string, tenantID strin
 		SetJSONDefinition(jsonDef).
 		SetTenantID(tenantID).
 		SetID(workflowId).
+		SetRevision(revID.String()).
 		Save(context.Background())
 
 	if err != nil {

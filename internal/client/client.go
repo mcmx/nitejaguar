@@ -36,9 +36,10 @@ type RegisterResponse struct {
 	Token    string `json:"token"`
 }
 type Workflow struct {
-	ID    string                   `json:"id"`
-	Name  string                   `json:"name"`
-	Nodes map[string]workflow.Node `json:"nodes"`
+	ID       string                   `json:"id"`
+	Name     string                   `json:"name"`
+	Revision string                   `json:"revision"`
+	Nodes    map[string]workflow.Node `json:"nodes"`
 }
 type AssignmentsResponse struct {
 	ClientID  string     `json:"client_id"`
@@ -143,14 +144,26 @@ func (a API) PostResult(ctx context.Context, r common.ResultData) ([]string, err
 }
 
 type runner struct {
-	api          API
-	log          *slog.Logger
-	mu           sync.Mutex
-	workflows    map[string]map[string]common.Action
-	nodeWorkflow map[string]string
-	nodeMeta     map[string]nodeConfig
-	history      map[string]map[string]any
-	events       chan common.ResultData
+	api             API
+	log             *slog.Logger
+	mu              sync.Mutex
+	events          chan common.ResultData
+	activeWorkflows map[string]*managedWorkflow
+	retired         map[string]map[string]*managedWorkflow
+	nodeWorkflow    map[string]string
+	nodeRevision    map[string]string
+	nodeMeta        map[string]nodeConfig
+	nodeAction      map[string]common.Action
+	history         map[string]map[string]any
+}
+
+// managedWorkflow is one installed revision of a workflow.
+type managedWorkflow struct {
+	workflowID string
+	revision   string
+	actions    map[string]common.Action
+	triggers   map[string]common.Action
+	meta       map[string]nodeConfig
 }
 
 // nodeConfig carries the framework-level merge behavior for a node.
@@ -162,38 +175,126 @@ type nodeConfig struct {
 }
 
 func newRunner(api API, logger *slog.Logger) *runner {
-	return &runner{api: api, log: logger, workflows: map[string]map[string]common.Action{}, nodeWorkflow: map[string]string{}, nodeMeta: map[string]nodeConfig{}, history: map[string]map[string]any{}, events: make(chan common.ResultData, 32)}
+	return &runner{
+		api:             api,
+		log:             logger,
+		events:          make(chan common.ResultData, 32),
+		activeWorkflows: make(map[string]*managedWorkflow),
+		retired:         make(map[string]map[string]*managedWorkflow),
+		nodeWorkflow:    make(map[string]string),
+		nodeRevision:    make(map[string]string),
+		nodeMeta:        make(map[string]nodeConfig),
+		nodeAction:      make(map[string]common.Action),
+		history:         make(map[string]map[string]any),
+	}
 }
+
 func (r *runner) install(w Workflow) {
+	r.syncAssignments([]Workflow{w})
+}
+
+func (r *runner) syncAssignments(workflows []Workflow) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.workflows[w.ID]; !ok {
-		r.workflows[w.ID] = map[string]common.Action{}
+
+	fetchedMap := make(map[string]Workflow, len(workflows))
+	for _, w := range workflows {
+		fetchedMap[w.ID] = w
 	}
-	for id, n := range w.Nodes {
-		r.nodeWorkflow[id] = w.ID
-		r.nodeMeta[id] = nodeConfig{mergeInput: n.MergeInput, dependencies: n.Dependencies}
-		if n.ActionType == "action" {
-			if _, ok := r.workflows[w.ID][id]; ok {
-				continue
+
+	// 1. Check active workflows: disable/remove or update
+	for wID, active := range r.activeWorkflows {
+		w, fetched := fetchedMap[wID]
+		if !fetched {
+			r.log.Info("workflow disabled or removed; stopping triggers", "workflow_id", wID)
+			for _, trig := range active.triggers {
+				_ = trig.Stop()
 			}
-			a, err := newClientAction(r.events, common.ActionArgs{Id: n.Id, Name: n.Name, ActionType: n.ActionType, ActionName: n.ActionName, Args: n.Arguments})
-			if err == nil {
-				r.workflows[w.ID][id] = a
+			if r.retired[wID] == nil {
+				r.retired[wID] = make(map[string]*managedWorkflow)
 			}
-		} else if n.ActionType == "trigger" {
-			if _, ok := r.workflows[w.ID][id]; ok {
-				continue
+			r.retired[wID][active.revision] = active
+			delete(r.activeWorkflows, wID)
+			continue
+		}
+
+		if w.Revision != active.revision {
+			r.log.Info("workflow updated; rotating triggers", "workflow_id", wID, "old_revision", active.revision, "new_revision", w.Revision)
+			for _, trig := range active.triggers {
+				_ = trig.Stop()
 			}
-			t, err := filechange.New(r.events, common.ActionArgs{Id: n.Id, Name: n.Name, ActionType: n.ActionType, ActionName: n.ActionName, Args: n.Arguments})
-			if err == nil {
-				r.workflows[w.ID][id] = t
-				execution, _ := typeid.WithPrefix("execution")
-				go t.Execute(execution.String(), nil)
+			if r.retired[wID] == nil {
+				r.retired[wID] = make(map[string]*managedWorkflow)
 			}
+			r.retired[wID][active.revision] = active
+
+			mw := r.buildManagedWorkflow(w)
+			r.activeWorkflows[wID] = mw
+			r.registerWorkflowIndices(mw)
+		}
+	}
+
+	// 2. Install new workflows
+	for wID, w := range fetchedMap {
+		if _, ok := r.activeWorkflows[wID]; !ok {
+			if r.retired[wID] != nil {
+				delete(r.retired[wID], w.Revision)
+				if len(r.retired[wID]) == 0 {
+					delete(r.retired, wID)
+				}
+			}
+			r.log.Info("installing new workflow", "workflow_id", wID, "revision", w.Revision)
+			mw := r.buildManagedWorkflow(w)
+			r.activeWorkflows[wID] = mw
+			r.registerWorkflowIndices(mw)
 		}
 	}
 }
+
+func (r *runner) buildManagedWorkflow(w Workflow) *managedWorkflow {
+	mw := &managedWorkflow{
+		workflowID: w.ID,
+		revision:   w.Revision,
+		actions:    make(map[string]common.Action),
+		triggers:   make(map[string]common.Action),
+		meta:       make(map[string]nodeConfig),
+	}
+	for id, n := range w.Nodes {
+		mw.meta[id] = nodeConfig{mergeInput: n.MergeInput, dependencies: n.Dependencies}
+		switch n.ActionType {
+		case "action":
+			a, err := newClientAction(r.events, common.ActionArgs{Id: n.Id, Name: n.Name, ActionType: n.ActionType, ActionName: n.ActionName, Args: n.Arguments})
+			if err == nil {
+				mw.actions[id] = a
+			} else {
+				r.log.Error("failed to create client action", "action_id", id, "error", err)
+			}
+		case "trigger":
+			t, err := filechange.New(r.events, common.ActionArgs{Id: n.Id, Name: n.Name, ActionType: n.ActionType, ActionName: n.ActionName, Args: n.Arguments})
+			if err == nil {
+				mw.actions[id] = t
+				mw.triggers[id] = t
+				execution, _ := typeid.WithPrefix("execution")
+				go t.Execute(execution.String(), nil)
+			} else {
+				r.log.Error("failed to create client trigger", "trigger_id", id, "error", err)
+			}
+		}
+	}
+	return mw
+}
+
+func (r *runner) registerWorkflowIndices(mw *managedWorkflow) {
+	for id, a := range mw.actions {
+		r.nodeWorkflow[id] = mw.workflowID
+		r.nodeRevision[id] = mw.revision
+		if cfg, ok := mw.meta[id]; ok {
+			r.nodeMeta[id] = cfg
+		}
+		r.nodeAction[id] = a
+	}
+}
+
 // newClientAction dispatches action construction by action_name so remote
 // clients can run any server-side action (e.g. fileAction, datetimeAction).
 func newClientAction(events chan common.ResultData, args common.ActionArgs) (common.Action, error) {
@@ -216,11 +317,11 @@ func (r *runner) runResult(ctx context.Context, result common.ResultData) {
 		r.log.Error("post result", "error", err)
 		return
 	}
-	r.mu.Lock()
-	actions := r.workflows[result.WorkflowID]
-	r.mu.Unlock()
 	for _, id := range nexts {
-		if a := actions[id]; a != nil {
+		r.mu.Lock()
+		a := r.nodeAction[id]
+		r.mu.Unlock()
+		if a != nil {
 			go a.Execute(result.ExecutionID, []any{result})
 		}
 	}
@@ -265,9 +366,16 @@ func (r *runner) rememberLocked(result common.ResultData) {
 func (r *runner) close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for _, nodes := range r.workflows {
-		for _, a := range nodes {
+	for _, mw := range r.activeWorkflows {
+		for _, a := range mw.actions {
 			_ = a.Stop()
+		}
+	}
+	for _, revs := range r.retired {
+		for _, mw := range revs {
+			for _, a := range mw.actions {
+				_ = a.Stop()
+			}
 		}
 	}
 }
@@ -343,13 +451,13 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		}
 		backoff = cfg.RetryInitial
 		logger.Debug("client assignment poll succeeded", "client_id", id, "workflows", len(assignments.Workflows))
-		for _, w := range assignments.Workflows {
-			r.install(w)
-		}
+		r.syncAssignments(assignments.Workflows)
 		select {
 		case result := <-r.events:
 			r.mu.Lock()
-			result.WorkflowID = r.nodeWorkflow[result.ActionID]
+			if result.WorkflowID == "" {
+				result.WorkflowID = r.nodeWorkflow[result.ActionID]
+			}
 			result.ExecutorID = id
 			r.mu.Unlock()
 			r.runResult(ctx, result)

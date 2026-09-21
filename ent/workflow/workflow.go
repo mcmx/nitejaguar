@@ -17,6 +17,8 @@ const (
 	FieldEnabled = "enabled"
 	// FieldTenantID holds the string denoting the tenant_id field in the database.
 	FieldTenantID = "tenant_id"
+	// FieldRevision holds the string denoting the revision field in the database.
+	FieldRevision = "revision"
 	// FieldJSONDefinition holds the string denoting the json_definition field in the database.
 	FieldJSONDefinition = "json_definition"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -32,6 +34,7 @@ var Columns = []string{
 	FieldID,
 	FieldEnabled,
 	FieldTenantID,
+	FieldRevision,
 	FieldJSONDefinition,
 	FieldCreatedAt,
 	FieldUpdatedAt,
@@ -52,6 +55,10 @@ var (
 	DefaultEnabled bool
 	// DefaultTenantID holds the default value on creation for the "tenant_id" field.
 	DefaultTenantID string
+	// DefaultRevision holds the default value on creation for the "revision" field.
+	DefaultRevision string
+	// RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
+	RevisionValidator func(string) error
 	// JSONDefinitionValidator is a validator for the "json_definition" field. It is called by the builders before save.
 	JSONDefinitionValidator func(string) error
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
@@ -80,6 +87,11 @@ func ByEnabled(opts ...sql.OrderTermOption) OrderOption {
 // ByTenantID orders the results by the tenant_id field.
 func ByTenantID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTenantID, opts...).ToFunc()
+}
+
+// ByRevision orders the results by the revision field.
+func ByRevision(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRevision, opts...).ToFunc()
 }
 
 // ByJSONDefinition orders the results by the json_definition field.

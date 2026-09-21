@@ -30,6 +30,7 @@ var (
 		{Name: "id", Type: field.TypeString, Unique: true},
 		{Name: "enabled", Type: field.TypeBool, Default: true},
 		{Name: "tenant_id", Type: field.TypeString, Default: "default"},
+		{Name: "revision", Type: field.TypeString, Default: "revision_default"},
 		{Name: "json_definition", Type: field.TypeString, Size: 2147483647},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},

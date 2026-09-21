@@ -24,6 +24,10 @@ func (Workflow) Fields() []ent.Field {
 			StructTag(`json:"enabled"`),
 		field.String("tenant_id").
 			Default("default"),
+		field.String("revision").
+			NotEmpty().
+			Default("revision_default").
+			StructTag(`json:"revision"`),
 		field.Text("json_definition").
 			NotEmpty(),
 		field.Time("created_at").
