@@ -11,7 +11,9 @@ package fileaction
 //   - `{{date}}` defaults to local YYYYMMDD (Go layout "20060102").
 //     `{{date:<layout>}}` (e.g. `{{date:2006-01-02}}`) uses the given Go layout.
 //   - `{{file}}`, `{{base}}`, `{{ext}}`, `{{stem}}` are derived from the
-//     resolved source file.
+//     resolved source file. Date stamping lives in datetimeAction —
+//     thread its result in via merge_input and reference it as a bare
+//     `$input.<field>` (e.g. `$input.now`); `{{...}}` never nests refs.
 //   - `~` leading paths are expanded to the user home dir.
 //   - collision policy: if the destination already exists, do NOT overwrite;
 //     emit a Type:"error" result and leave the source untouched.
@@ -24,7 +26,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/mcmx/nitejaguar/common"
 )
@@ -351,21 +352,6 @@ func expandPlaceholder(inner string, sourceFile string) (string, error) {
 		return "", fmt.Errorf("empty placeholder")
 	}
 	lower := strings.ToLower(expr)
-	if lower == "date" {
-		return time.Now().Local().Format("20060102"), nil
-	}
-	if strings.HasPrefix(lower, "date:") || strings.HasPrefix(lower, "date ") {
-		sep := 5
-		layout := strings.TrimSpace(expr[sep:])
-		layout = strings.Trim(layout, `"'`)
-		if layout == "" {
-			return "", fmt.Errorf("empty date layout in placeholder {{%s}}", inner)
-		}
-		if layout == "YYYYMMDD" {
-			layout = "20060102"
-		}
-		return time.Now().Local().Format(layout), nil
-	}
 	switch lower {
 	case "file":
 		return sourceFile, nil

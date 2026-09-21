@@ -22,12 +22,42 @@
               "rightOperand": "(?i)^.*(?:-[0-9]{1,7}|-[0-9]{9,}|[^-0-9])\\.pdf$"
             },
             "nexts": [
-              "action_01jr12v81gfk6t359nvqg86t9g"
+              "action_01m3167tvxedb9y6ghyrehz5fk"
             ]
           }
         }
       },
       "dependencies": null
+    },
+    "action_01m3167tvxedb9y6ghyrehz5fk": {
+      "id": "action_01m3167tvxedb9y6ghyrehz5fk",
+      "name": "Action: current date",
+      "description": "Stamp the run with YYYYMMDD; merge_input carries the trigger file forward",
+      "action_type": "action",
+      "action_name": "datetimeAction",
+      "arguments": {
+        "operation": "getCurrentDate",
+        "format": "20060102",
+        "output_field": "now"
+      },
+      "conditions": {
+        "entries": {
+          "entry1": {
+            "condition": {
+              "leftOperand": true,
+              "operator": "",
+              "rightOperand": null
+            },
+            "nexts": [
+              "action_01jr12v81gfk6t359nvqg86t9g"
+            ]
+          }
+        }
+      },
+      "dependencies": [
+        "trigger_01jr12v81gfk6t359nvqg86t9g"
+      ],
+      "merge_input": true
     },
     "action_01jr12v81gfk6t359nvqg86t9g": {
       "id": "action_01jr12v81gfk6t359nvqg86t9g",
@@ -38,13 +68,13 @@
       "arguments": {
         "action": "rename",
         "file": "$input.file",
-        "new_file": "{{stem}}-{{date}}{{ext}}"
+        "new_file": "{{stem}}-$input.now{{ext}}"
       },
       "conditions": {
         "entries": {}
       },
       "dependencies": [
-        "trigger_01jr12v81gfk6t359nvqg86t9g"
+        "action_01m3167tvxedb9y6ghyrehz5fk"
       ]
     }
   }

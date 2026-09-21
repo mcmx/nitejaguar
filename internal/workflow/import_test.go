@@ -98,15 +98,17 @@ func TestDownloadsPOCDefinition(t *testing.T) {
 	if err := json.Unmarshal([]byte(readWorkflow(t, pocDownloadsPath)), &wf); err != nil {
 		t.Fatalf("unmarshal Downloads POC: %v", err)
 	}
-	if wf.Id == "" || len(wf.Nodes) != 2 {
+	if wf.Id == "" || len(wf.Nodes) != 3 {
 		t.Fatalf("invalid POC workflow identity or node count: %q, %d", wf.Id, len(wf.Nodes))
 	}
-	var trigger, action Node
+	var trigger, stamp, action Node
 	for _, node := range wf.Nodes {
-		switch node.ActionType {
-		case "trigger":
+		switch {
+		case node.ActionType == "trigger":
 			trigger = node
-		case "action":
+		case node.ActionName == "datetimeAction":
+			stamp = node
+		default:
 			action = node
 		}
 	}
@@ -117,7 +119,16 @@ func TestDownloadsPOCDefinition(t *testing.T) {
 	if entry.Condition.Operator != "=~" || entry.Condition.LeftOperand != "$result.file" || regexp.MustCompile(entry.Condition.RightOperand.(string)).MatchString("report-20260920.pdf") {
 		t.Fatalf("POC condition does not exclude dated PDFs: %+v", entry.Condition)
 	}
-	if action.ActionName != "fileAction" || action.Arguments["action"] != "rename" || action.Arguments["file"] != "$input.file" || action.Arguments["new_file"] != "{{stem}}-{{date}}{{ext}}" {
+	if len(entry.Nexts) != 1 || entry.Nexts[0] != stamp.Id {
+		t.Fatalf("POC trigger must route to the datetime node: %+v", entry.Nexts)
+	}
+	if stamp.Arguments["operation"] != "getCurrentDate" || stamp.Arguments["format"] != "20060102" || stamp.Arguments["output_field"] != "now" {
+		t.Fatalf("unexpected POC datetime args: %+v", stamp.Arguments)
+	}
+	if !stamp.MergeInput {
+		t.Fatalf("POC datetime node must merge input to carry the trigger file forward: %+v", stamp)
+	}
+	if action.ActionName != "fileAction" || action.Arguments["action"] != "rename" || action.Arguments["file"] != "$input.file" || action.Arguments["new_file"] != "{{stem}}-$input.now{{ext}}" {
 		t.Fatalf("unexpected POC action: %+v", action)
 	}
 	assertEdgeIntegrity(t, wf)

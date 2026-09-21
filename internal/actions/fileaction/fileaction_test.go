@@ -3,10 +3,7 @@ package fileaction
 import (
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/mcmx/nitejaguar/common"
 )
@@ -105,54 +102,37 @@ func TestRenameAcceptsMapStringAny(t *testing.T) {
 	}
 }
 
-// Date suffix template must produce <stem>-YYYYMMDD.ext.
-func TestRenameDateSuffixTemplate(t *testing.T) {
+// Date suffix now comes from datetimeAction via a bare $input ref (no braces):
+// the upstream merged payload carries the trigger `file` plus datetime `now`.
+func TestRenameDateSuffixFromInput(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.Join(dir, "statement.pdf")
 	if err := os.WriteFile(src, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	// Use absolute template anchored in dir; {{stem}}/{{date}}/{{ext}}
-	// derive from the $input.file source path.
-	a2, events2 := newTestAction(t, map[string]string{
+	a, events := newTestAction(t, map[string]string{
 		"action":   "rename",
 		"file":     "$input.file",
-		"new_file": dir + "/{{stem}}-{{date}}{{ext}}",
+		"new_file": dir + "/{{stem}}-$input.now{{ext}}",
 	})
-	a2.Execute("exec1", triggerWithFile(src))
-	p := readPayload(t, events2)
+	inputs := []any{common.ResultData{
+		ExecutionID: "exec1",
+		ActionID:    "action_01m3167tvxedb9y6ghyrehz5fk",
+		ActionType:  "action",
+		ActionName:  "datetimeAction",
+		Payload:     map[string]any{"type": "success", "file": src, "now": "20260921"},
+	}}
+	a.Execute("exec1", inputs)
+	p := readPayload(t, events)
 	if p.Type != "success" {
 		t.Fatalf("expected success, got %+v", p)
 	}
-	wantDate := time.Now().Local().Format("20060102")
-	want := filepath.Join(dir, "statement-"+wantDate+".pdf")
+	want := filepath.Join(dir, "statement-20260921.pdf")
 	if p.NewFile != want {
 		t.Fatalf("expected new_file %q, got %q", want, p.NewFile)
 	}
-	matched, _ := regexp.MatchString(`statement-\d{8}\.pdf$`, p.NewFile)
-	if !matched {
-		t.Fatalf("expected -YYYYMMDD pattern, got %q", p.NewFile)
-	}
 	if _, err := os.Stat(want); err != nil {
 		t.Fatalf("expected dated file to exist: %v", err)
-	}
-	// Explicit {{date:20060102}} form must also work.
-	src2 := filepath.Join(dir, "invoice.pdf")
-	if err := os.WriteFile(src2, []byte("y"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	a3, events3 := newTestAction(t, map[string]string{
-		"action":   "rename",
-		"file":     "$input.file",
-		"new_file": dir + "/{{stem}}-{{date:20060102}}{{ext}}",
-	})
-	a3.Execute("exec1", triggerWithFile(src2))
-	p3 := readPayload(t, events3)
-	if p3.Type != "success" {
-		t.Fatalf("expected success, got %+v", p3)
-	}
-	if !strings.HasSuffix(p3.NewFile, "-"+wantDate+".pdf") {
-		t.Fatalf("expected date suffix, got %q", p3.NewFile)
 	}
 }
 
