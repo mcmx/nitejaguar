@@ -147,11 +147,21 @@ type runner struct {
 	mu           sync.Mutex
 	workflows    map[string]map[string]common.Action
 	nodeWorkflow map[string]string
+	nodeMeta     map[string]nodeConfig
+	history      map[string]map[string]any
 	events       chan common.ResultData
 }
 
+// nodeConfig carries the framework-level merge behavior for a node.
+// Actions stay unaware of it; the runner applies the merge before
+// reporting the result.
+type nodeConfig struct {
+	mergeInput   bool
+	dependencies []string
+}
+
 func newRunner(api API, logger *slog.Logger) *runner {
-	return &runner{api: api, log: logger, workflows: map[string]map[string]common.Action{}, nodeWorkflow: map[string]string{}, events: make(chan common.ResultData, 32)}
+	return &runner{api: api, log: logger, workflows: map[string]map[string]common.Action{}, nodeWorkflow: map[string]string{}, nodeMeta: map[string]nodeConfig{}, history: map[string]map[string]any{}, events: make(chan common.ResultData, 32)}
 }
 func (r *runner) install(w Workflow) {
 	r.mu.Lock()
@@ -161,6 +171,7 @@ func (r *runner) install(w Workflow) {
 	}
 	for id, n := range w.Nodes {
 		r.nodeWorkflow[id] = w.ID
+		r.nodeMeta[id] = nodeConfig{mergeInput: n.MergeInput, dependencies: n.Dependencies}
 		if n.ActionType == "action" {
 			if _, ok := r.workflows[w.ID][id]; ok {
 				continue
@@ -183,6 +194,10 @@ func (r *runner) install(w Workflow) {
 	}
 }
 func (r *runner) runResult(ctx context.Context, result common.ResultData) {
+	r.mu.Lock()
+	result.Payload = r.mergedPayloadLocked(result)
+	r.rememberLocked(result)
+	r.mu.Unlock()
 	nexts, err := r.api.PostResult(ctx, result)
 	if err != nil {
 		r.log.Error("post result", "error", err)
@@ -196,6 +211,43 @@ func (r *runner) runResult(ctx context.Context, result common.ResultData) {
 			go a.Execute(result.ExecutionID, []any{result})
 		}
 	}
+}
+
+// mergedPayloadLocked folds recorded upstream dependency payloads into
+// the result when the node opts into merge_input. Deep merge, reported
+// $result wins. Callers must hold r.mu.
+func (r *runner) mergedPayloadLocked(result common.ResultData) any {
+	cfg := r.nodeMeta[result.ActionID]
+	if !cfg.mergeInput || result.ExecutionID == "" || len(cfg.dependencies) == 0 {
+		return result.Payload
+	}
+	byNode := r.history[result.ExecutionID]
+	merged := result.Payload
+	for _, dep := range cfg.dependencies {
+		if byNode != nil {
+			if p, ok := byNode[dep]; ok {
+				merged = common.MergePayloads(p, merged)
+			}
+		}
+	}
+	return merged
+}
+
+// rememberLocked records a result payload for later merge_input lookups.
+// Callers must hold r.mu.
+func (r *runner) rememberLocked(result common.ResultData) {
+	if result.ExecutionID == "" || result.ActionID == "" {
+		return
+	}
+	if r.history == nil {
+		r.history = make(map[string]map[string]any)
+	}
+	byNode, ok := r.history[result.ExecutionID]
+	if !ok {
+		byNode = make(map[string]any)
+		r.history[result.ExecutionID] = byNode
+	}
+	byNode[result.ActionID] = result.Payload
 }
 func (r *runner) close() {
 	r.mu.Lock()
