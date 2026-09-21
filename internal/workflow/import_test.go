@@ -29,7 +29,7 @@ const mergeWorkflowJSON = `{
       "id": "trigger_01mergeinputtest000001",
       "name": "Trigger",
       "action_type": "trigger",
-      "action_name": "filechangeTrigger",
+      "action_name": "filechange",
       "arguments": {"path": "/tmp"},
       "conditions": {"entries": {}},
       "dependencies": null
@@ -38,7 +38,7 @@ const mergeWorkflowJSON = `{
       "id": "action_01mergeinputtest0000001",
       "name": "Action",
       "action_type": "action",
-      "action_name": "fileAction",
+      "action_name": "file",
       "arguments": {"action": "create", "file": "/tmp/out.txt"},
       "conditions": {"entries": {}},
       "dependencies": ["trigger_01mergeinputtest000001"],
@@ -106,13 +106,13 @@ func TestDownloadsPOCDefinition(t *testing.T) {
 		switch {
 		case node.ActionType == "trigger":
 			trigger = node
-		case node.ActionName == "datetimeAction":
+		case node.ActionName == "datetime":
 			stamp = node
 		default:
 			action = node
 		}
 	}
-	if trigger.ActionName != "filechangeTrigger" || trigger.Arguments["path"] != "~/Downloads" || trigger.Arguments["event_type"] != "create,write" {
+	if trigger.ActionName != "filechange" || trigger.Arguments["path"] != "~/Downloads" || trigger.Arguments["event_type"] != "create,write" {
 		t.Fatalf("unexpected POC trigger: %+v", trigger)
 	}
 	entry := trigger.Conditions.Entries["pdf_file"]
@@ -128,7 +128,7 @@ func TestDownloadsPOCDefinition(t *testing.T) {
 	if !stamp.MergeInput {
 		t.Fatalf("POC datetime node must merge input to carry the trigger file forward: %+v", stamp)
 	}
-	if action.ActionName != "fileAction" || action.Arguments["action"] != "rename" || action.Arguments["file"] != "$input.file" || action.Arguments["new_file"] != "{{stem}}-$input.now{{ext}}" {
+	if action.ActionName != "file" || action.Arguments["action"] != "rename" || action.Arguments["file"] != "$input.file" || action.Arguments["new_file"] != "{{stem}}-$input.now{{ext}}" {
 		t.Fatalf("unexpected POC action: %+v", action)
 	}
 	assertEdgeIntegrity(t, wf)
@@ -316,7 +316,7 @@ func TestWorkflowImportAndClone(t *testing.T) {
 		triggerRes, _, err := wm.IngestResult(common.ResultData{
 			ActionID:   "trigger_01mergeinputtest000001",
 			ActionType: "trigger",
-			ActionName: "filechangeTrigger",
+			ActionName: "filechange",
 			Payload:    map[string]any{"Name": "Sergio", "LastName": "Who"},
 		})
 		if err != nil {
@@ -331,7 +331,7 @@ func TestWorkflowImportAndClone(t *testing.T) {
 			ExecutionID: triggerRes.ExecutionID,
 			ActionID:    "action_01mergeinputtest0000001",
 			ActionType:  "action",
-			ActionName:  "fileAction",
+			ActionName:  "file",
 			Payload:     map[string]any{"Name": "Dr", "Phone": "555-768790"},
 		})
 		if err != nil {

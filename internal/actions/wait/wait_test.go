@@ -34,7 +34,7 @@ func TestParseDurationRejectsInvalidValues(t *testing.T) {
 
 func TestExecuteWaitsAndEmitsResult(t *testing.T) {
 	events := make(chan common.ResultData, 1)
-	a, err := New(events, common.ActionArgs{Id: "action_test", ActionName: "waitAction", Args: map[string]any{"duration": "2ms"}})
+	a, err := New(events, common.ActionArgs{Id: "action_test", ActionName: "wait", Args: map[string]any{"duration": "2ms"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestExecuteWaitsAndEmitsResult(t *testing.T) {
 
 func TestExecuteResolvesInputDuration(t *testing.T) {
 	events := make(chan common.ResultData, 1)
-	a, _ := New(events, common.ActionArgs{Id: "action_test", ActionName: "waitAction", Args: map[string]string{"duration": "$input.delay"}})
+	a, _ := New(events, common.ActionArgs{Id: "action_test", ActionName: "wait", Args: map[string]string{"duration": "$input.delay"}})
 	a.Execute("exec_test", []any{common.ResultData{Payload: map[string]any{"delay": "0s"}}})
 	p := (<-events).Payload.(map[string]any)
 	if p["type"] != "success" {

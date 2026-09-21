@@ -216,7 +216,7 @@ func TestGetNextNodesRoutesWithoutCondition(t *testing.T) {
 	n := Node{
 		Id:         "action_mid",
 		ActionType: "action",
-		ActionName: "datetimeAction",
+		ActionName: "datetime",
 		Conditions: &conditionDictionary{Entries: map[string]conditionEntry{
 			"entry1": {Nexts: []string{"action_next"}},
 		}},

@@ -27,7 +27,7 @@ func TestClientWorkflowVersioningAndSync(t *testing.T) {
 				Id:         "trigger_1",
 				Name:       "Trigger",
 				ActionType: "trigger",
-				ActionName: "filechangeTrigger",
+				ActionName: "filechange",
 				Arguments:  map[string]string{"path": "/tmp"},
 			},
 		},
@@ -51,7 +51,7 @@ func TestClientWorkflowVersioningAndSync(t *testing.T) {
 				Id:         "trigger_1",
 				Name:       "Trigger Updated",
 				ActionType: "trigger",
-				ActionName: "filechangeTrigger",
+				ActionName: "filechange",
 				Arguments:  map[string]string{"path": "/tmp"},
 			},
 		},
@@ -125,7 +125,7 @@ func TestAPIProtocol(t *testing.T) {
 	if err != nil || assign.ClientID != reg.ClientID {
 		t.Fatalf("assignments: %#v %v", assign, err)
 	}
-	nexts, err := a.PostResult(context.Background(), common.ResultData{WorkflowID: "workflow_1", ActionID: "trigger_1", ActionName: "filechangeTrigger", ExecutorID: "client_test", Payload: map[string]any{"file": "x.pdf"}})
+	nexts, err := a.PostResult(context.Background(), common.ResultData{WorkflowID: "workflow_1", ActionID: "trigger_1", ActionName: "filechange", ExecutorID: "client_test", Payload: map[string]any{"file": "x.pdf"}})
 	if err != nil || len(nexts) != 1 || got.WorkflowID != "workflow_1" {
 		t.Fatalf("result: %#v %#v %v", nexts, got, err)
 	}
@@ -155,7 +155,7 @@ func TestRunnerAppliesMergeInput(t *testing.T) {
 	r := newRunner(API{BaseURL: srv.URL, HTTPClient: srv.Client()}, slog.Default())
 	r.install(Workflow{ID: "workflow_merge", Name: "merge", Nodes: map[string]workflow.Node{
 		"action_merge": {
-			Id: "action_merge", Name: "Action", ActionType: "action", ActionName: "fileAction",
+			Id: "action_merge", Name: "Action", ActionType: "action", ActionName: "file",
 			Arguments:    map[string]string{"action": "create", "file": "/tmp/out.txt"},
 			Dependencies: []string{"trigger_merge"},
 			MergeInput:   true,

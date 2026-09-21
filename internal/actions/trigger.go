@@ -37,7 +37,7 @@ func (ts *TriggerManager) AddTrigger(data common.ActionArgs) (common.Action, str
 
 	// TODO Add a validation that the triger_id doesn't exist in the triggers already
 	switch data.ActionName {
-	case "filechangeTrigger":
+	case "filechange":
 		trigger, err := filechange.New(ts.events, data)
 		if err != nil {
 			return nil, "", err

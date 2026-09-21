@@ -1,6 +1,6 @@
-# Wait Action (`wait` / `waitAction`)
+# Wait Action (`wait`)
 
-`wait` pauses the current workflow execution before emitting a successful result, allowing downstream nodes to run after a delay. `waitAction` is accepted as a compatibility alias following the naming convention of the other built-in actions.
+`wait` pauses the current workflow execution before emitting a successful result, allowing downstream nodes to run after a delay.
 
 ## Arguments
 

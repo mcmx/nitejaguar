@@ -4,10 +4,10 @@
     "nodes": {
       "trigger_01jr12v81gfk6t359nvqg86t9g": {
         "id": "trigger_01jr12v81gfk6t359nvqg86t9g",
-        "name": "Trigger: filechangeTrigger",
+      "name": "Trigger: filechange",
         "description": "Trigger: on Downloads",
         "action_type": "trigger",
-        "action_name": "filechangeTrigger",
+      "action_name": "filechange",
         "arguments": {
           "path": "/tmp",
           "event_type": "create"
@@ -28,10 +28,10 @@
       },
     "action_01datetime01example00000001": {
       "id": "action_01datetime01example00000001",
-      "name": "Action: datetimeAction",
+      "name": "Action: datetime",
       "description": "Action: current datetime (Go layout format, IANA timezone)",
       "action_type": "action",
-      "action_name": "datetimeAction",
+      "action_name": "datetime",
       "arguments": {
         "operation": "getCurrentDate",
         "format": "2006-01-02 15:04:05",

@@ -14,7 +14,7 @@ func newTestAction(t *testing.T, args any) (common.Action, chan common.ResultDat
 		Id:         "action_test",
 		Name:       "test",
 		ActionType: "action",
-		ActionName: "datetimeAction",
+		ActionName: "datetime",
 		Args:       args,
 	})
 	if err != nil {

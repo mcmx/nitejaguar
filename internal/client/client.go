@@ -297,14 +297,14 @@ func (r *runner) registerWorkflowIndices(mw *managedWorkflow) {
 }
 
 // newClientAction dispatches action construction by action_name so remote
-// clients can run any server-side action (e.g. fileAction, datetimeAction).
+// clients can run any server-side action (e.g. file, datetime, wait).
 func newClientAction(events chan common.ResultData, args common.ActionArgs) (common.Action, error) {
 	switch args.ActionName {
-	case "fileAction":
+	case "file":
 		return fileaction.New(events, args)
-	case "datetimeAction":
+	case "datetime":
 		return datetime.New(events, args)
-	case "wait", "waitAction":
+	case "wait":
 		return waitaction.New(events, args)
 	default:
 		return nil, fmt.Errorf("unknown action_name: %q", args.ActionName)
