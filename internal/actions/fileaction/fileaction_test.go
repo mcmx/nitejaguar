@@ -58,6 +58,30 @@ func readPayload(t *testing.T, ch chan common.ResultData) payload {
 	}
 }
 
+// $.input.file resolution: upstream result flows into the rename.
+// $.result.file is kept as deprecated alias.
+func TestRenameResolvesInputFile(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "input.pdf")
+	if err := os.WriteFile(src, []byte("data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(dir, "input-renamed.pdf")
+	a, events := newTestAction(t, map[string]string{
+		"action":   "rename",
+		"file":     "$.input.file",
+		"new_file": dst,
+	})
+	a.Execute("exec1", triggerWithFile(src))
+	p := readPayload(t, events)
+	if p.Type != "success" {
+		t.Fatalf("expected success, got %+v", p)
+	}
+	if _, err := os.Stat(dst); err != nil {
+		t.Fatalf("expected dest to exist: %v", err)
+	}
+}
+
 // $.result.file resolution: trigger file path flows into the rename.
 func TestRenameResolvesResultFile(t *testing.T) {
 	dir := t.TempDir()

@@ -37,7 +37,7 @@
       "action_name": "fileAction",
       "arguments": {
         "action": "rename",
-        "file": "$.result.file",
+        "file": "$.input.file",
         "new_file": "{{stem}}-{{date}}{{ext}}"
       },
       "conditions": {
