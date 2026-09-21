@@ -19,6 +19,7 @@ import (
 	"github.com/mcmx/nitejaguar/internal/actions/datetime"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
 	"github.com/mcmx/nitejaguar/internal/actions/filechange"
+	waitaction "github.com/mcmx/nitejaguar/internal/actions/wait"
 	"github.com/mcmx/nitejaguar/internal/workflow"
 	"go.jetify.com/typeid"
 )
@@ -303,6 +304,8 @@ func newClientAction(events chan common.ResultData, args common.ActionArgs) (com
 		return fileaction.New(events, args)
 	case "datetimeAction":
 		return datetime.New(events, args)
+	case "wait", "waitAction":
+		return waitaction.New(events, args)
 	default:
 		return nil, fmt.Errorf("unknown action_name: %q", args.ActionName)
 	}

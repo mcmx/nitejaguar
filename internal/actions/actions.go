@@ -10,6 +10,7 @@ import (
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions/datetime"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
+	"github.com/mcmx/nitejaguar/internal/actions/wait"
 	"go.jetify.com/typeid"
 )
 
@@ -47,6 +48,8 @@ func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, strin
 		action, err = fileaction.New(am.events, data)
 	case "datetimeAction":
 		action, err = datetime.New(am.events, data)
+	case "wait", "waitAction":
+		action, err = wait.New(am.events, data)
 	default:
 		return nil, "", fmt.Errorf("unknown action_name: %q", data.ActionName)
 	}
