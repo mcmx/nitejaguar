@@ -93,13 +93,13 @@ func TestConditionRegexNonStringOperand(t *testing.T) {
 
 func TestConditionRegexResultResolution(t *testing.T) {
 	result := common.ResultData{Payload: map[string]any{"file": "statement-jan.pdf"}}
-	c := newComparison("$.result.file", "=~", `^statement-.*\.pdf$`)
+	c := newComparison("$result.file", "=~", `^statement-.*\.pdf$`)
 	ok, err := c.evaluate(common.ActionArgs{}, nil, result)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !ok {
-		t.Error("expected regex to match resolved $.result.file")
+		t.Error("expected regex to match resolved $result.file")
 	}
 	result = common.ResultData{Payload: map[string]any{"file": "notes.txt"}}
 	ok, err = c.evaluate(common.ActionArgs{}, nil, result)
@@ -107,7 +107,33 @@ func TestConditionRegexResultResolution(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if ok {
-		t.Error("expected regex not to match resolved $.result.file")
+		t.Error("expected regex not to match resolved $result.file")
+	}
+}
+
+func TestConditionDollarSyntax(t *testing.T) {
+	result := common.ResultData{Payload: map[string]any{"file": "a.pdf"}}
+	args := common.ActionArgs{Args: map[string]string{"path": "/tmp"}}
+
+	// $json aliases $result in conditions.
+	c := newComparison("$json.file", "==", "a.pdf")
+	if ok, err := c.evaluate(args, nil, result); err != nil || !ok {
+		t.Fatalf("expected $json.file to resolve like $result.file: ok=%v err=%v", ok, err)
+	}
+	// $args addresses static node arguments.
+	c = newComparison("$args.path", "==", "/tmp")
+	if ok, err := c.evaluate(args, nil, result); err != nil || !ok {
+		t.Fatalf("expected $args.path to resolve: ok=%v err=%v", ok, err)
+	}
+	// $input (upstream) is not available in conditions.
+	c = newComparison("$input.file", "==", "a.pdf")
+	if _, err := c.evaluate(args, nil, result); err == nil {
+		t.Fatal("expected error for $input.file in conditions, got nil")
+	}
+	// Legacy $. prefix is rejected.
+	c = newComparison("$.result.file", "==", "a.pdf")
+	if _, err := c.evaluate(args, nil, result); err == nil {
+		t.Fatal("expected error for legacy $.result.file, got nil")
 	}
 }
 
@@ -156,13 +182,13 @@ func TestConditionGlobNonStringOperand(t *testing.T) {
 
 func TestConditionGlobResultResolution(t *testing.T) {
 	result := common.ResultData{Payload: map[string]any{"file": "statement-feb.pdf"}}
-	c := newComparison("$.result.file", "glob", "statement-*.pdf")
+	c := newComparison("$result.file", "glob", "statement-*.pdf")
 	ok, err := c.evaluate(common.ActionArgs{}, nil, result)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !ok {
-		t.Error("expected glob to match resolved $.result.file")
+		t.Error("expected glob to match resolved $result.file")
 	}
 	result = common.ResultData{Payload: map[string]any{"file": "notes.txt"}}
 	ok, err = c.evaluate(common.ActionArgs{}, nil, result)
@@ -170,6 +196,6 @@ func TestConditionGlobResultResolution(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if ok {
-		t.Error("expected glob not to match resolved $.result.file")
+		t.Error("expected glob not to match resolved $result.file")
 	}
 }

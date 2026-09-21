@@ -58,7 +58,7 @@ func readPayload(t *testing.T, ch chan common.ResultData) payload {
 	}
 }
 
-// $.result.file resolution: trigger file path flows into the rename.
+// $input.file resolution: upstream result flows into the rename.
 func TestRenameResolvesResultFile(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.Join(dir, "report.pdf")
@@ -68,7 +68,7 @@ func TestRenameResolvesResultFile(t *testing.T) {
 	dst := filepath.Join(dir, "report-renamed.pdf")
 	a, events := newTestAction(t, map[string]string{
 		"action":   "rename",
-		"file":     "$.result.file",
+		"file":     "$input.file",
 		"new_file": dst,
 	})
 	a.Execute("exec1", triggerWithFile(src))
@@ -95,7 +95,7 @@ func TestRenameAcceptsMapStringAny(t *testing.T) {
 	dst := filepath.Join(dir, "b.pdf")
 	a, events := newTestAction(t, map[string]any{
 		"action":   "rename",
-		"file":     "$.result.file",
+		"file":     "$input.file",
 		"new_file": dst,
 	})
 	a.Execute("exec1", triggerWithFile(src))
@@ -113,10 +113,10 @@ func TestRenameDateSuffixTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Use absolute template anchored in dir; {{stem}}/{{date}}/{{ext}}
-	// derive from the $.result.file source path.
+	// derive from the $input.file source path.
 	a2, events2 := newTestAction(t, map[string]string{
 		"action":   "rename",
-		"file":     "$.result.file",
+		"file":     "$input.file",
 		"new_file": dir + "/{{stem}}-{{date}}{{ext}}",
 	})
 	a2.Execute("exec1", triggerWithFile(src))
@@ -143,7 +143,7 @@ func TestRenameDateSuffixTemplate(t *testing.T) {
 	}
 	a3, events3 := newTestAction(t, map[string]string{
 		"action":   "rename",
-		"file":     "$.result.file",
+		"file":     "$input.file",
 		"new_file": dir + "/{{stem}}-{{date:20060102}}{{ext}}",
 	})
 	a3.Execute("exec1", triggerWithFile(src2))
@@ -169,7 +169,7 @@ func TestRenameCollisionDoesNotOverwrite(t *testing.T) {
 	}
 	a, events := newTestAction(t, map[string]string{
 		"action":   "rename",
-		"file":     "$.result.file",
+		"file":     "$input.file",
 		"new_file": dst,
 	})
 	a.Execute("exec1", triggerWithFile(src))
@@ -207,6 +207,40 @@ func TestExpandHome(t *testing.T) {
 	}
 	if got := expandPath("/tmp/x"); got != "/tmp/x" {
 		t.Fatalf("absolute path changed: %q", got)
+	}
+}
+
+// $json.file is an n8n-style alias for $input.file in action args.
+func TestRenameResolvesJsonAlias(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "alias.pdf")
+	if err := os.WriteFile(src, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(dir, "alias-renamed.pdf")
+	a, events := newTestAction(t, map[string]string{
+		"action":   "rename",
+		"file":     "$json.file",
+		"new_file": dst,
+	})
+	a.Execute("exec1", triggerWithFile(src))
+	if p := readPayload(t, events); p.Type != "success" {
+		t.Fatalf("expected success, got %+v", p)
+	}
+}
+
+func TestDollarSyntaxRejections(t *testing.T) {
+	// $result (own output) does not exist yet at arg-resolution time.
+	a, events := newTestAction(t, map[string]string{"action": "remove", "file": "$result.file"})
+	a.Execute("exec1", triggerWithFile("/tmp/x"))
+	if p := readPayload(t, events); p.Type != "error" {
+		t.Fatalf("expected error for $result.file in args, got %+v", p)
+	}
+	// Legacy $. prefix is rejected.
+	a2, events2 := newTestAction(t, map[string]string{"action": "remove", "file": "$.result.file"})
+	a2.Execute("exec1", triggerWithFile("/tmp/x"))
+	if p := readPayload(t, events2); p.Type != "error" {
+		t.Fatalf("expected error for legacy $.result.file, got %+v", p)
 	}
 }
 
