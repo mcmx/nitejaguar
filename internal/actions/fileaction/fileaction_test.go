@@ -179,14 +179,24 @@ func TestExpandHome(t *testing.T) {
 	if err != nil || home == "" {
 		t.Skip("no home dir available")
 	}
-	if got := expandPath("~/Downloads"); got != filepath.Join(home, "Downloads") {
-		t.Fatalf("~/Downloads expanded to %q, want %q", got, filepath.Join(home, "Downloads"))
+	if got, err := common.ExpandPath("~/Downloads"); err != nil || got != filepath.Join(home, "Downloads") {
+		t.Fatalf("~/Downloads expanded to %q, err %v, want %q", got, err, filepath.Join(home, "Downloads"))
 	}
-	if got := expandPath("~"); got != home {
-		t.Fatalf("~ expanded to %q, want %q", got, home)
+	if got, err := common.ExpandPath("~"); err != nil || got != home {
+		t.Fatalf("~ expanded to %q, err %v, want %q", got, err, home)
 	}
-	if got := expandPath("/tmp/x"); got != "/tmp/x" {
-		t.Fatalf("absolute path changed: %q", got)
+	if got, err := common.ExpandPath("/tmp/x"); err != nil || got != "/tmp/x" {
+		t.Fatalf("absolute path changed: %q, err %v", got, err)
+	}
+	// Invalid tilde placements / exploits
+	if _, err := common.ExpandPath("foo/~"); err == nil {
+		t.Fatal("expected error for 'foo/~'")
+	}
+	if _, err := common.ExpandPath("~foo"); err == nil {
+		t.Fatal("expected error for '~foo'")
+	}
+	if _, err := common.ExpandPath("path\x00null"); err == nil {
+		t.Fatal("expected error for null byte path")
 	}
 }
 
@@ -202,21 +212,21 @@ func TestDollarSyntaxRejections(t *testing.T) {
 
 func TestArgsToStringMapRobust(t *testing.T) {
 	// map[string]any
-	m, err := argsToStringMap(map[string]any{"action": "remove", "file": "/tmp/x"})
+	m, err := common.ArgsToStringMap(map[string]any{"action": "remove", "file": "/tmp/x"})
 	if err != nil || m["action"] != "remove" {
 		t.Fatalf("map[string]any failed: %v %+v", m, err)
 	}
 	// map[string]string
-	m2, err := argsToStringMap(map[string]string{"action": "remove"})
+	m2, err := common.ArgsToStringMap(map[string]string{"action": "remove"})
 	if err != nil {
 		t.Fatalf("map[string]string failed: %v", err)
 	}
 	_ = m2
 	// invalid (non-map) must error, not panic
-	if _, err := argsToStringMap("nope"); err == nil {
+	if _, err := common.ArgsToStringMap("nope"); err == nil {
 		t.Fatal("expected error for string args")
 	}
-	if _, err := argsToStringMap(nil); err == nil {
+	if _, err := common.ArgsToStringMap(nil); err == nil {
 		t.Fatal("expected error for nil args")
 	}
 }
