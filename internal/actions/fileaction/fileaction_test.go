@@ -210,37 +210,13 @@ func TestExpandHome(t *testing.T) {
 	}
 }
 
-// $json.file is an n8n-style alias for $input.file in action args.
-func TestRenameResolvesJsonAlias(t *testing.T) {
-	dir := t.TempDir()
-	src := filepath.Join(dir, "alias.pdf")
-	if err := os.WriteFile(src, []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	dst := filepath.Join(dir, "alias-renamed.pdf")
-	a, events := newTestAction(t, map[string]string{
-		"action":   "rename",
-		"file":     "$json.file",
-		"new_file": dst,
-	})
-	a.Execute("exec1", triggerWithFile(src))
-	if p := readPayload(t, events); p.Type != "success" {
-		t.Fatalf("expected success, got %+v", p)
-	}
-}
-
 func TestDollarSyntaxRejections(t *testing.T) {
-	// $result (own output) does not exist yet at arg-resolution time.
-	a, events := newTestAction(t, map[string]string{"action": "remove", "file": "$result.file"})
-	a.Execute("exec1", triggerWithFile("/tmp/x"))
-	if p := readPayload(t, events); p.Type != "error" {
-		t.Fatalf("expected error for $result.file in args, got %+v", p)
-	}
-	// Legacy $. prefix is rejected.
-	a2, events2 := newTestAction(t, map[string]string{"action": "remove", "file": "$.result.file"})
-	a2.Execute("exec1", triggerWithFile("/tmp/x"))
-	if p := readPayload(t, events2); p.Type != "error" {
-		t.Fatalf("expected error for legacy $.result.file, got %+v", p)
+	for _, ref := range []string{"$result.file", "$args.file", "$json.file"} {
+		a, events := newTestAction(t, map[string]string{"action": "remove", "file": ref})
+		a.Execute("exec1", triggerWithFile("/tmp/x"))
+		if p := readPayload(t, events); p.Type != "error" {
+			t.Fatalf("expected error for %s in args, got %+v", ref, p)
+		}
 	}
 }
 

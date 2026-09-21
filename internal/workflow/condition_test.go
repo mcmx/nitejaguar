@@ -115,13 +115,8 @@ func TestConditionDollarSyntax(t *testing.T) {
 	result := common.ResultData{Payload: map[string]any{"file": "a.pdf"}}
 	args := common.ActionArgs{Args: map[string]string{"path": "/tmp"}}
 
-	// $json aliases $result in conditions.
-	c := newComparison("$json.file", "==", "a.pdf")
-	if ok, err := c.evaluate(args, nil, result); err != nil || !ok {
-		t.Fatalf("expected $json.file to resolve like $result.file: ok=%v err=%v", ok, err)
-	}
 	// $args addresses static node arguments.
-	c = newComparison("$args.path", "==", "/tmp")
+	c := newComparison("$args.path", "==", "/tmp")
 	if ok, err := c.evaluate(args, nil, result); err != nil || !ok {
 		t.Fatalf("expected $args.path to resolve: ok=%v err=%v", ok, err)
 	}
@@ -130,10 +125,10 @@ func TestConditionDollarSyntax(t *testing.T) {
 	if _, err := c.evaluate(args, nil, result); err == nil {
 		t.Fatal("expected error for $input.file in conditions, got nil")
 	}
-	// Legacy $. prefix is rejected.
-	c = newComparison("$.result.file", "==", "a.pdf")
+	// $json was removed.
+	c = newComparison("$json.file", "==", "a.pdf")
 	if _, err := c.evaluate(args, nil, result); err == nil {
-		t.Fatal("expected error for legacy $.result.file, got nil")
+		t.Fatal("expected error for $json.file in conditions, got nil")
 	}
 }
 

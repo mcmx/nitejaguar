@@ -38,13 +38,13 @@ func newBooleanCondition(boolExpr any) *condition {
 	}
 }
 
-// Reference syntax (n8n-style, no dot after $):
+// Reference syntax:
 //   - $result.<path> addresses the node's own ResultData payload (what the
-//     node just produced). $json.<path> is an alias for the same document.
+//     node just produced).
 //   - $args.<path> addresses the node's static arguments (Node.Arguments).
 //   - $input.<path> (upstream dependency payloads) is NOT available in
-//     conditions: routing runs on the node's own result, so use
-//     $result/$json. Referencing $input here returns an explicit error.
+//     conditions: routing runs on the node's own result, so use $result.
+//     Referencing $input here returns an explicit error.
 func (c *condition) evaluate(actionArgs common.ActionArgs, inputs []any, result common.ResultData) (bool, error) {
 	// we will need to test if the operands must be resolved, I'll follow the format
 	// jsonpath format to resolve the values.
@@ -98,9 +98,9 @@ func (c *condition) evaluate(actionArgs common.ActionArgs, inputs []any, result 
 	}
 }
 
-// resolveOperand resolves $result./$json. against the node's own payload
-// and $args. against its static arguments. $input. (upstream) and legacy
-// $.input./$.result. are rejected with an explicit error.
+// resolveOperand resolves $result. against the node's own payload and
+// $args. against its static arguments. $input. (upstream) and $json. are
+// rejected with an explicit error.
 func resolveOperand(operand any, actionArgs common.ActionArgs, result common.ResultData) (any, error) {
 	s, ok := operand.(string)
 	if !ok {
@@ -109,14 +109,12 @@ func resolveOperand(operand any, actionArgs common.ActionArgs, result common.Res
 	switch {
 	case strings.HasPrefix(s, "$result."):
 		return resolveResult(result, s)
-	case strings.HasPrefix(s, "$json."):
-		return resolveResult(result, s)
 	case strings.HasPrefix(s, "$args."):
 		return resolveArgs(actionArgs, s)
 	case strings.HasPrefix(s, "$input."):
-		return nil, fmt.Errorf("unsupported path %q: $input (upstream) is not available in conditions, use $result or $json for own output", s)
-	case strings.HasPrefix(s, "$."):
-		return nil, fmt.Errorf("unsupported path %q: legacy $. prefix was removed, use $result, $json, $args or $input", s)
+		return nil, fmt.Errorf("unsupported path %q: $input (upstream) is not available in conditions, use $result for own output", s)
+	case strings.HasPrefix(s, "$json."):
+		return nil, fmt.Errorf("unsupported path %q: $json was removed, use $result for own output", s)
 	}
 	return operand, nil
 }
@@ -131,14 +129,10 @@ func resolveArgs(input common.ActionArgs, path string) (any, error) {
 }
 
 func resolveResult(result common.ResultData, path string) (any, error) {
-	var rest string
-	switch {
-	case strings.HasPrefix(path, "$result."):
-		rest = strings.TrimPrefix(path, "$result.")
-	case strings.HasPrefix(path, "$json."):
-		rest = strings.TrimPrefix(path, "$json.")
-	default:
-		return nil, fmt.Errorf("unsupported path %q: must start with $result. or $json", path)
+	const prefix = "$result."
+	rest := strings.TrimPrefix(path, prefix)
+	if rest == path {
+		return nil, fmt.Errorf("unsupported path %q: must start with $result", path)
 	}
 	if rest == "" {
 		return nil, fmt.Errorf("unsupported path %q: empty key", path)
