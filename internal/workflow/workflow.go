@@ -101,7 +101,7 @@ func (wm *workflowManager) Run(ctx context.Context) {
 			for _, next := range nexts {
 				fmt.Printf("Executing next node %v,\n", next)
 				// Thread the triggering result into downstream actions so
-				// fileaction (and others) can resolve $.result.* references.
+				// fileaction (and others) can resolve $input. references.
 				// Signature stays inputs []any for compatibility.
 				err := wm.ActionManager.ExecuteAction(next, result.ExecutionID, []any{result})
 				if err != nil {

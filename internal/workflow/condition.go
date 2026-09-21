@@ -38,10 +38,13 @@ func newBooleanCondition(boolExpr any) *condition {
 	}
 }
 
-// input corresponds to the action arguments input that the action received
-// result corresponds to the result of the action
-// either operand can be a variable name that will be resolved from the input or result
-// or neither in which is can be considered a constant value and should not be resolved
+// Reference syntax:
+//   - $result.<path> addresses the node's own ResultData payload (what the
+//     node just produced).
+//   - $args.<path> addresses the node's static arguments (Node.Arguments).
+//   - $input.<path> (upstream dependency payloads) is NOT available in
+//     conditions: routing runs on the node's own result, so use $result.
+//     Referencing $input here returns an explicit error.
 func (c *condition) evaluate(actionArgs common.ActionArgs, inputs []any, result common.ResultData) (bool, error) {
 	// we will need to test if the operands must be resolved, I'll follow the format
 	// jsonpath format to resolve the values.
@@ -95,25 +98,27 @@ func (c *condition) evaluate(actionArgs common.ActionArgs, inputs []any, result 
 	}
 }
 
-// resolveOperand resolves a single operand if it is a $.input.* or $.result.*
-// path string. Non-string operands (including nil/JSON null) are returned
-// unchanged. Resolution failures return an explicit error, never a panic.
+// resolveOperand resolves $result. against the node's own payload and
+// $args. against its static arguments. $input. (upstream) is rejected with
+// an explicit error.
 func resolveOperand(operand any, actionArgs common.ActionArgs, result common.ResultData) (any, error) {
 	s, ok := operand.(string)
 	if !ok {
 		return operand, nil
 	}
-	if strings.HasPrefix(s, "$.input.") {
-		return resolveInput(actionArgs, s)
-	}
-	if strings.HasPrefix(s, "$.result.") {
+	switch {
+	case strings.HasPrefix(s, "$result."):
 		return resolveResult(result, s)
+	case strings.HasPrefix(s, "$args."):
+		return resolveArgs(actionArgs, s)
+	case strings.HasPrefix(s, "$input."):
+		return nil, fmt.Errorf("unsupported path %q: $input (upstream) is not available in conditions, use $result for own output", s)
 	}
 	return operand, nil
 }
 
-func resolveInput(input common.ActionArgs, path string) (any, error) {
-	const prefix = "$.input."
+func resolveArgs(input common.ActionArgs, path string) (any, error) {
+	const prefix = "$args."
 	rest := strings.TrimPrefix(path, prefix)
 	if rest == "" {
 		return nil, fmt.Errorf("unsupported path %q: empty key after %q", path, prefix)
@@ -122,10 +127,13 @@ func resolveInput(input common.ActionArgs, path string) (any, error) {
 }
 
 func resolveResult(result common.ResultData, path string) (any, error) {
-	const prefix = "$.result."
+	const prefix = "$result."
 	rest := strings.TrimPrefix(path, prefix)
+	if rest == path {
+		return nil, fmt.Errorf("unsupported path %q: must start with $result", path)
+	}
 	if rest == "" {
-		return nil, fmt.Errorf("unsupported path %q: empty key after %q", path, prefix)
+		return nil, fmt.Errorf("unsupported path %q: empty key", path)
 	}
 	return lookupPath(result.Payload, rest, path)
 }

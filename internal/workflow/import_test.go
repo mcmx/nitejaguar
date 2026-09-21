@@ -87,10 +87,10 @@ func TestDownloadsPOCDefinition(t *testing.T) {
 		t.Fatalf("unexpected POC trigger: %+v", trigger)
 	}
 	entry := trigger.Conditions.Entries["pdf_file"]
-	if entry.Condition.Operator != "=~" || entry.Condition.LeftOperand != "$.result.file" || regexp.MustCompile(entry.Condition.RightOperand.(string)).MatchString("report-20260920.pdf") {
+	if entry.Condition.Operator != "=~" || entry.Condition.LeftOperand != "$result.file" || regexp.MustCompile(entry.Condition.RightOperand.(string)).MatchString("report-20260920.pdf") {
 		t.Fatalf("POC condition does not exclude dated PDFs: %+v", entry.Condition)
 	}
-	if action.ActionName != "fileAction" || action.Arguments["action"] != "rename" || action.Arguments["file"] != "$.result.file" || action.Arguments["new_file"] != "{{stem}}-{{date}}{{ext}}" {
+	if action.ActionName != "fileAction" || action.Arguments["action"] != "rename" || action.Arguments["file"] != "$input.file" || action.Arguments["new_file"] != "{{stem}}-{{date}}{{ext}}" {
 		t.Fatalf("unexpected POC action: %+v", action)
 	}
 	assertEdgeIntegrity(t, wf)

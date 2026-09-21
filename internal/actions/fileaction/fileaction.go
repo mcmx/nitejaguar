@@ -4,9 +4,10 @@ package fileaction
 // When a matching event occurs, it emits a result to the workflow engine.
 //
 // Dynamic args (issue #28):
-//   - args values support literal strings, `$.result.<path>` references
-//     (resolved against the triggering ResultData payload threaded through
-//     WorkflowManager.Run inputs), and `{{...}}` placeholders.
+//   - args values support literal strings, `$input.<path>` references
+//     (resolved against the upstream ResultData payload threaded through
+//     WorkflowManager.Run inputs, i.e. the results of dependencies),
+//     and `{{...}}` placeholders.
 //   - `{{date}}` defaults to local YYYYMMDD (Go layout "20060102").
 //     `{{date:<layout>}}` (e.g. `{{date:2006-01-02}}`) uses the given Go layout.
 //   - `{{file}}`, `{{base}}`, `{{ext}}`, `{{stem}}` are derived from the
@@ -285,17 +286,23 @@ func findTriggerResult(inputs []any) *common.ResultData {
 	return nil
 }
 
-var resultRefPattern = regexp.MustCompile(`\$\.result\.[A-Za-z0-9_.\[\]]+`)
+var resultRefPattern = regexp.MustCompile(`\$input\.[A-Za-z0-9_.\[\]]+`)
 var placeholderPattern = regexp.MustCompile(`\{\{\s*([^{}]+?)\s*\}\}`)
 
-// resolveArgValue resolves one arg value: inline `$.result.<path>`
-// references plus `{{...}}` placeholders. Literals pass through.
+// resolveArgValue resolves one arg value: inline `$input.<path>` references
+// plus `{{...}}` placeholders. Literals pass through. $input. resolves
+// against the upstream ResultData payload. $result./$args. are rejected:
+// the node's own result does not exist yet at arg-resolution time.
 func resolveArgValue(raw string, trigger *common.ResultData, sourceFile string) (string, error) {
 	if raw == "" {
 		return "", nil
 	}
+	if strings.Contains(raw, "$result.") || strings.Contains(raw, "$args.") {
+		return "", fmt.Errorf("unsupported reference in %q: only $input. resolves against upstream payload in action args", raw)
+	}
 	out := raw
-	if trigger != nil && strings.Contains(out, "$.result.") {
+	hasRef := strings.Contains(out, "$input.")
+	if trigger != nil && hasRef {
 		var resolveErr error
 		out = resultRefPattern.ReplaceAllStringFunc(out, func(m string) string {
 			if resolveErr != nil {
@@ -311,7 +318,7 @@ func resolveArgValue(raw string, trigger *common.ResultData, sourceFile string) 
 		if resolveErr != nil {
 			return "", resolveErr
 		}
-	} else if trigger == nil && strings.Contains(out, "$.result.") {
+	} else if trigger == nil && hasRef {
 		return "", fmt.Errorf("no trigger result available to resolve %q", raw)
 	}
 	if strings.Contains(out, "{{") {
@@ -382,12 +389,15 @@ func expandPlaceholder(inner string, sourceFile string) (string, error) {
 	return "", fmt.Errorf("unknown placeholder {{%s}}", inner)
 }
 
-// resolveResultPath resolves `$.result.<path>` against the trigger payload.
-// Supports dot-separated map keys / struct fields (json tag aware) and
-// optional [index] suffixes.
+// resolveResultPath resolves `$input.<path>` against the upstream trigger
+// payload. Supports dot-separated map keys / struct fields (json tag aware)
+// and optional [index] suffixes.
 func resolveResultPath(root any, fullPath string) (any, error) {
-	const prefix = "$.result."
+	const prefix = "$input."
 	rest := strings.TrimPrefix(fullPath, prefix)
+	if rest == fullPath {
+		return nil, fmt.Errorf("unsupported path %q: must start with $input", fullPath)
+	}
 	if rest == "" {
 		return nil, fmt.Errorf("unsupported path %q: empty key", fullPath)
 	}
