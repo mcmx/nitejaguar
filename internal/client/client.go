@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/mcmx/nitejaguar/common"
+	"github.com/mcmx/nitejaguar/internal/actions/datetime"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
 	"github.com/mcmx/nitejaguar/internal/actions/filechange"
 	"github.com/mcmx/nitejaguar/internal/workflow"
@@ -176,7 +177,7 @@ func (r *runner) install(w Workflow) {
 			if _, ok := r.workflows[w.ID][id]; ok {
 				continue
 			}
-			a, err := fileaction.New(r.events, common.ActionArgs{Id: n.Id, Name: n.Name, ActionType: n.ActionType, ActionName: n.ActionName, Args: n.Arguments})
+			a, err := newClientAction(r.events, common.ActionArgs{Id: n.Id, Name: n.Name, ActionType: n.ActionType, ActionName: n.ActionName, Args: n.Arguments})
 			if err == nil {
 				r.workflows[w.ID][id] = a
 			}
@@ -191,6 +192,18 @@ func (r *runner) install(w Workflow) {
 				go t.Execute(execution.String(), nil)
 			}
 		}
+	}
+}
+// newClientAction dispatches action construction by action_name so remote
+// clients can run any server-side action (e.g. fileAction, datetimeAction).
+func newClientAction(events chan common.ResultData, args common.ActionArgs) (common.Action, error) {
+	switch args.ActionName {
+	case "fileAction":
+		return fileaction.New(events, args)
+	case "datetimeAction":
+		return datetime.New(events, args)
+	default:
+		return nil, fmt.Errorf("unknown action_name: %q", args.ActionName)
 	}
 }
 func (r *runner) runResult(ctx context.Context, result common.ResultData) {

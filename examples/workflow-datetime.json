@@ -1,0 +1,47 @@
+{
+    "id": "workflow_datetime_example",
+    "name": "Example Workflow: timestamp downloads",
+    "nodes": {
+      "trigger_01jr12v81gfk6t359nvqg86t9g": {
+        "id": "trigger_01jr12v81gfk6t359nvqg86t9g",
+        "name": "Trigger: filechangeTrigger",
+        "description": "Trigger: on Downloads",
+        "action_type": "trigger",
+        "action_name": "filechangeTrigger",
+        "arguments": {
+          "path": "/tmp",
+          "event_type": "create"
+        },
+        "conditions": {
+          "entries": {
+            "entry1": {
+                "condition": {
+                    "leftOperand": true,
+                    "operator": "",
+                    "rightOperand": null
+                },
+                "nexts": ["action_01datetime01example00000001"]
+            }
+          }
+        },
+        "dependencies": null
+      },
+    "action_01datetime01example00000001": {
+      "id": "action_01datetime01example00000001",
+      "name": "Action: datetimeAction",
+      "description": "Action: current datetime (Go layout format, IANA timezone)",
+      "action_type": "action",
+      "action_name": "datetimeAction",
+      "arguments": {
+        "operation": "getCurrentDate",
+        "format": "2006-01-02 15:04:05",
+        "timezone": "UTC",
+        "output_field": "now"
+      },
+      "conditions": {
+        "entries": {}
+      },
+      "dependencies": ["trigger_01jr12v81gfk6t359nvqg86t9g"]
+    }
+  }
+}
