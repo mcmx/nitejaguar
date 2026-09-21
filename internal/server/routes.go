@@ -172,9 +172,10 @@ type HeartbeatOutput struct {
 // It intentionally has a distinct name from ent.Workflow so Huma can register
 // both schemas without a name collision.
 type WorkflowDefinition struct {
-	ID    string                   `json:"id"`
-	Name  string                   `json:"name"`
-	Nodes map[string]workflow.Node `json:"nodes"`
+	ID       string                   `json:"id"`
+	Name     string                   `json:"name"`
+	Revision string                   `json:"revision"`
+	Nodes    map[string]workflow.Node `json:"nodes"`
 }
 
 type AssignmentsInput struct {
@@ -288,9 +289,10 @@ func (s *Server) GetAssignments(_ context.Context, input *AssignmentsInput) (*As
 		}
 		def.Nodes = filtered
 		workflows = append(workflows, WorkflowDefinition{
-			ID:    def.Id,
-			Name:  def.Name,
-			Nodes: def.Nodes,
+			ID:       def.Id,
+			Name:     def.Name,
+			Revision: row.Revision,
+			Nodes:    def.Nodes,
 		})
 	}
 	return &AssignmentsOutput{

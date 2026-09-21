@@ -56,6 +56,20 @@ func (_u *WorkflowUpdate) SetNillableTenantID(v *string) *WorkflowUpdate {
 	return _u
 }
 
+// SetRevision sets the "revision" field.
+func (_u *WorkflowUpdate) SetRevision(v string) *WorkflowUpdate {
+	_u.mutation.SetRevision(v)
+	return _u
+}
+
+// SetNillableRevision sets the "revision" field if the given value is not nil.
+func (_u *WorkflowUpdate) SetNillableRevision(v *string) *WorkflowUpdate {
+	if v != nil {
+		_u.SetRevision(*v)
+	}
+	return _u
+}
+
 // SetJSONDefinition sets the "json_definition" field.
 func (_u *WorkflowUpdate) SetJSONDefinition(v string) *WorkflowUpdate {
 	_u.mutation.SetJSONDefinition(v)
@@ -119,6 +133,11 @@ func (_u *WorkflowUpdate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *WorkflowUpdate) check() error {
+	if v, ok := _u.mutation.Revision(); ok {
+		if err := workflow.RevisionValidator(v); err != nil {
+			return &ValidationError{Name: "revision", err: fmt.Errorf(`ent: validator failed for field "Workflow.revision": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.JSONDefinition(); ok {
 		if err := workflow.JSONDefinitionValidator(v); err != nil {
 			return &ValidationError{Name: "json_definition", err: fmt.Errorf(`ent: validator failed for field "Workflow.json_definition": %w`, err)}
@@ -144,6 +163,9 @@ func (_u *WorkflowUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.TenantID(); ok {
 		_spec.SetField(workflow.FieldTenantID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Revision(); ok {
+		_spec.SetField(workflow.FieldRevision, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.JSONDefinition(); ok {
 		_spec.SetField(workflow.FieldJSONDefinition, field.TypeString, value)
@@ -195,6 +217,20 @@ func (_u *WorkflowUpdateOne) SetTenantID(v string) *WorkflowUpdateOne {
 func (_u *WorkflowUpdateOne) SetNillableTenantID(v *string) *WorkflowUpdateOne {
 	if v != nil {
 		_u.SetTenantID(*v)
+	}
+	return _u
+}
+
+// SetRevision sets the "revision" field.
+func (_u *WorkflowUpdateOne) SetRevision(v string) *WorkflowUpdateOne {
+	_u.mutation.SetRevision(v)
+	return _u
+}
+
+// SetNillableRevision sets the "revision" field if the given value is not nil.
+func (_u *WorkflowUpdateOne) SetNillableRevision(v *string) *WorkflowUpdateOne {
+	if v != nil {
+		_u.SetRevision(*v)
 	}
 	return _u
 }
@@ -275,6 +311,11 @@ func (_u *WorkflowUpdateOne) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *WorkflowUpdateOne) check() error {
+	if v, ok := _u.mutation.Revision(); ok {
+		if err := workflow.RevisionValidator(v); err != nil {
+			return &ValidationError{Name: "revision", err: fmt.Errorf(`ent: validator failed for field "Workflow.revision": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.JSONDefinition(); ok {
 		if err := workflow.JSONDefinitionValidator(v); err != nil {
 			return &ValidationError{Name: "json_definition", err: fmt.Errorf(`ent: validator failed for field "Workflow.json_definition": %w`, err)}
@@ -317,6 +358,9 @@ func (_u *WorkflowUpdateOne) sqlSave(ctx context.Context) (_node *Workflow, err 
 	}
 	if value, ok := _u.mutation.TenantID(); ok {
 		_spec.SetField(workflow.FieldTenantID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Revision(); ok {
+		_spec.SetField(workflow.FieldRevision, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.JSONDefinition(); ok {
 		_spec.SetField(workflow.FieldJSONDefinition, field.TypeString, value)

@@ -709,6 +709,7 @@ type WorkflowMutation struct {
 	id              *string
 	enabled         *bool
 	tenant_id       *string
+	revision        *string
 	json_definition *string
 	created_at      *time.Time
 	updated_at      *time.Time
@@ -894,6 +895,42 @@ func (m *WorkflowMutation) ResetTenantID() {
 	m.tenant_id = nil
 }
 
+// SetRevision sets the "revision" field.
+func (m *WorkflowMutation) SetRevision(s string) {
+	m.revision = &s
+}
+
+// Revision returns the value of the "revision" field in the mutation.
+func (m *WorkflowMutation) Revision() (r string, exists bool) {
+	v := m.revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRevision returns the old "revision" field's value of the Workflow entity.
+// If the Workflow object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkflowMutation) OldRevision(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRevision: %w", err)
+	}
+	return oldValue.Revision, nil
+}
+
+// ResetRevision resets all changes to the "revision" field.
+func (m *WorkflowMutation) ResetRevision() {
+	m.revision = nil
+}
+
 // SetJSONDefinition sets the "json_definition" field.
 func (m *WorkflowMutation) SetJSONDefinition(s string) {
 	m.json_definition = &s
@@ -1036,12 +1073,15 @@ func (m *WorkflowMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *WorkflowMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 6)
 	if m.enabled != nil {
 		fields = append(fields, workflow.FieldEnabled)
 	}
 	if m.tenant_id != nil {
 		fields = append(fields, workflow.FieldTenantID)
+	}
+	if m.revision != nil {
+		fields = append(fields, workflow.FieldRevision)
 	}
 	if m.json_definition != nil {
 		fields = append(fields, workflow.FieldJSONDefinition)
@@ -1064,6 +1104,8 @@ func (m *WorkflowMutation) Field(name string) (ent.Value, bool) {
 		return m.Enabled()
 	case workflow.FieldTenantID:
 		return m.TenantID()
+	case workflow.FieldRevision:
+		return m.Revision()
 	case workflow.FieldJSONDefinition:
 		return m.JSONDefinition()
 	case workflow.FieldCreatedAt:
@@ -1083,6 +1125,8 @@ func (m *WorkflowMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldEnabled(ctx)
 	case workflow.FieldTenantID:
 		return m.OldTenantID(ctx)
+	case workflow.FieldRevision:
+		return m.OldRevision(ctx)
 	case workflow.FieldJSONDefinition:
 		return m.OldJSONDefinition(ctx)
 	case workflow.FieldCreatedAt:
@@ -1111,6 +1155,13 @@ func (m *WorkflowMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetTenantID(v)
+		return nil
+	case workflow.FieldRevision:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRevision(v)
 		return nil
 	case workflow.FieldJSONDefinition:
 		v, ok := value.(string)
@@ -1187,6 +1238,9 @@ func (m *WorkflowMutation) ResetField(name string) error {
 		return nil
 	case workflow.FieldTenantID:
 		m.ResetTenantID()
+		return nil
+	case workflow.FieldRevision:
+		m.ResetRevision()
 		return nil
 	case workflow.FieldJSONDefinition:
 		m.ResetJSONDefinition()
