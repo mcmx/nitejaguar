@@ -48,3 +48,17 @@ Workflow automation app (Go). Module `github.com/mcmx/nitejaguar`. Entrypoint `c
 
 - Local linting is via `make lint`, which mirrors CI (`templ generate -path .`, then `golangci-lint run ./...` with golangci-lint v2.13.2). Run it after changes; remember to regenerate templ first so generated `_templ.go` files are linted/typed too.
 - The repo targets Go 1.26 (`go`/`toolchain` in `go.mod`); golangci-lint binaries built with older Go refuse to analyze the module, so the local binary must be built with Go ≥ 1.26 (`make lint` installs the pinned version if missing).
+
+## Documentation Guidelines
+
+- **Maintain `/docs`**: The AI agent is responsible for maintaining and updating all documentation in the `/docs` directory.
+- **Sync with Code**: Whenever new features, CLI flags, configuration options, server/client modes, workflow JSON schemas, or actions/triggers are modified or added, the corresponding documentation files under `/docs/` must be updated concurrently.
+- **Detailed Action & Trigger Reference**: Each action and trigger must have its own dedicated document under `docs/actions/` detailing:
+  - All supported operations / action types (e.g., `create`, `remove`, `rename`).
+  - Complete argument tables (key, type, default, description).
+  - Behavioral edge cases (e.g., automatic parent directory creation via `os.MkdirAll` vs. collision safety policies refusing to overwrite existing files).
+  - Concrete JSON workflow usage examples.
+- **Structure**:
+  - `/docs/README.md` — Documentation index.
+  - Core guides: `getting-started.md`, `architecture.md`, `server-mode.md`, `client-mode.md`, `workflows.md`, `development.md`.
+  - Actions & Triggers: One document per action/trigger under `/docs/actions/`.
