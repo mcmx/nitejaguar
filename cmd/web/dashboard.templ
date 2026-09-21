@@ -3,6 +3,8 @@ package web
 import (
     "encoding/json"
     "fmt"
+    "sort"
+    "strings"
     "github.com/mcmx/nitejaguar/common"
     "github.com/mcmx/nitejaguar/ent"
     "github.com/mcmx/nitejaguar/internal/workflow"
@@ -39,6 +41,83 @@ type ClientsPageData struct {
     Clients []ClientView
 }
 
+type DesignerNodeInit struct {
+    ID string `json:"id"`
+    Name string `json:"name"`
+    Description string `json:"description"`
+    ActionType string `json:"action_type"`
+    ActionName string `json:"action_name"`
+    Arguments string `json:"arguments"`
+    Client string `json:"client"`
+    ClientTags string `json:"client_tags"`
+    Dependencies string `json:"dependencies"`
+    Nexts string `json:"nexts"`
+    MergeInput bool `json:"merge_input"`
+}
+
+type DesignerInit struct {
+    WorkflowID string `json:"workflowId"`
+    Name string `json:"name"`
+    TenantID string `json:"tenantId"`
+    Nodes []DesignerNodeInit `json:"nodes"`
+}
+
+type DesignerPageData struct {
+    Init DesignerInit
+    InitJSON string
+    EditWorkflowID string
+    Workflows []*ent.Workflow
+    Error string
+}
+
+func DesignerInitFromWorkflow(def workflow.Workflow) DesignerInit {
+    init := DesignerInit{
+        WorkflowID: def.Id,
+        Name: def.Name,
+        TenantID: def.TenantID,
+        Nodes: []DesignerNodeInit{},
+    }
+    if init.TenantID == "" {
+        init.TenantID = "default"
+    }
+    ids := make([]string, 0, len(def.Nodes))
+    for id := range def.Nodes {
+        ids = append(ids, id)
+    }
+    sort.Strings(ids)
+    for _, id := range ids {
+        n := def.Nodes[id]
+        args := "{}"
+        if len(n.Arguments) > 0 {
+            if data, err := json.MarshalIndent(n.Arguments, "", "  "); err == nil {
+                args = string(data)
+            }
+        }
+        init.Nodes = append(init.Nodes, DesignerNodeInit{
+            ID: n.Id,
+            Name: n.Name,
+            Description: n.Description,
+            ActionType: n.ActionType,
+            ActionName: n.ActionName,
+            Arguments: args,
+            Client: n.Client,
+            ClientTags: strings.Join(n.ClientTags, ", "),
+            Dependencies: strings.Join(n.Dependencies, ", "),
+            Nexts: strings.Join(n.GetAllNextNodes(), ", "),
+            MergeInput: n.MergeInput,
+        })
+    }
+    return init
+}
+
+func DesignerInitJSON(init DesignerInit) string {
+    data, err := json.Marshal(init)
+    if err != nil {
+        return "{}"
+    }
+    return string(data)
+}
+
 func jsonText(value any) string {
     data, err := json.MarshalIndent(value, "", "  ")
     if err != nil { return fmt.Sprintf("%v", value) }
@@ -67,7 +146,7 @@ templ WorkflowsPage(data *WorkflowPageData, _ string) {
             if data.Error == "" && len(data.Workflows) > 0 {
                 <div class="grid gap-4 md:grid-cols-2">
                     for _, wf := range data.Workflows {
-                        <a href={ templ.URL("/workflows/" + wf.ID) } class="rounded-lg border border-border p-5 transition hover:border-red-500 hover:bg-muted">
+                        <article class="rounded-lg border border-border p-5 transition hover:border-red-500 hover:bg-muted">
                             <div class="flex items-start justify-between gap-4">
                                 <h2 class="font-semibold">{ workflowName(wf) }</h2>
                                 if wf.Enabled {
@@ -77,7 +156,11 @@ templ WorkflowsPage(data *WorkflowPageData, _ string) {
                                 }
                             </div>
                             <p class="mt-3 break-all font-mono text-xs text-muted-foreground">{ wf.ID }</p>
-                        </a>
+                            <div class="mt-4 flex gap-2">
+                                <a href={ templ.URL("/workflows/" + wf.ID) } class="rounded border border-border px-3 py-1 text-xs hover:border-red-500">View</a>
+                                <a href={ templ.URL("/designer/" + wf.ID) } class="rounded bg-red-500 px-3 py-1 text-xs font-medium text-white hover:bg-red-600">Edit</a>
+                            </div>
+                        </article>
                     }
                 </div>
             }
@@ -98,7 +181,7 @@ templ WorkflowDetailPage(data *WorkflowDetailData) {
                 <p class="rounded-lg border border-red-500/50 p-6 text-red-500">{ data.Error }</p>
             } else {
                 @pageTitle(data.Definition.Name)
-                <div class="mb-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground"><span class="break-all font-mono">{ data.Definition.Id }</span><span class="rounded-full border border-border px-2 py-1">{ fmt.Sprintf("%d nodes", len(data.Definition.Nodes)) }</span><a href="/results" class="text-red-500 hover:underline">View executions</a></div>
+                <div class="mb-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground"><span class="break-all font-mono">{ data.Definition.Id }</span><span class="rounded-full border border-border px-2 py-1">{ fmt.Sprintf("%d nodes", len(data.Definition.Nodes)) }</span><a href={ templ.URL("/designer/" + data.Workflow.ID) } class="text-red-500 hover:underline">Edit in Designer</a><a href="/results" class="text-red-500 hover:underline">View executions</a></div>
                 <form method="post" action={ templ.URL("/workflows/" + data.Workflow.ID + "/enabled") } class="mb-6"><input type="hidden" name="enabled" value={ fmt.Sprintf("%t", !data.Workflow.Enabled) }/>if data.Workflow.Enabled {
                         <button class="rounded border border-border px-3 py-2 text-sm hover:border-red-500" type="submit">Disable workflow</button>
                     } else {
@@ -171,42 +254,78 @@ templ ClientsPage(data *ClientsPageData) {
     }
 }
 
-templ DesignerPage() {
+// designerInitialData renders the workflow JSON inside a script tag for the
+// Alpine designer to read. It must be emitted via templ.Raw from normal
+// template context: templ treats <script> contents as raw text, so an
+// expression written literally inside a <script> block is never evaluated.
+// The payload comes from encoding/json, which escapes <, > and &
+// (e.g. </script> becomes \u003c/script\u003e), so it cannot break out.
+templ designerInitialData(jsonData string) {
+    @templ.Raw("<script id=\"designer-initial\" type=\"application/json\">" + jsonData + "</script>")
+}
+
+templ DesignerPage(data *DesignerPageData) {
     @Base() {
+        @designerInitialData(data.InitJSON)
         <script>
+        function defaultNodes() {
+            return [
+                {
+                    id: 'trigger_1',
+                    name: 'File Trigger',
+                    description: '',
+                    action_type: 'trigger',
+                    action_name: 'filechangeTrigger',
+                    arguments: '{\n  "path": "/tmp",\n  "event_type": "create"\n}',
+                    client: '',
+                    client_tags: 'gpu',
+                    dependencies: '',
+                    nexts: 'action_1',
+                    merge_input: false
+                },
+                {
+                    id: 'action_1',
+                    name: 'File Action',
+                    description: '',
+                    action_type: 'action',
+                    action_name: 'fileAction',
+                    arguments: '{\n  "action": "create",\n  "file": "/tmp/out.txt"\n}',
+                    client: '',
+                    client_tags: 'gpu',
+                    dependencies: 'trigger_1',
+                    nexts: '',
+                    merge_input: false
+                }
+            ];
+        }
+        function splitList(value) {
+            if (!value) { return []; }
+            return value.split(',').map(s => s.trim()).filter(Boolean);
+        }
         function designerData() {
+            let initial = null;
+            try {
+                const el = document.getElementById('designer-initial');
+                if (el && el.textContent.trim()) { initial = JSON.parse(el.textContent); }
+            } catch(e) { initial = null; }
+            const hasInitialNodes = !!(initial && initial.nodes && initial.nodes.length);
             return {
-                workflowId: 'workflow_' + Math.random().toString(36).substring(2, 9),
-                name: 'New Workflow',
-                tenantId: 'default',
-                nodes: [
-                    {
-                        id: 'trigger_1',
-                        name: 'File Trigger',
-                        action_type: 'trigger',
-                        action_name: 'filechangeTrigger',
-                        arguments: '{\n  "path": "/tmp",\n  "event_type": "create"\n}',
-                        client_tags: 'gpu',
-                        merge_input: false
-                    },
-                    {
-                        id: 'action_1',
-                        name: 'File Action',
-                        action_type: 'action',
-                        action_name: 'fileAction',
-                        arguments: '{\n  "action": "create",\n  "file": "/tmp/out.txt"\n}',
-                        client_tags: 'gpu',
-                        merge_input: false
-                    }
-                ],
+                workflowId: (initial && initial.workflowId) || ('workflow_' + Math.random().toString(36).substring(2, 9)),
+                name: (initial && initial.name) || 'New Workflow',
+                tenantId: (initial && initial.tenantId) || 'default',
+                nodes: hasInitialNodes ? initial.nodes : defaultNodes(),
                 addNode() {
                     this.nodes.push({
                         id: 'node_' + Math.random().toString(36).substring(2, 9),
                         name: 'New Node',
+                        description: '',
                         action_type: 'action',
                         action_name: 'fileAction',
                         arguments: '{\n  "action": "create"\n}',
+                        client: '',
                         client_tags: '',
+                        dependencies: '',
+                        nexts: '',
                         merge_input: false
                     });
                 },
@@ -223,14 +342,25 @@ templ DesignerPage() {
                     this.nodes.forEach(n => {
                         let args = {};
                         try { args = JSON.parse(n.arguments); } catch(e) {}
+                        let nexts = splitList(n.nexts);
+                        let conditions = { entries: {} };
+                        if (nexts.length > 0) {
+                            conditions.entries['entry1'] = {
+                                condition: { leftOperand: true, operator: '', rightOperand: null },
+                                nexts: nexts
+                            };
+                        }
                         obj.nodes[n.id] = {
                             id: n.id,
                             name: n.name,
+                            description: n.description || '',
                             action_type: n.action_type,
                             action_name: n.action_name,
                             arguments: args,
-                            conditions: { entries: {} },
-                            client_tags: n.client_tags ? n.client_tags.split(',').map(s => s.trim()).filter(Boolean) : [],
+                            conditions: conditions,
+                            dependencies: splitList(n.dependencies),
+                            client: n.client || '',
+                            client_tags: splitList(n.client_tags),
                             merge_input: !!n.merge_input
                         };
                     });
@@ -240,12 +370,31 @@ templ DesignerPage() {
         }
         </script>
         <main class="container mx-auto max-w-4xl px-4 py-8" x-data="designerData()">
-            @pageTitle("Visual Workflow Designer")
-            <p class="mb-6 text-sm text-muted-foreground">Create, connect, and configure workflows, nodes, and multi-tenant targeting visually.</p>
-            
+            if data.EditWorkflowID != "" {
+                @pageTitle("Edit Workflow")
+            } else {
+                @pageTitle("Visual Workflow Designer")
+            }
+            <p class="mb-6 text-sm text-muted-foreground">Create, connect, and configure workflows, nodes, and multi-tenant targeting visually. Saving an existing workflow ID updates it in place.</p>
+            if data.Error != "" {
+                <p class="mb-6 rounded-lg border border-red-500/50 p-4 text-red-500">{ data.Error }</p>
+            }
+            if data.EditWorkflowID != "" {
+                <div class="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-border p-4 text-sm"><span>Editing <code class="font-mono">{ data.EditWorkflowID }</code></span><a href="/designer" class="text-red-500 hover:underline">Create new workflow</a></div>
+            } else if len(data.Workflows) > 0 {
+                <div class="mb-6 rounded-lg border border-border p-4 text-sm">
+                    <label class="mb-2 block text-xs font-medium">Or edit an existing workflow</label>
+                    <div class="flex flex-wrap gap-2">
+                        for _, wf := range data.Workflows {
+                            <a href={ templ.URL("/designer/" + wf.ID) } class="rounded border border-border px-3 py-1 font-mono text-xs hover:border-red-500">{ workflowName(wf) }</a>
+                        }
+                    </div>
+                </div>
+            }
+
             <form method="post" action="/designer/save" class="space-y-6">
                 <input type="hidden" name="workflow_json" x-model="getJSON()"/>
-                
+
                 <div class="grid gap-4 md:grid-cols-3 rounded-lg border border-border p-5">
                     <div>
                         <label class="block text-xs font-medium mb-1">Workflow ID</label>
@@ -290,14 +439,32 @@ templ DesignerPage() {
                                     <label class="block text-xs font-medium mb-1">Action Name</label>
                                     <input type="text" x-model="node.action_name" placeholder="filechangeTrigger / fileAction" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
                                 </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs font-medium mb-1">Description</label>
+                                    <input type="text" x-model="node.description" placeholder="What does this node do?" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+                                </div>
                             </div>
                             <div>
                                 <label class="block text-xs font-medium mb-1">Arguments (JSON)</label>
                                 <textarea x-model="node.arguments" rows="3" class="w-full rounded border border-border bg-background p-3 text-xs font-mono"></textarea>
                             </div>
-                            <div>
-                                <label class="block text-xs font-medium mb-1">Client Tags (comma separated)</label>
-                                <input type="text" x-model="node.client_tags" placeholder="gpu, tenant-a" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+                            <div class="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label class="block text-xs font-medium mb-1">Next nodes (comma separated)</label>
+                                    <input type="text" x-model="node.nexts" placeholder="action_1, action_2" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1">Dependencies (comma separated)</label>
+                                    <input type="text" x-model="node.dependencies" placeholder="trigger_1" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1">Client ID (optional)</label>
+                                    <input type="text" x-model="node.client" placeholder="Leave empty to broadcast" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1">Client Tags (comma separated)</label>
+                                    <input type="text" x-model="node.client_tags" placeholder="gpu, tenant-a" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+                                </div>
                             </div>
                             <div x-show="node.action_type === 'action'">
                                 <label class="flex items-center gap-2 text-xs font-medium"><input type="checkbox" x-model="node.merge_input" class="rounded border border-border"/> Merge $input into $result ($result wins)</label>
@@ -313,7 +480,11 @@ templ DesignerPage() {
                 </div>
 
                 <div>
-                    <button type="submit" class="w-full rounded bg-red-500 px-4 py-3 font-semibold text-white hover:bg-red-600">Save & Import Workflow</button>
+                    if data.EditWorkflowID != "" {
+                        <button type="submit" class="w-full rounded bg-red-500 px-4 py-3 font-semibold text-white hover:bg-red-600">Save Changes</button>
+                    } else {
+                        <button type="submit" class="w-full rounded bg-red-500 px-4 py-3 font-semibold text-white hover:bg-red-600">Save & Import Workflow</button>
+                    }
                 </div>
             </form>
         </main>

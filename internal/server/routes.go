@@ -73,6 +73,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	e.GET("/", s.workflowsPage)
 	e.GET("/workflows/:id", s.workflowPage)
 	e.GET("/designer", s.designerPage)
+	e.GET("/designer/:id", s.designerEditPage)
 	e.POST("/designer/save", s.designerSaveWorkflow)
 	e.GET("/results", s.resultsPage)
 	e.GET("/clients", s.clientsPage)
@@ -556,7 +557,42 @@ func (s *Server) websocketHandler(c echo.Context) error {
 }
 
 func (s *Server) designerPage(c echo.Context) error {
-	templ.Handler(web.DesignerPage()).ServeHTTP(c.Response(), c.Request())
+	return s.renderDesigner(c, c.QueryParam("workflow_id"))
+}
+
+func (s *Server) designerEditPage(c echo.Context) error {
+	id := c.Param("id")
+	if id == "" {
+		id = c.QueryParam("workflow_id")
+	}
+	return s.renderDesigner(c, id)
+}
+
+func (s *Server) renderDesigner(c echo.Context, workflowID string) error {
+	data := &web.DesignerPageData{}
+	if workflowID == "" {
+		workflowID = c.QueryParam("id")
+	}
+	workflows, err := s.db.GetWorkflows(true, true)
+	if err == nil {
+		data.Workflows = workflows
+	}
+	if workflowID != "" {
+		row, err := s.db.GetWorkflow(workflowID)
+		if err != nil {
+			data.Error = "Workflow not found"
+		} else {
+			var def workflow.Workflow
+			if err := json.Unmarshal([]byte(row.JSONDefinition), &def); err != nil {
+				data.Error = "Workflow definition is invalid"
+			} else {
+				data.Init = web.DesignerInitFromWorkflow(def)
+				data.EditWorkflowID = workflowID
+			}
+		}
+	}
+	data.InitJSON = web.DesignerInitJSON(data.Init)
+	templ.Handler(web.DesignerPage(data)).ServeHTTP(c.Response(), c.Request())
 	return nil
 }
 
