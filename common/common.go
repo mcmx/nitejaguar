@@ -2,6 +2,12 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
 	"time"
 )
 
@@ -95,4 +101,100 @@ func asStringMap(v any) (map[string]any, bool) {
 		return nil, false
 	}
 	return m, true
+}
+
+// ExpandPath expands a leading `~` to the user home directory and sanitizes the path.
+// `~` is only allowed as the first character (`~` or `~/...`).
+// Returns an error if the path contains null bytes or invalid `~` placement.
+func ExpandPath(p string) (string, error) {
+	if p == "" {
+		return "", nil
+	}
+	if strings.Contains(p, "\x00") {
+		return "", errors.New("path contains null bytes")
+	}
+	if strings.Contains(p, "~") {
+		if !strings.HasPrefix(p, "~") {
+			return "", errors.New("tilde (~) is only allowed as the first character")
+		}
+		if p != "~" && !strings.HasPrefix(p, "~/") {
+			return "", errors.New("invalid tilde path format; use '~' or '~/path'")
+		}
+	}
+
+	if p == "~" || strings.HasPrefix(p, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil || home == "" {
+			return p, nil
+		}
+		if p == "~" {
+			return home, nil
+		}
+		return filepath.Join(home, strings.TrimPrefix(p, "~/")), nil
+	}
+
+	return filepath.Clean(p), nil
+}
+
+// ArgsToStringMap normalizes action args without panicking.
+// Accepts map[string]string, map[string]any, and any other map with
+// string keys via reflection. Values are stringified.
+func ArgsToStringMap(args any) (map[string]string, error) {
+	if args == nil {
+		return nil, fmt.Errorf("missing arguments")
+	}
+	if m, ok := args.(map[string]string); ok {
+		out := make(map[string]string, len(m))
+		for k, v := range m {
+			out[k] = v
+		}
+		return out, nil
+	}
+	if m, ok := args.(map[string]any); ok {
+		out := make(map[string]string, len(m))
+		for k, v := range m {
+			out[k] = StringifyArgValue(v)
+		}
+		return out, nil
+	}
+	v := reflect.ValueOf(args)
+	for v.Kind() == reflect.Interface || v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return nil, fmt.Errorf("missing arguments")
+		}
+		v = v.Elem()
+	}
+	if v.Kind() == reflect.Map {
+		if v.Type().Key().Kind() != reflect.String {
+			return nil, fmt.Errorf("invalid arguments type %T: map key must be string", args)
+		}
+		out := make(map[string]string, v.Len())
+		iter := v.MapRange()
+		for iter.Next() {
+			k := iter.Key().String()
+			out[k] = StringifyArgValue(iter.Value().Interface())
+		}
+		return out, nil
+	}
+	return nil, fmt.Errorf("invalid arguments type %T: must be a map", args)
+}
+
+func StringifyArgValue(v any) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	rv := reflect.ValueOf(v)
+	for rv.Kind() == reflect.Interface || rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return ""
+		}
+		rv = rv.Elem()
+	}
+	if rv.Kind() == reflect.String {
+		return rv.String()
+	}
+	return fmt.Sprint(v)
 }

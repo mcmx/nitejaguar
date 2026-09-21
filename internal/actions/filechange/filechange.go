@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -91,19 +90,24 @@ func New(events chan common.ResultData, data common.ActionArgs) (common.Action, 
 func (t *filechange) Execute(executionId string, inputs []any) {
 	log.Println("Executing File Change Trigger with id:", t.data.Id)
 	// Add the path to watch
-	if t.data.Args == nil || reflect.TypeOf(t.data.Args).Kind() != reflect.Map {
-		log.Println("[filechange] Invalid arguments type")
+	args, err := common.ArgsToStringMap(t.data.Args)
+	if err != nil {
+		log.Println("[filechange] Invalid arguments:", err)
 		return
 	}
-	args := t.data.Args.(map[string]string)
 	if args["path"] == "" {
 		log.Println("[filechange] Invalid path")
 		return
 	}
-	// adds the path to the watcher
-	err := t.watcher.Add(args["path"])
+	pathVal, err := common.ExpandPath(args["path"])
 	if err != nil {
-		log.Println("Error adding watcher:", err)
+		log.Printf("[filechange] Invalid path %q: %v", args["path"], err)
+		return
+	}
+	// adds the path to the watcher
+	err = t.watcher.Add(pathVal)
+	if err != nil {
+		log.Printf("Error adding watcher for path %q: %v", pathVal, err)
 		return
 	}
 

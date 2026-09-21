@@ -45,7 +45,7 @@ type payload struct {
 func (f *fileaction) Execute(executionId string, inputs []any) {
 	fmt.Println("Executing File Action with id:", f.data.Id)
 	trigger := findTriggerResult(inputs)
-	rawArgs, err := argsToStringMap(f.data.Args)
+	rawArgs, err := common.ArgsToStringMap(f.data.Args)
 	if err != nil {
 		fmt.Println("[fileaction] Invalid arguments:", err)
 		f.sendResult(executionId, payload{Type: "error", Result: err.Error()})
@@ -62,7 +62,12 @@ func (f *fileaction) Execute(executionId string, inputs []any) {
 			f.sendResult(executionId, payload{Type: "error", Result: err.Error()})
 			return
 		}
-		src = expandPath(src)
+		src, err = common.ExpandPath(src)
+		if err != nil {
+			fmt.Println("[fileaction] Invalid file path:", err)
+			f.sendResult(executionId, payload{Type: "error", Result: err.Error()})
+			return
+		}
 	}
 
 	dst := ""
@@ -73,7 +78,12 @@ func (f *fileaction) Execute(executionId string, inputs []any) {
 			f.sendResult(executionId, payload{Type: "error", File: src, Result: err.Error()})
 			return
 		}
-		dst = expandPath(dst)
+		dst, err = common.ExpandPath(dst)
+		if err != nil {
+			fmt.Println("[fileaction] Invalid new_file path:", err)
+			f.sendResult(executionId, payload{Type: "error", File: src, Result: err.Error()})
+			return
+		}
 	}
 
 	// Merge resolved values back for the switch.
@@ -88,7 +98,9 @@ func (f *fileaction) Execute(executionId string, inputs []any) {
 			if rerr != nil {
 				rv = v
 			} else {
-				rv = expandPath(rv)
+				if expanded, eerr := common.ExpandPath(rv); eerr == nil {
+					rv = expanded
+				}
 			}
 			args[k] = rv
 		}
@@ -188,88 +200,7 @@ func (t *fileaction) sendResult(executionId string, payload payload) {
 	}
 }
 
-// argsToStringMap normalizes action args without panicking.
-// Accepts map[string]string, map[string]any, and any other map with
-// string keys via reflection. Values are stringified (strings kept as-is,
-// others via fmt.Sprint). Non-map args return an explicit error.
-func argsToStringMap(args any) (map[string]string, error) {
-	if args == nil {
-		return nil, fmt.Errorf("missing arguments")
-	}
-	if m, ok := args.(map[string]string); ok {
-		out := make(map[string]string, len(m))
-		for k, v := range m {
-			out[k] = v
-		}
-		return out, nil
-	}
-	if m, ok := args.(map[string]any); ok {
-		out := make(map[string]string, len(m))
-		for k, v := range m {
-			out[k] = stringifyArgValue(v)
-		}
-		return out, nil
-	}
-	v := reflect.ValueOf(args)
-	for v.Kind() == reflect.Interface || v.Kind() == reflect.Pointer {
-		if v.IsNil() {
-			return nil, fmt.Errorf("missing arguments")
-		}
-		v = v.Elem()
-	}
-	if v.Kind() == reflect.Map {
-		if v.Type().Key().Kind() != reflect.String {
-			return nil, fmt.Errorf("invalid arguments type %T: map key must be string", args)
-		}
-		out := make(map[string]string, v.Len())
-		iter := v.MapRange()
-		for iter.Next() {
-			k := iter.Key().String()
-			out[k] = stringifyArgValue(iter.Value().Interface())
-		}
-		return out, nil
-	}
-	return nil, fmt.Errorf("invalid arguments type %T: must be a map", args)
-}
 
-func stringifyArgValue(v any) string {
-	if v == nil {
-		return ""
-	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	rv := reflect.ValueOf(v)
-	for rv.Kind() == reflect.Interface || rv.Kind() == reflect.Pointer {
-		if rv.IsNil() {
-			return ""
-		}
-		rv = rv.Elem()
-	}
-	if rv.Kind() == reflect.String {
-		return rv.String()
-	}
-	return fmt.Sprint(v)
-}
-
-// expandPath expands a leading `~` to the user home directory.
-// `~` -> home, `~/rest` -> home/rest. Other values unchanged.
-func expandPath(p string) string {
-	if p == "" {
-		return p
-	}
-	if p == "~" || strings.HasPrefix(p, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil || home == "" {
-			return p
-		}
-		if p == "~" {
-			return home
-		}
-		return filepath.Join(home, strings.TrimPrefix(p, "~/"))
-	}
-	return p
-}
 
 // findTriggerResult returns the first ResultData found in inputs, if any.
 func findTriggerResult(inputs []any) *common.ResultData {
@@ -314,7 +245,7 @@ func resolveArgValue(raw string, trigger *common.ResultData, sourceFile string) 
 				resolveErr = err
 				return m
 			}
-			return stringifyArgValue(val)
+			return common.StringifyArgValue(val)
 		})
 		if resolveErr != nil {
 			return "", resolveErr
