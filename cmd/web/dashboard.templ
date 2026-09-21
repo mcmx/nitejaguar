@@ -146,7 +146,7 @@ templ WorkflowsPage(data *WorkflowPageData, _ string) {
             if data.Error == "" && len(data.Workflows) > 0 {
                 <div class="grid gap-4 md:grid-cols-2">
                     for _, wf := range data.Workflows {
-                        <a href={ templ.URL("/workflows/" + wf.ID) } class="rounded-lg border border-border p-5 transition hover:border-red-500 hover:bg-muted">
+                        <article class="rounded-lg border border-border p-5 transition hover:border-red-500 hover:bg-muted">
                             <div class="flex items-start justify-between gap-4">
                                 <h2 class="font-semibold">{ workflowName(wf) }</h2>
                                 if wf.Enabled {
@@ -156,7 +156,11 @@ templ WorkflowsPage(data *WorkflowPageData, _ string) {
                                 }
                             </div>
                             <p class="mt-3 break-all font-mono text-xs text-muted-foreground">{ wf.ID }</p>
-                        </a>
+                            <div class="mt-4 flex gap-2">
+                                <a href={ templ.URL("/workflows/" + wf.ID) } class="rounded border border-border px-3 py-1 text-xs hover:border-red-500">View</a>
+                                <a href={ templ.URL("/designer/" + wf.ID) } class="rounded bg-red-500 px-3 py-1 text-xs font-medium text-white hover:bg-red-600">Edit</a>
+                            </div>
+                        </article>
                     }
                 </div>
             }
