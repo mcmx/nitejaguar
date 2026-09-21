@@ -189,3 +189,40 @@ func TestConditionGlobResultResolution(t *testing.T) {
 		t.Error("expected glob not to match resolved $result.file")
 	}
 }
+
+func TestConditionOmittedOrEmptyDefaultsTrue(t *testing.T) {
+	args := common.ActionArgs{}
+	result := common.ResultData{Payload: map[string]any{"file": "a.pdf"}}
+
+	// Omitted condition (nil) is an unconditional route, not a panic.
+	var nilCond *condition
+	if ok, err := nilCond.evaluate(args, nil, result); err != nil || !ok {
+		t.Fatalf("expected nil condition to default true: ok=%v err=%v", ok, err)
+	}
+	// Empty condition ({}) likewise defaults to true.
+	if ok, err := (&condition{}).evaluate(args, nil, result); err != nil || !ok {
+		t.Fatalf("expected empty condition to default true: ok=%v err=%v", ok, err)
+	}
+	// Explicit booleans keep working: true routes, false does not.
+	if ok, err := newBooleanCondition(true).evaluate(args, nil, result); err != nil || !ok {
+		t.Fatalf("expected explicit true to route: ok=%v err=%v", ok, err)
+	}
+	if ok, err := newBooleanCondition(false).evaluate(args, nil, result); err != nil || ok {
+		t.Fatalf("expected explicit false to block: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestGetNextNodesRoutesWithoutCondition(t *testing.T) {
+	n := Node{
+		Id:         "action_mid",
+		ActionType: "action",
+		ActionName: "datetimeAction",
+		Conditions: &conditionDictionary{Entries: map[string]conditionEntry{
+			"entry1": {Nexts: []string{"action_next"}},
+		}},
+	}
+	nexts := n.GetNextNodes(nil, common.ResultData{ActionID: "action_mid"})
+	if len(nexts) != 1 || nexts[0] != "action_next" {
+		t.Fatalf("expected unconditional route to action_next, got %v", nexts)
+	}
+}
