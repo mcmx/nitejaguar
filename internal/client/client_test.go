@@ -13,6 +13,77 @@ import (
 	"github.com/mcmx/nitejaguar/internal/workflow"
 )
 
+func TestClientWorkflowVersioningAndSync(t *testing.T) {
+	r := newRunner(API{BaseURL: "http://localhost", HTTPClient: http.DefaultClient}, slog.Default())
+	defer r.close()
+
+	// 1. Install initial workflow revision_1
+	w1 := Workflow{
+		ID:       "workflow_test1",
+		Name:     "Test Flow",
+		Revision: "revision_1",
+		Nodes: map[string]workflow.Node{
+			"trigger_1": {
+				Id:         "trigger_1",
+				Name:       "Trigger",
+				ActionType: "trigger",
+				ActionName: "filechangeTrigger",
+				Arguments:  map[string]string{"path": "/tmp"},
+			},
+		},
+	}
+	r.syncAssignments([]Workflow{w1})
+
+	r.mu.Lock()
+	if r.activeWorkflows["workflow_test1"] == nil || r.activeWorkflows["workflow_test1"].revision != "revision_1" {
+		r.mu.Unlock()
+		t.Fatalf("expected workflow_test1 revision_1 active")
+	}
+	r.mu.Unlock()
+
+	// 2. Update to revision_2
+	w2 := Workflow{
+		ID:       "workflow_test1",
+		Name:     "Test Flow",
+		Revision: "revision_2",
+		Nodes: map[string]workflow.Node{
+			"trigger_1": {
+				Id:         "trigger_1",
+				Name:       "Trigger Updated",
+				ActionType: "trigger",
+				ActionName: "filechangeTrigger",
+				Arguments:  map[string]string{"path": "/tmp"},
+			},
+		},
+	}
+	r.syncAssignments([]Workflow{w2})
+
+	r.mu.Lock()
+	if r.activeWorkflows["workflow_test1"].revision != "revision_2" {
+		r.mu.Unlock()
+		t.Fatalf("expected workflow_test1 revision_2 active")
+	}
+	if r.retired["workflow_test1"] == nil || r.retired["workflow_test1"]["revision_1"] == nil {
+		r.mu.Unlock()
+		t.Fatalf("expected revision_1 retired")
+	}
+	r.mu.Unlock()
+
+	// 3. Disable / remove workflow (empty assignments)
+	r.syncAssignments([]Workflow{})
+
+	r.mu.Lock()
+	if r.activeWorkflows["workflow_test1"] != nil {
+		r.mu.Unlock()
+		t.Fatalf("expected workflow_test1 removed from active workflows")
+	}
+	if r.retired["workflow_test1"] == nil || r.retired["workflow_test1"]["revision_2"] == nil {
+		r.mu.Unlock()
+		t.Fatalf("expected revision_2 retired")
+	}
+	r.mu.Unlock()
+}
+
 func TestAPIProtocol(t *testing.T) {
 	var got common.ResultData
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
