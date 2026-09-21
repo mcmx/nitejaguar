@@ -114,6 +114,7 @@ node: {
 
 - Conditions (routing on the node's own output): `$result.<path>` (own `Payload`), `$args.<path>` (static node `arguments`). `$input.` (upstream) is rejected here — triggers have no upstream, so file/webhook filters use `$result.file`.
 - Action arguments (templates resolved against upstream): `$input.<path>` (dependency payloads threaded as `inputs`). `$result.`/`$args.` are rejected here.
+- Merging upstream into the result: set `"merge_input": true` on an action node to deep-merge the upstream `$input` payload into the node's `$result` payload (`$result` keys win on conflict; non-object payloads pass through unchanged). The flag is part of the workflow JSON (export/import/clone preserve it) and is forwarded to remote clients via assignments. The merge is applied by the framework — the server workflow manager for local results, the polling client runner before reporting, and again server-side on result ingest — so action implementations stay unaware of it and every action is compliant by default.
 
 Example trigger condition: `{"leftOperand": "$result.file", "operator": "=~", "rightOperand": "^statement-.*\\.pdf$"}`. Example action args: `{"action": "rename", "file": "$input.file", "new_file": "{{stem}}-{{date}}{{ext}}"}`.
 

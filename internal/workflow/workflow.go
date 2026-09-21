@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/mcmx/nitejaguar/common"
@@ -51,6 +52,12 @@ type workflowManager struct {
 	db               database.Service
 	enableActions    bool
 	executorID       string
+	// execHistory tracks the latest payload per (execution, node) so the
+	// framework can apply merge_input in the Run loop and re-apply it in
+	// IngestResult. Best-effort: entries are only present for executions
+	// seen by this server instance.
+	mu          sync.Mutex
+	execHistory map[string]map[string]any
 }
 
 var wmmInstance *workflowManager
@@ -71,6 +78,7 @@ func NewWorkflowManager(enableActions bool, db database.Service) WorkflowManager
 		eventsChan:       make(chan common.ResultData),
 		db:               db,
 		executorID:       "server",
+		execHistory:      make(map[string]map[string]any),
 	}
 	return wmmInstance
 }
@@ -94,7 +102,14 @@ func (wm *workflowManager) Run(ctx context.Context) {
 				eId, _ := typeid.WithPrefix("execution")
 				result.ExecutionID = eId.String()
 			}
+			// Framework-level merge_input: fold the recorded upstream
+			// dependency payloads into the result. Actions stay unaware
+			// of the flag; every action is compliant by default.
+			if n.MergeInput {
+				result.Payload = wm.applyMergeInput(result, n)
+			}
 			wm.saveResult(result)
+			wm.rememberResult(result)
 
 			nexts := n.GetNextNodes([]any{}, result)
 			fmt.Printf("Current %v and next nodes %v,\n", n, nexts)
@@ -149,6 +164,12 @@ type Node struct {
 	Dependencies []string             `json:"dependencies"`
 	Client       string               `json:"client,omitempty"`
 	ClientTags   []string             `json:"client_tags,omitempty"`
+	// MergeInput merges the upstream $input payload into this node's
+	// $result payload (deep merge, $result keys win). Exported/imported
+	// as part of the workflow JSON and forwarded to remote clients via
+	// assignments; applied by the framework (workflow manager, client
+	// runner), never by action implementations.
+	MergeInput bool `json:"merge_input,omitempty"`
 }
 
 // AssignedTo reports whether a node is assigned to the given client.
@@ -464,7 +485,16 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 		eID, _ := typeid.WithPrefix("execution")
 		result.ExecutionID = eID.String()
 	}
+	// Server-side enforcement of merge_input: fold the recorded upstream
+	// dependency payloads (in Dependencies order) into the reported
+	// payload. Deep merge, reported $result wins. This is a no-op when
+	// the producer already merged, and best-effort when history is
+	// missing (e.g. after a restart).
+	if node.MergeInput {
+		result.Payload = wm.applyMergeInput(result, node)
+	}
 	wm.saveResult(result)
+	wm.rememberResult(result)
 
 	nexts := node.GetNextNodes([]any{}, result)
 	for _, next := range nexts {
@@ -490,4 +520,46 @@ func (wm *workflowManager) saveWorkflow(data Workflow) error {
 		return err
 	}
 	return wm.db.SaveWorkflow(data.Id, string(jsonData), data.TenantID)
+}
+
+// rememberResult records a result payload for later merge_input lookups.
+func (wm *workflowManager) rememberResult(result common.ResultData) {
+	if result.ExecutionID == "" || result.ActionID == "" {
+		return
+	}
+	wm.mu.Lock()
+	defer wm.mu.Unlock()
+	if wm.execHistory == nil {
+		wm.execHistory = make(map[string]map[string]any)
+	}
+	byNode, ok := wm.execHistory[result.ExecutionID]
+	if !ok {
+		byNode = make(map[string]any)
+		wm.execHistory[result.ExecutionID] = byNode
+	}
+	byNode[result.ActionID] = result.Payload
+}
+
+// applyMergeInput folds recorded dependency payloads into result.Payload.
+// Dependencies merge in order, the reported result wins on conflicts.
+func (wm *workflowManager) applyMergeInput(result common.ResultData, node Node) any {
+	if result.ExecutionID == "" || len(node.Dependencies) == 0 {
+		return result.Payload
+	}
+	wm.mu.Lock()
+	byNode := wm.execHistory[result.ExecutionID]
+	inputs := make([]any, 0, len(node.Dependencies))
+	for _, dep := range node.Dependencies {
+		if byNode != nil {
+			if p, ok := byNode[dep]; ok {
+				inputs = append(inputs, p)
+			}
+		}
+	}
+	wm.mu.Unlock()
+	merged := result.Payload
+	for _, in := range inputs {
+		merged = common.MergePayloads(in, merged)
+	}
+	return merged
 }

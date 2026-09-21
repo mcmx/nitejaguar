@@ -43,13 +43,13 @@ type payload struct {
 
 func (f *fileaction) Execute(executionId string, inputs []any) {
 	fmt.Println("Executing File Action with id:", f.data.Id)
+	trigger := findTriggerResult(inputs)
 	rawArgs, err := argsToStringMap(f.data.Args)
 	if err != nil {
 		fmt.Println("[fileaction] Invalid arguments:", err)
 		f.sendResult(executionId, payload{Type: "error", Result: err.Error()})
 		return
 	}
-	trigger := findTriggerResult(inputs)
 
 	// Resolve source file first so {{file}}/{{base}}/{{ext}}/{{stem}}
 	// in new_file can derive from it.

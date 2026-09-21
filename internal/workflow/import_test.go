@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/database"
 )
 
@@ -19,6 +20,32 @@ const (
 	workflow1Name = "First Workflow from json"
 	workflow1Node = "trigger_01jq9c43qhejtacw2p66k2ke5s"
 )
+
+const mergeWorkflowJSON = `{
+  "id": "workflow_01mergeinputtest00000001",
+  "name": "Merge input workflow",
+  "nodes": {
+    "trigger_01mergeinputtest000001": {
+      "id": "trigger_01mergeinputtest000001",
+      "name": "Trigger",
+      "action_type": "trigger",
+      "action_name": "filechangeTrigger",
+      "arguments": {"path": "/tmp"},
+      "conditions": {"entries": {}},
+      "dependencies": null
+    },
+    "action_01mergeinputtest0000001": {
+      "id": "action_01mergeinputtest0000001",
+      "name": "Action",
+      "action_type": "action",
+      "action_name": "fileAction",
+      "arguments": {"action": "create", "file": "/tmp/out.txt"},
+      "conditions": {"entries": {}},
+      "dependencies": ["trigger_01mergeinputtest000001"],
+      "merge_input": true
+    }
+  }
+}`
 
 func readWorkflow(t *testing.T, path string) string {
 	t.Helper()
@@ -220,6 +247,91 @@ func TestWorkflowImportAndClone(t *testing.T) {
 		}
 		if len(seenIDs) != 2 {
 			t.Errorf("expected 2 distinct clones, got %d", len(seenIDs))
+		}
+	})
+
+	t.Run("merge_input survives import and clone", func(t *testing.T) {
+		var wf Workflow
+		if err := json.Unmarshal([]byte(mergeWorkflowJSON), &wf); err != nil {
+			t.Fatalf("unmarshal merge workflow: %v", err)
+		}
+		if !wf.Nodes["action_01mergeinputtest0000001"].MergeInput {
+			t.Fatal("expected merge_input=true on action node")
+		}
+		if wf.Nodes["trigger_01mergeinputtest000001"].MergeInput {
+			t.Fatal("trigger should default to merge_input=false")
+		}
+
+		if err := wm.ImportWorkflowJSON(mergeWorkflowJSON); err != nil {
+			t.Fatalf("import merge workflow: %v", err)
+		}
+		saved := savedWorkflows(t, db)
+		found := false
+		for _, sw := range saved {
+			if sw.Id == "workflow_01mergeinputtest00000001" {
+				found = true
+				if !sw.Nodes["action_01mergeinputtest0000001"].MergeInput {
+					t.Error("merge_input flag lost on import")
+				}
+			}
+		}
+		if !found {
+			t.Fatal("merge workflow not found in db after import")
+		}
+
+		if err := wm.CloneWorkflowJSON(mergeWorkflowJSON); err != nil {
+			t.Fatalf("clone merge workflow: %v", err)
+		}
+		kept := false
+		for _, sw := range savedWorkflows(t, db) {
+			if !strings.HasPrefix(sw.Name, "Clone of: Merge input workflow") {
+				continue
+			}
+			for _, n := range sw.Nodes {
+				if n.ActionType == "action" && n.MergeInput {
+					kept = true
+				}
+			}
+		}
+		if !kept {
+			t.Error("merge_input flag lost on clone")
+		}
+	})
+
+	t.Run("ingest applies merge_input server-side", func(t *testing.T) {
+		if err := wm.ImportWorkflowJSON(mergeWorkflowJSON); err != nil {
+			t.Fatalf("import merge workflow: %v", err)
+		}
+		triggerRes, _, err := wm.IngestResult(common.ResultData{
+			ActionID:   "trigger_01mergeinputtest000001",
+			ActionType: "trigger",
+			ActionName: "filechangeTrigger",
+			Payload:    map[string]any{"Name": "Sergio", "LastName": "Who"},
+		})
+		if err != nil {
+			t.Fatalf("ingest trigger: %v", err)
+		}
+		if triggerRes.ExecutionID == "" {
+			t.Fatal("expected execution id to be minted for trigger")
+		}
+
+		// Reported by a client that did NOT merge: server re-applies it.
+		stored, _, err := wm.IngestResult(common.ResultData{
+			ExecutionID: triggerRes.ExecutionID,
+			ActionID:    "action_01mergeinputtest0000001",
+			ActionType:  "action",
+			ActionName:  "fileAction",
+			Payload:     map[string]any{"Name": "Dr", "Phone": "555-768790"},
+		})
+		if err != nil {
+			t.Fatalf("ingest action: %v", err)
+		}
+		merged, ok := stored.Payload.(map[string]any)
+		if !ok {
+			t.Fatalf("expected map payload, got %T", stored.Payload)
+		}
+		if merged["Name"] != "Dr" || merged["LastName"] != "Who" || merged["Phone"] != "555-768790" {
+			t.Fatalf("unexpected merged payload: %v", merged)
 		}
 	})
 }

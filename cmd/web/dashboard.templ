@@ -107,7 +107,9 @@ templ WorkflowDetailPage(data *WorkflowDetailData) {
                 <div class="space-y-4">
                     for id, node := range data.Definition.Nodes {
                         <article class="rounded-lg border border-border p-5">
-                            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p class="text-xs uppercase tracking-wide text-red-500">{ node.ActionType }</p><h2 class="font-semibold">{ node.Name }</h2><p class="mt-1 break-all font-mono text-xs text-muted-foreground">{ id }</p></div><span class="rounded bg-muted px-2 py-1 font-mono text-xs">{ node.ActionName }</span></div>
+                            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p class="text-xs uppercase tracking-wide text-red-500">{ node.ActionType }</p><h2 class="font-semibold">{ node.Name }</h2><p class="mt-1 break-all font-mono text-xs text-muted-foreground">{ id }</p></div><div class="flex items-center gap-2"><span class="rounded bg-muted px-2 py-1 font-mono text-xs">{ node.ActionName }</span>if node.MergeInput {
+                                    <span class="rounded bg-muted px-2 py-1 font-mono text-xs" title="Merges $input into $result ($result wins)">merge_input</span>
+                                }</div></div>
                             <div class="mt-4 grid gap-4 text-sm md:grid-cols-2"><div><h3 class="mb-1 font-medium">Arguments</h3><pre class="overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(node.Arguments) }</pre></div><div><h3 class="mb-1 font-medium">Conditions / next nodes</h3><pre class="overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(node.Conditions) }</pre></div><div><h3 class="mb-1 font-medium">Dependencies</h3><p class="break-all rounded bg-muted p-3 font-mono text-xs">{ fmt.Sprint(node.Dependencies) }</p></div><div><h3 class="mb-1 font-medium">Client targeting</h3><p class="break-all rounded bg-muted p-3 text-xs">client: { node.Client }<br/>tags: { fmt.Sprint(node.ClientTags) }</p></div></div>
                         </article>
                     }
@@ -184,7 +186,8 @@ templ DesignerPage() {
                         action_type: 'trigger',
                         action_name: 'filechangeTrigger',
                         arguments: '{\n  "path": "/tmp",\n  "event_type": "create"\n}',
-                        client_tags: 'gpu'
+                        client_tags: 'gpu',
+                        merge_input: false
                     },
                     {
                         id: 'action_1',
@@ -192,7 +195,8 @@ templ DesignerPage() {
                         action_type: 'action',
                         action_name: 'fileAction',
                         arguments: '{\n  "action": "create",\n  "file": "/tmp/out.txt"\n}',
-                        client_tags: 'gpu'
+                        client_tags: 'gpu',
+                        merge_input: false
                     }
                 ],
                 addNode() {
@@ -202,7 +206,8 @@ templ DesignerPage() {
                         action_type: 'action',
                         action_name: 'fileAction',
                         arguments: '{\n  "action": "create"\n}',
-                        client_tags: ''
+                        client_tags: '',
+                        merge_input: false
                     });
                 },
                 removeNode(index) {
@@ -225,7 +230,8 @@ templ DesignerPage() {
                             action_name: n.action_name,
                             arguments: args,
                             conditions: { entries: {} },
-                            client_tags: n.client_tags ? n.client_tags.split(',').map(s => s.trim()).filter(Boolean) : []
+                            client_tags: n.client_tags ? n.client_tags.split(',').map(s => s.trim()).filter(Boolean) : [],
+                            merge_input: !!n.merge_input
                         };
                     });
                     return JSON.stringify(obj, null, 2);
@@ -292,6 +298,10 @@ templ DesignerPage() {
                             <div>
                                 <label class="block text-xs font-medium mb-1">Client Tags (comma separated)</label>
                                 <input type="text" x-model="node.client_tags" placeholder="gpu, tenant-a" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+                            </div>
+                            <div x-show="node.action_type === 'action'">
+                                <label class="flex items-center gap-2 text-xs font-medium"><input type="checkbox" x-model="node.merge_input" class="rounded border border-border"/> Merge $input into $result ($result wins)</label>
+                                <p class="mt-1 text-xs text-muted-foreground">Deep-merges the upstream payload into this node's result; conflicting keys keep the result's values.</p>
                             </div>
                         </div>
                     </template>
