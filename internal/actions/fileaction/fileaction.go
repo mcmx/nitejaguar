@@ -291,13 +291,13 @@ var placeholderPattern = regexp.MustCompile(`\{\{\s*([^{}]+?)\s*\}\}`)
 
 // resolveArgValue resolves one arg value: inline `$input.<path>` references
 // plus `{{...}}` placeholders. Literals pass through. $input. resolves
-// against the upstream ResultData payload. $result./$args./$json. are
-// rejected: the node's own result does not exist yet at arg-resolution time.
+// against the upstream ResultData payload. $result./$args. are rejected:
+// the node's own result does not exist yet at arg-resolution time.
 func resolveArgValue(raw string, trigger *common.ResultData, sourceFile string) (string, error) {
 	if raw == "" {
 		return "", nil
 	}
-	if strings.Contains(raw, "$result.") || strings.Contains(raw, "$args.") || strings.Contains(raw, "$json.") {
+	if strings.Contains(raw, "$result.") || strings.Contains(raw, "$args.") {
 		return "", fmt.Errorf("unsupported reference in %q: only $input. resolves against upstream payload in action args", raw)
 	}
 	out := raw

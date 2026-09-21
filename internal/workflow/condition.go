@@ -99,8 +99,8 @@ func (c *condition) evaluate(actionArgs common.ActionArgs, inputs []any, result 
 }
 
 // resolveOperand resolves $result. against the node's own payload and
-// $args. against its static arguments. $input. (upstream) and $json. are
-// rejected with an explicit error.
+// $args. against its static arguments. $input. (upstream) is rejected with
+// an explicit error.
 func resolveOperand(operand any, actionArgs common.ActionArgs, result common.ResultData) (any, error) {
 	s, ok := operand.(string)
 	if !ok {
@@ -113,8 +113,6 @@ func resolveOperand(operand any, actionArgs common.ActionArgs, result common.Res
 		return resolveArgs(actionArgs, s)
 	case strings.HasPrefix(s, "$input."):
 		return nil, fmt.Errorf("unsupported path %q: $input (upstream) is not available in conditions, use $result for own output", s)
-	case strings.HasPrefix(s, "$json."):
-		return nil, fmt.Errorf("unsupported path %q: $json was removed, use $result for own output", s)
 	}
 	return operand, nil
 }

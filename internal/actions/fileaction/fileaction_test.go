@@ -211,7 +211,7 @@ func TestExpandHome(t *testing.T) {
 }
 
 func TestDollarSyntaxRejections(t *testing.T) {
-	for _, ref := range []string{"$result.file", "$args.file", "$json.file"} {
+	for _, ref := range []string{"$result.file", "$args.file"} {
 		a, events := newTestAction(t, map[string]string{"action": "remove", "file": ref})
 		a.Execute("exec1", triggerWithFile("/tmp/x"))
 		if p := readPayload(t, events); p.Type != "error" {

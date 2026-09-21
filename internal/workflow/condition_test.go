@@ -125,11 +125,6 @@ func TestConditionDollarSyntax(t *testing.T) {
 	if _, err := c.evaluate(args, nil, result); err == nil {
 		t.Fatal("expected error for $input.file in conditions, got nil")
 	}
-	// $json was removed.
-	c = newComparison("$json.file", "==", "a.pdf")
-	if _, err := c.evaluate(args, nil, result); err == nil {
-		t.Fatal("expected error for $json.file in conditions, got nil")
-	}
 }
 
 func TestConditionGlobMatch(t *testing.T) {
