@@ -45,7 +45,15 @@ func newBooleanCondition(boolExpr any) *condition {
 //   - $input.<path> (upstream dependency payloads) is NOT available in
 //     conditions: routing runs on the node's own result, so use $result.
 //     Referencing $input here returns an explicit error.
+//   - An omitted or empty condition defaults to true: an entry that lists
+//     nexts without a condition is an unconditional route.
 func (c *condition) evaluate(actionArgs common.ActionArgs, inputs []any, result common.ResultData) (bool, error) {
+	// An omitted (`"condition"` absent, nil) or empty (`{}`) condition is
+	// an unconditional route. This also keeps GetNextNodes safe against
+	// entries without a condition object.
+	if c == nil || (c.LeftOperand == nil && c.Operator == "" && c.RightOperand == nil) {
+		return true, nil
+	}
 	// we will need to test if the operands must be resolved, I'll follow the format
 	// jsonpath format to resolve the values.
 

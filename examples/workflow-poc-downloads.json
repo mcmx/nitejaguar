@@ -43,11 +43,6 @@
       "conditions": {
         "entries": {
           "entry1": {
-            "condition": {
-              "leftOperand": true,
-              "operator": "",
-              "rightOperand": null
-            },
             "nexts": [
               "action_01jr12v81gfk6t359nvqg86t9g"
             ]
