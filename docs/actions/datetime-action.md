@@ -1,6 +1,6 @@
-# Datetime Action (`datetimeAction`)
+# Datetime Action (`datetime`)
 
-The `datetimeAction` provides time-based processing and formatting capabilities within workflows, mirroring n8n's Date & Time node "Get Current Date" operation in minimal form.
+The `datetime` action provides time-based processing and formatting capabilities within workflows, mirroring n8n's Date & Time node "Get Current Date" operation in minimal form.
 
 ## What It Can Do
 - **Get Current Date / Time**: Retrieve the current timestamp during workflow execution.
@@ -19,13 +19,13 @@ The `datetimeAction` provides time-based processing and formatting capabilities 
 
 ## How to Use
 
-Add a `datetimeAction` node to generate timestamps and feed them into file actions or notifications:
+Add a `datetime` node to generate timestamps and feed them into file actions or notifications:
 
 ```json
 {
   "id": "action_date_01h...",
   "action_type": "action",
-  "action_name": "datetimeAction",
+  "action_name": "datetime",
   "arguments": {
     "operation": "getCurrentDate",
     "format": "2006-01-02",

@@ -13,7 +13,7 @@ Welcome to the official documentation for **Nitejaguar**, a lightweight and powe
 - [Development Guide](./development.md) — Building, codegen (`templ` & `ent`), testing (`make test`), and linting (`make lint`).
 
 ### Actions & Triggers Reference
-- [File Change Trigger (`filechangeTrigger`)](./actions/filechange-trigger.md)
-- [File Action (`fileAction`)](./actions/file-action.md)
-- [Datetime Action (`datetimeAction`)](./actions/datetime-action.md)
+- [File Change Trigger (`filechange`)](./actions/filechange-trigger.md)
+- [File Action (`file`)](./actions/file-action.md)
+- [Datetime Action (`datetime`)](./actions/datetime-action.md)
 - [Wait Action (`wait`)](./actions/wait-action.md)

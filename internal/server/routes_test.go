@@ -52,7 +52,7 @@ const assignmentFlowWorkflow = `{
       "name": "Broadcast trigger",
       "description": "assigned to all clients",
       "action_type": "trigger",
-      "action_name": "filechangeTrigger",
+      "action_name": "filechange",
       "arguments": {"path": "/tmp", "event_type": "create"},
       "conditions": {
         "entries": {
@@ -69,7 +69,7 @@ const assignmentFlowWorkflow = `{
       "name": "GPU action",
       "description": "only gpu clients",
       "action_type": "action",
-      "action_name": "fileAction",
+      "action_name": "file",
       "arguments": {"action": "create", "file": "/tmp/gpu-was-here.txt"},
       "conditions": {"entries": {}},
       "dependencies": ["trigger_01kassignmentbroadcast00001"],
@@ -227,7 +227,7 @@ func TestClientAssignmentFlow(t *testing.T) {
 	resp = api.Post("/api/results", "Authorization: Bearer "+registered.Token, map[string]any{
 		"action_id":   "trigger_01kassignmentbroadcast00001",
 		"action_type": "trigger",
-		"action_name": "filechangeTrigger",
+		"action_name": "filechange",
 		"payload":     map[string]any{"file": "/tmp/x"},
 	})
 	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {

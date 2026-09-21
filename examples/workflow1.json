@@ -4,10 +4,10 @@
   "nodes": {
     "trigger_01jq9c43qhejtacw2p66k2ke5s": {
       "id": "trigger_01jq9c43qhejtacw2p66k2ke5s",
-      "name": "CLI Trigger: filechangeTrigger",
-      "description": "CLI Trigger: filechangeTrigger",
+    "name": "CLI Trigger: filechange",
+    "description": "CLI Trigger: filechange",
       "action_type": "trigger",
-      "action_name": "filechangeTrigger",
+    "action_name": "filechange",
       "arguments": {
         "path": "/tmp",
         "event_type": "create"

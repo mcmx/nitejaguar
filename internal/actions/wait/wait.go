@@ -37,7 +37,7 @@ type waitAction struct {
 	events chan common.ResultData
 }
 
-// New creates a waitAction. The duration is read when Execute is called, so
+// New creates a wait action. The duration is read when Execute is called, so
 // values such as "$input.delay" can be supplied by an upstream action.
 func New(events chan common.ResultData, data common.ActionArgs) (common.Action, error) {
 	data.ActionType = "action"

@@ -35,3 +35,7 @@ This guide covers building, testing, code generation, and extending Nitejaguar.
 2. Implement the `common.Action` interface.
 3. Register the action in `internal/actions/actions.go` (`AddAction`) or trigger in `internal/actions/trigger.go` (`AddTrigger`), keyed by `action_name`.
 4. Document the new action in `/docs/actions/myaction.md`.
+
+### Naming actions and triggers
+
+Workflow `action_name` values are concise, lowercase, category-free identifiers. Use names such as `file`, `datetime`, `wait`, and `filechange`; do not add `Action` or `Trigger` suffixes because `action_type` already identifies whether a node is an action or trigger. Each feature should expose one canonical identifier in both the server and client dispatch switches. Internal Go package/type names may use longer names when useful for clarity.

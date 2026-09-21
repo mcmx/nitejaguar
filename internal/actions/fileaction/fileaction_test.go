@@ -15,7 +15,7 @@ func newTestAction(t *testing.T, args any) (common.Action, chan common.ResultDat
 		Id:         "action_test",
 		Name:       "test",
 		ActionType: "action",
-		ActionName: "fileAction",
+		ActionName: "file",
 		Args:       args,
 	})
 	if err != nil {
@@ -29,7 +29,7 @@ func triggerWithFile(file string) []any {
 		ExecutionID: "exec_test",
 		ActionID:    "trigger_test",
 		ActionType:  "trigger",
-		ActionName:  "filechangeTrigger",
+		ActionName:  "filechange",
 		Payload:     map[string]any{"type": "create", "file": file},
 	}}
 }
@@ -102,7 +102,7 @@ func TestRenameAcceptsMapStringAny(t *testing.T) {
 	}
 }
 
-// Date suffix now comes from datetimeAction via a bare $input ref (no braces):
+// Date suffix now comes from datetime via a bare $input ref (no braces):
 // the upstream merged payload carries the trigger `file` plus datetime `now`.
 func TestRenameDateSuffixFromInput(t *testing.T) {
 	dir := t.TempDir()
@@ -119,7 +119,7 @@ func TestRenameDateSuffixFromInput(t *testing.T) {
 		ExecutionID: "exec1",
 		ActionID:    "action_01m3167tvxedb9y6ghyrehz5fk",
 		ActionType:  "action",
-		ActionName:  "datetimeAction",
+		ActionName:  "datetime",
 		Payload:     map[string]any{"type": "success", "file": src, "now": "20260921"},
 	}}
 	a.Execute("exec1", inputs)

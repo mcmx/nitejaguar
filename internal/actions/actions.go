@@ -44,11 +44,11 @@ func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, strin
 	var err error
 	switch data.ActionName {
 
-	case "fileAction":
+	case "file":
 		action, err = fileaction.New(am.events, data)
-	case "datetimeAction":
+	case "datetime":
 		action, err = datetime.New(am.events, data)
-	case "wait", "waitAction":
+	case "wait":
 		action, err = wait.New(am.events, data)
 	default:
 		return nil, "", fmt.Errorf("unknown action_name: %q", data.ActionName)

@@ -1,6 +1,6 @@
-# File Change Trigger (`filechangeTrigger`)
+# File Change Trigger (`filechange`)
 
-The `filechangeTrigger` is a core trigger in Nitejaguar that monitors a specified directory for file system events (such as creations, modifications, renames, deletions, and permission changes) using `fsnotify`. When an event occurs, it debounces rapid bursts and emits a result to trigger downstream workflow execution.
+The `filechange` trigger is a core trigger in Nitejaguar that monitors a specified directory for file system events (such as creations, modifications, renames, deletions, and permission changes) using `fsnotify`. When an event occurs, it debounces rapid bursts and emits a result to trigger downstream workflow execution.
 
 ## What It Can Do
 - **Directory Watching**: Recursively or directly watch any local directory path (with home directory `~` expansion).
@@ -18,13 +18,13 @@ The `filechangeTrigger` is a core trigger in Nitejaguar that monitors a specifie
 
 ## How to Use
 
-Add a `filechangeTrigger` node to your workflow JSON definition:
+Add a `filechange` node to your workflow JSON definition:
 
 ```json
 {
   "id": "trigger_01h...",
   "action_type": "trigger",
-  "action_name": "filechangeTrigger",
+  "action_name": "filechange",
   "arguments": {
     "path": "~/Downloads",
     "debounce_ms": "1000"

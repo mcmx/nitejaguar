@@ -7,7 +7,7 @@
       "name": "Trigger: Downloads PDF create/write",
       "description": "Watch ~/Downloads for PDF create/write events",
       "action_type": "trigger",
-      "action_name": "filechangeTrigger",
+      "action_name": "filechange",
       "arguments": {
         "path": "~/Downloads",
         "event_type": "create,write",
@@ -34,7 +34,7 @@
       "name": "Action: current date",
       "description": "Stamp the run with YYYYMMDD; merge_input carries the trigger file forward",
       "action_type": "action",
-      "action_name": "datetimeAction",
+      "action_name": "datetime",
       "arguments": {
         "operation": "getCurrentDate",
         "format": "20060102",
@@ -59,7 +59,7 @@
       "name": "Action: rename PDF with date",
       "description": "Rename the downloaded PDF to stem-YYYYMMDD.ext",
       "action_type": "action",
-      "action_name": "fileAction",
+      "action_name": "file",
       "arguments": {
         "action": "rename",
         "file": "$input.file",

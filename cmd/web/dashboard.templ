@@ -275,7 +275,7 @@ templ DesignerPage(data *DesignerPageData) {
                     name: 'File Trigger',
                     description: '',
                     action_type: 'trigger',
-                    action_name: 'filechangeTrigger',
+                    action_name: 'filechange',
                     arguments: '{\n  "path": "/tmp",\n  "event_type": "create"\n}',
                     client: '',
                     client_tags: 'gpu',
@@ -288,7 +288,7 @@ templ DesignerPage(data *DesignerPageData) {
                     name: 'File Action',
                     description: '',
                     action_type: 'action',
-                    action_name: 'fileAction',
+                    action_name: 'file',
                     arguments: '{\n  "action": "create",\n  "file": "/tmp/out.txt"\n}',
                     client: '',
                     client_tags: 'gpu',
@@ -320,7 +320,7 @@ templ DesignerPage(data *DesignerPageData) {
                         name: 'New Node',
                         description: '',
                         action_type: 'action',
-                        action_name: 'fileAction',
+                        action_name: 'file',
                         arguments: '{\n  "action": "create"\n}',
                         client: '',
                         client_tags: '',
@@ -437,7 +437,7 @@ templ DesignerPage(data *DesignerPageData) {
                                 </div>
                                 <div>
                                     <label class="block text-xs font-medium mb-1">Action Name</label>
-                                    <input type="text" x-model="node.action_name" placeholder="filechangeTrigger / fileAction" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+                    <input type="text" x-model="node.action_name" placeholder="filechange / file / datetime / wait" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
                                 </div>
                                 <div class="md:col-span-2">
                                     <label class="block text-xs font-medium mb-1">Description</label>

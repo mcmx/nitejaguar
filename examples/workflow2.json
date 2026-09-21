@@ -4,10 +4,10 @@
     "nodes": {
       "trigger_01jr12v81gfk6t359nvqg86t9g": {
         "id": "trigger_01jr12v81gfk6t359nvqg86t9g",
-        "name": "Trigger: filechangeTrigger",
+      "name": "Trigger: filechange",
         "description": "Trigger: on Downloads",
         "action_type": "trigger",
-        "action_name": "filechangeTrigger",
+      "action_name": "filechange",
         "arguments": {
           "path": "/home/sergio/Downloads",
           "event_type": "create"
@@ -31,7 +31,7 @@
       "name": "Action: fileaction",
       "description": "Action: fileaction",
       "action_type": "action",
-      "action_name": "fileAction",
+      "action_name": "file",
       "arguments": {
         "action": "create",
         "file": "/tmp/sergio-was-here.txt"

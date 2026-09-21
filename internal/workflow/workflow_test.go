@@ -35,10 +35,10 @@ func TestGetNextNodes(t *testing.T) {
 
 // n := workflow.Node{
 // 	Id:          aId.String(),
-// 	Name:        "CLI Trigger: filechangeTrigger",
-// 	Description: "CLI Trigger: filechangeTrigger",
+// 	Name:        "CLI Trigger: filechange",
+// 	Description: "CLI Trigger: filechange",
 // 	ActionType:  "trigger",
-// 	ActionName:  "filechangeTrigger",
+// 	ActionName:  "filechange",
 // 	Conditions:  workflow.NewConditionDictionary(),
 // 	Arguments:   make(map[string]string),
 // }

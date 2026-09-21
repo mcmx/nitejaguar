@@ -11,7 +11,7 @@ package fileaction
 //   - `{{date}}` defaults to local YYYYMMDD (Go layout "20060102").
 //     `{{date:<layout>}}` (e.g. `{{date:2006-01-02}}`) uses the given Go layout.
 //   - `{{file}}`, `{{base}}`, `{{ext}}`, `{{stem}}` are derived from the
-//     resolved source file. Date stamping lives in datetimeAction —
+//     resolved source file. Date stamping lives in datetime —
 //     thread its result in via merge_input and reference it as a bare
 //     `$input.<field>` (e.g. `$input.now`); `{{...}}` never nests refs.
 //   - `~` leading paths are expanded to the user home dir.
