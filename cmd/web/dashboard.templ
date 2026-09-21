@@ -254,11 +254,19 @@ templ ClientsPage(data *ClientsPageData) {
     }
 }
 
+// designerInitialData renders the workflow JSON inside a script tag for the
+// Alpine designer to read. It must be emitted via templ.Raw from normal
+// template context: templ treats <script> contents as raw text, so an
+// expression written literally inside a <script> block is never evaluated.
+// The payload comes from encoding/json, which escapes <, > and &
+// (e.g. </script> becomes \u003c/script\u003e), so it cannot break out.
+templ designerInitialData(jsonData string) {
+    @templ.Raw("<script id=\"designer-initial\" type=\"application/json\">" + jsonData + "</script>")
+}
+
 templ DesignerPage(data *DesignerPageData) {
     @Base() {
-        <script id="designer-initial" type="application/json">
-            @templ.Raw(data.InitJSON)
-        </script>
+        @designerInitialData(data.InitJSON)
         <script>
         function defaultNodes() {
             return [
