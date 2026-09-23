@@ -96,7 +96,7 @@ func TestClientAssignmentFlow(t *testing.T) {
 	_, api := humatest.New(t)
 	addApiRoutes(api, s)
 
-	if err := wm.ImportWorkflowJSON(assignmentFlowWorkflow); err != nil {
+	if _, err := wm.ImportWorkflowJSON(assignmentFlowWorkflow); err != nil {
 		t.Fatalf("seed workflow: %v", err)
 	}
 
@@ -305,7 +305,7 @@ func TestClientAssignmentsExcludeDisabledWorkflows(t *testing.T) {
 	s := &Server{db: db, wm: wm}
 	_, api := humatest.New(t)
 	addApiRoutes(api, s)
-	if err := wm.ImportWorkflowJSON(assignmentFlowWorkflow); err != nil {
+	if _, err := wm.ImportWorkflowJSON(assignmentFlowWorkflow); err != nil {
 		t.Fatalf("seed workflow: %v", err)
 	}
 	if err := db.SetWorkflowEnabled("workflow_01kassignmentsync1test0001", false); err != nil {
@@ -330,5 +330,67 @@ func TestClientAssignmentsExcludeDisabledWorkflows(t *testing.T) {
 	decodeBody(t, strings.NewReader(resp.Body.String()), &assignments)
 	if len(assignments.Workflows) != 0 {
 		t.Fatalf("disabled workflow was assigned: %s", resp.Body.String())
+	}
+}
+
+func TestWorkflowImportCloneAPI(t *testing.T) {
+	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
+	wm := workflow.NewWorkflowManager(false, db)
+	s := &Server{db: db, wm: wm}
+	_, api := humatest.New(t)
+	addApiRoutes(api, s)
+
+	var def map[string]any
+	if err := json.Unmarshal([]byte(assignmentFlowWorkflow), &def); err != nil {
+		t.Fatalf("unmarshal seed workflow: %v", err)
+	}
+
+	resp := api.Post("/api/workflows/import", def)
+	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+		t.Fatalf("import status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	var imported struct {
+		Ok         bool   `json:"ok"`
+		WorkflowID string `json:"workflow_id"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &imported)
+	if !imported.Ok || imported.WorkflowID != "workflow_01kassignmentsync1test0001" {
+		t.Fatalf("unexpected import response: %s", resp.Body.String())
+	}
+	if _, err := db.GetWorkflow(imported.WorkflowID); err != nil {
+		t.Fatalf("imported workflow not in db: %v", err)
+	}
+
+	resp = api.Post("/api/workflows/clone", def)
+	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+		t.Fatalf("clone status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	var cloned struct {
+		Ok         bool   `json:"ok"`
+		WorkflowID string `json:"workflow_id"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &cloned)
+	if !cloned.Ok || cloned.WorkflowID == "" || cloned.WorkflowID == "workflow_01kassignmentsync1test0001" {
+		t.Fatalf("unexpected clone response: %s", resp.Body.String())
+	}
+	row, err := db.GetWorkflow(cloned.WorkflowID)
+	if err != nil {
+		t.Fatalf("cloned workflow not in db: %v", err)
+	}
+	var clonedDef workflow.Workflow
+	if err := json.Unmarshal([]byte(row.JSONDefinition), &clonedDef); err != nil {
+		t.Fatalf("unmarshal cloned workflow: %v", err)
+	}
+	if len(clonedDef.Name) < len("Clone of: ") || clonedDef.Name[:len("Clone of: ")] != "Clone of: " {
+		t.Fatalf("cloned name missing prefix: %q", clonedDef.Name)
+	}
+
+	resp = api.Post("/api/workflows/import", map[string]any{})
+	if resp.Code != http.StatusUnprocessableEntity && resp.Code != http.StatusBadRequest {
+		t.Fatalf("invalid import status = %v, want 400 or 422", resp.Code)
 	}
 }

@@ -131,6 +131,51 @@ func TestAPIProtocol(t *testing.T) {
 	}
 }
 
+func TestAPIWorkflowUpsert(t *testing.T) {
+	var gotPath string
+	var gotBody workflow.Workflow
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s, want POST", r.Method)
+		}
+		if r.Header.Get("Authorization") != "Bearer token_test" || r.Header.Get("X-Client-Token") != "token_test" {
+			t.Errorf("missing client token headers")
+		}
+		gotPath = r.URL.Path
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Error(err)
+		}
+		_ = json.NewEncoder(w).Encode(UpsertWorkflowResponse{Ok: true, WorkflowID: "workflow_upserted"})
+	}))
+	defer srv.Close()
+	a := API{BaseURL: srv.URL, Token: "token_test", HTTPClient: srv.Client()}
+	wf := workflow.Workflow{
+		Id:   "workflow_01testupsert00000001",
+		Name: "Upsert test",
+		Nodes: map[string]workflow.Node{
+			"trigger_01testupsert00000001": {
+				Id: "trigger_01testupsert00000001", Name: "Trigger",
+				ActionType: "trigger", ActionName: "filechange",
+				Arguments: map[string]string{"path": "/tmp"},
+			},
+		},
+	}
+	res, err := a.ImportWorkflow(context.Background(), wf)
+	if err != nil || !res.Ok || res.WorkflowID != "workflow_upserted" {
+		t.Fatalf("import: %#v %v", res, err)
+	}
+	if gotPath != "/api/workflows/import" || gotBody.Id != wf.Id {
+		t.Fatalf("import request: path=%s body=%#v", gotPath, gotBody)
+	}
+	res, err = a.CloneWorkflow(context.Background(), wf)
+	if err != nil || !res.Ok || res.WorkflowID != "workflow_upserted" {
+		t.Fatalf("clone: %#v %v", res, err)
+	}
+	if gotPath != "/api/workflows/clone" || gotBody.Id != wf.Id {
+		t.Fatalf("clone request: path=%s body=%#v", gotPath, gotBody)
+	}
+}
+
 func TestConfigDefaults(t *testing.T) {
 	c := (Config{Server: "http://x/"}).normalized()
 	if c.Server != "http://x" || c.PollInterval != 2*time.Second || c.RetryInitial != 500*time.Millisecond {

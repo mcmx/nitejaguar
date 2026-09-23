@@ -151,7 +151,7 @@ func TestWorkflowImportAndClone(t *testing.T) {
 
 	t.Run("import keeps ids and name verbatim", func(t *testing.T) {
 		raw := readWorkflow(t, workflow1Path)
-		if err := wm.ImportWorkflowJSON(raw); err != nil {
+		if _, err := wm.ImportWorkflowJSON(raw); err != nil {
 			t.Fatalf("import workflow: %v", err)
 		}
 
@@ -176,7 +176,7 @@ func TestWorkflowImportAndClone(t *testing.T) {
 		}
 
 		// Re-import is an idempotent overwrite
-		if err := wm.ImportWorkflowJSON(raw); err != nil {
+		if _, err := wm.ImportWorkflowJSON(raw); err != nil {
 			t.Fatalf("re-import workflow: %v", err)
 		}
 		count := 0
@@ -201,7 +201,7 @@ func TestWorkflowImportAndClone(t *testing.T) {
 			originalNodeIDs[id] = true
 		}
 
-		if err := wm.CloneWorkflowJSON(raw); err != nil {
+		if _, err := wm.CloneWorkflowJSON(raw); err != nil {
 			t.Fatalf("clone workflow: %v", err)
 		}
 
@@ -242,7 +242,7 @@ func TestWorkflowImportAndClone(t *testing.T) {
 		assertEdgeIntegrity(t, *clone)
 
 		// Cloning the same file again produces a second distinct workflow
-		if err := wm.CloneWorkflowJSON(raw); err != nil {
+		if _, err := wm.CloneWorkflowJSON(raw); err != nil {
 			t.Fatalf("clone workflow again: %v", err)
 		}
 		seenIDs := make(map[string]bool)
@@ -273,7 +273,7 @@ func TestWorkflowImportAndClone(t *testing.T) {
 			t.Fatal("trigger should default to merge_input=false")
 		}
 
-		if err := wm.ImportWorkflowJSON(mergeWorkflowJSON); err != nil {
+		if _, err := wm.ImportWorkflowJSON(mergeWorkflowJSON); err != nil {
 			t.Fatalf("import merge workflow: %v", err)
 		}
 		saved := savedWorkflows(t, db)
@@ -290,7 +290,7 @@ func TestWorkflowImportAndClone(t *testing.T) {
 			t.Fatal("merge workflow not found in db after import")
 		}
 
-		if err := wm.CloneWorkflowJSON(mergeWorkflowJSON); err != nil {
+		if _, err := wm.CloneWorkflowJSON(mergeWorkflowJSON); err != nil {
 			t.Fatalf("clone merge workflow: %v", err)
 		}
 		kept := false
@@ -310,7 +310,7 @@ func TestWorkflowImportAndClone(t *testing.T) {
 	})
 
 	t.Run("ingest applies merge_input server-side", func(t *testing.T) {
-		if err := wm.ImportWorkflowJSON(mergeWorkflowJSON); err != nil {
+		if _, err := wm.ImportWorkflowJSON(mergeWorkflowJSON); err != nil {
 			t.Fatalf("import merge workflow: %v", err)
 		}
 		triggerRes, _, err := wm.IngestResult(common.ResultData{

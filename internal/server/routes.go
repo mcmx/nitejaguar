@@ -137,6 +137,18 @@ func addApiRoutes(api huma.API, s *Server) {
 		Path:        "/clients",
 		Summary:     "Registered polling clients and connection status",
 	}, s.GetClients)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "import-workflow",
+		Method:      http.MethodPost,
+		Path:        "/workflows/import",
+		Summary:     "Import a workflow definition verbatim (upsert)",
+	}, s.ImportWorkflow)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "clone-workflow",
+		Method:      http.MethodPost,
+		Path:        "/workflows/clone",
+		Summary:     "Clone a workflow definition with fresh ids",
+	}, s.CloneWorkflow)
 }
 
 type RegisterClientInput struct {
@@ -364,6 +376,74 @@ func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostRes
 	out.Body.WorkflowID = stored.WorkflowID
 	out.Body.ExecutionID = stored.ExecutionID
 	out.Body.Nexts = nexts
+	return out, nil
+}
+
+// WorkflowUpsertBody mirrors workflow.Workflow for the import/clone
+// endpoints. It intentionally has a distinct Go type name from both
+// workflow.Workflow and ent.Workflow so Huma can register all schemas
+// without a name collision (see WorkflowDefinition above).
+type WorkflowUpsertBody struct {
+	ID       string                   `json:"id"`
+	Name     string                   `json:"name"`
+	TenantID string                   `json:"tenant_id,omitempty"`
+	Nodes    map[string]workflow.Node `json:"nodes"`
+}
+
+// UpsertWorkflowInput carries a full workflow definition for the
+// import/clone endpoints.
+type UpsertWorkflowInput struct {
+	Body WorkflowUpsertBody
+}
+
+type UpsertWorkflowOutput struct {
+	Body struct {
+		Ok         bool   `json:"ok"`
+		WorkflowID string `json:"workflow_id"`
+	}
+}
+
+// ImportWorkflow saves a workflow definition verbatim (upsert),
+// keeping the ids and name from the JSON.
+func (s *Server) ImportWorkflow(_ context.Context, input *UpsertWorkflowInput) (*UpsertWorkflowOutput, error) {
+	raw, err := json.Marshal(workflow.Workflow{
+		Id:       input.Body.ID,
+		Name:     input.Body.Name,
+		TenantID: input.Body.TenantID,
+		Nodes:    input.Body.Nodes,
+	})
+	if err != nil {
+		return nil, huma.Error400BadRequest("invalid workflow definition")
+	}
+	id, err := s.wm.ImportWorkflowJSON(string(raw))
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+	out := &UpsertWorkflowOutput{}
+	out.Body.Ok = true
+	out.Body.WorkflowID = id
+	return out, nil
+}
+
+// CloneWorkflow saves an independent copy of a workflow definition with
+// fresh ids, rewritten edges, and a "Clone of: " name prefix.
+func (s *Server) CloneWorkflow(_ context.Context, input *UpsertWorkflowInput) (*UpsertWorkflowOutput, error) {
+	raw, err := json.Marshal(workflow.Workflow{
+		Id:       input.Body.ID,
+		Name:     input.Body.Name,
+		TenantID: input.Body.TenantID,
+		Nodes:    input.Body.Nodes,
+	})
+	if err != nil {
+		return nil, huma.Error400BadRequest("invalid workflow definition")
+	}
+	id, err := s.wm.CloneWorkflowJSON(string(raw))
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+	out := &UpsertWorkflowOutput{}
+	out.Body.Ok = true
+	out.Body.WorkflowID = id
 	return out, nil
 }
 
@@ -603,7 +683,7 @@ func (s *Server) designerSaveWorkflow(c echo.Context) error {
 	if jsonDef == "" {
 		return c.String(http.StatusBadRequest, "workflow_json is required")
 	}
-	if err := s.wm.ImportWorkflowJSON(jsonDef); err != nil {
+	if _, err := s.wm.ImportWorkflowJSON(jsonDef); err != nil {
 		return c.String(http.StatusBadRequest, "Failed to import workflow: "+err.Error())
 	}
 	var wf workflow.Workflow
