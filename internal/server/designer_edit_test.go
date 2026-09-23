@@ -45,7 +45,7 @@ func TestDesignerEditShowsRequestedWorkflow(t *testing.T) {
 	// Seed the shared assignment workflow (same ID as the other tests, so
 	// the upsert is idempotent and nothing leaks between tests).
 	wm := workflow.NewWorkflowManager(false, db)
-	if err := wm.ImportWorkflowJSON(assignmentFlowWorkflow); err != nil {
+	if _, err := wm.ImportWorkflowJSON(assignmentFlowWorkflow); err != nil {
 		t.Fatalf("seed workflow: %v", err)
 	}
 	s := &Server{db: db, wm: wm}

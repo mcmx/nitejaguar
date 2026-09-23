@@ -82,7 +82,7 @@ func RunServer(args ServerArgs) {
 		if e != nil {
 			log.Println("error importing workflow 1", e)
 		} else {
-			e = wm.ImportWorkflowJSON(string(wImportJSON))
+			_, e = wm.ImportWorkflowJSON(string(wImportJSON))
 			if e != nil {
 				log.Println("error importing workflow 2", e)
 			}
@@ -94,7 +94,7 @@ func RunServer(args ServerArgs) {
 		if e != nil {
 			log.Println("error cloning workflow 1", e)
 		} else {
-			e = wm.CloneWorkflowJSON(string(wCloneJSON))
+			_, e = wm.CloneWorkflowJSON(string(wCloneJSON))
 			if e != nil {
 				log.Println("error cloning workflow 2", e)
 			}

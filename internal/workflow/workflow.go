@@ -38,8 +38,8 @@ type WorkflowManager interface {
 	ExportWorkflowJSONFile(string) error
 	SaveWorkflowToDB(string) error
 	GetTriggerManager() actions.TriggerManager
-	ImportWorkflowJSON(string) error
-	CloneWorkflowJSON(string) error
+	ImportWorkflowJSON(string) (string, error)
+	CloneWorkflowJSON(string) (string, error)
 	IngestResult(common.ResultData) (common.ResultData, []string, error)
 }
 
@@ -337,28 +337,31 @@ func (wm *workflowManager) GetTriggerManager() actions.TriggerManager {
 
 // ImportWorkflowJSON saves a workflow definition verbatim, keeping the ids
 // and name from the JSON. If a workflow with the same id already exists it is
-// overwritten (upsert).
-func (wm *workflowManager) ImportWorkflowJSON(jsonDef string) error {
+// overwritten (upsert). It returns the workflow id.
+func (wm *workflowManager) ImportWorkflowJSON(jsonDef string) (string, error) {
 	data := Workflow{}
 	err := json.Unmarshal([]byte(jsonDef), &data)
 	if err != nil {
 		log.Printf("Cannot unmarshal workflow: %s", err)
-		return err
+		return "", err
 	}
 	log.Printf("Importing workflow %s", data.Id)
-	return wm.saveWorkflow(data)
+	if err := wm.saveWorkflow(data); err != nil {
+		return "", err
+	}
+	return data.Id, nil
 }
 
 // CloneWorkflowJSON creates a new independent copy of a workflow definition:
 // it mints a fresh id for the workflow and for every node, rewrites the
 // conditions and dependencies edges accordingly, and prefixes the name. The
-// original definition is left untouched.
-func (wm *workflowManager) CloneWorkflowJSON(jsonDef string) error {
+// original definition is left untouched. It returns the new workflow id.
+func (wm *workflowManager) CloneWorkflowJSON(jsonDef string) (string, error) {
 	data := Workflow{}
 	err := json.Unmarshal([]byte(jsonDef), &data)
 	if err != nil {
 		log.Printf("Cannot unmarshal workflow: %s", err)
-		return err
+		return "", err
 	}
 
 	dId, _ := typeid.WithPrefix("workflow")
@@ -408,7 +411,10 @@ func (wm *workflowManager) CloneWorkflowJSON(jsonDef string) error {
 
 	jData, _ := json.MarshalIndent(data, "", "  ")
 	log.Printf("Cloned workflow %s\n%s\n", data.Id, string(jData))
-	return wm.saveWorkflow(data)
+	if err := wm.saveWorkflow(data); err != nil {
+		return "", err
+	}
+	return data.Id, nil
 }
 
 // IngestResult ingests a remotely reported ResultData (POST /api/results path).

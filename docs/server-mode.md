@@ -25,6 +25,9 @@ Server configuration relies on environment variables (loaded via `godotenv` from
 - **Web Dashboard**: Built with Go `templ`, HTMX, and Tailwind CSS (`cmd/web/`). Accessible at `http://localhost:8080`.
 - **OpenAPI Docs**: Built on Huma v2. Interactive Swagger / Redoc documentation available at `http://localhost:8080/docs`.
 - **WebSocket**: Real-time event streaming at `/websocket`.
+- **Workflow upsert API** (used by `client workflow import/clone`):
+  - `POST /api/workflows/import` — Save a workflow definition verbatim (upsert); returns `{ok, workflow_id}`.
+  - `POST /api/workflows/clone` — Save an independent copy with fresh IDs and a `"Clone of: "` name prefix; returns `{ok, workflow_id}`.
 - **Artifacts**:
   - Logs: `./log/server.log`
   - Results: `./results/`

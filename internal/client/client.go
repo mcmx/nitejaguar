@@ -144,6 +144,30 @@ func (a API) PostResult(ctx context.Context, r common.ResultData) ([]string, err
 	return out.Nexts, err
 }
 
+// UpsertWorkflowResponse is the server reply for the workflow
+// import/clone endpoints.
+type UpsertWorkflowResponse struct {
+	Ok         bool   `json:"ok"`
+	WorkflowID string `json:"workflow_id"`
+}
+
+// ImportWorkflow sends a workflow definition to the server, which saves it
+// verbatim (upsert; ids and name untouched).
+func (a API) ImportWorkflow(ctx context.Context, wf workflow.Workflow) (UpsertWorkflowResponse, error) {
+	var out UpsertWorkflowResponse
+	err := a.request(ctx, http.MethodPost, "/api/workflows/import", wf, &out)
+	return out, err
+}
+
+// CloneWorkflow sends a workflow definition to the server, which saves an
+// independent copy with fresh ids, rewritten edges, and a "Clone of: "
+// name prefix.
+func (a API) CloneWorkflow(ctx context.Context, wf workflow.Workflow) (UpsertWorkflowResponse, error) {
+	var out UpsertWorkflowResponse
+	err := a.request(ctx, http.MethodPost, "/api/workflows/clone", wf, &out)
+	return out, err
+}
+
 type runner struct {
 	api             API
 	log             *slog.Logger

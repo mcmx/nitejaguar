@@ -26,10 +26,11 @@ var clientCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(clientCmd)
-	clientCmd.Flags().StringVar(&clientServer, "server", envOr("NITEJAGUAR_SERVER", "http://127.0.0.1:8080"), "NiteJaguar server URL")
-	clientCmd.Flags().StringVar(&clientID, "client-id", os.Getenv("NITEJAGUAR_CLIENT_ID"), "existing registered client ID")
-	clientCmd.Flags().StringVar(&clientName, "name", envOr("NITEJAGUAR_CLIENT_NAME", "nitejaguar-client"), "client name used during registration")
-	clientCmd.Flags().StringVar(&clientToken, "token", os.Getenv("NITEJAGUAR_TOKEN"), "API token")
+	// Persistent so `client workflow import/clone` subcommands inherit them.
+	clientCmd.PersistentFlags().StringVar(&clientServer, "server", envOr("NITEJAGUAR_SERVER", "http://127.0.0.1:8080"), "NiteJaguar server URL")
+	clientCmd.PersistentFlags().StringVar(&clientID, "client-id", os.Getenv("NITEJAGUAR_CLIENT_ID"), "existing registered client ID")
+	clientCmd.PersistentFlags().StringVar(&clientName, "name", envOr("NITEJAGUAR_CLIENT_NAME", "nitejaguar-client"), "client name used during registration")
+	clientCmd.PersistentFlags().StringVar(&clientToken, "token", os.Getenv("NITEJAGUAR_TOKEN"), "API token")
 }
 
 func envOr(name, fallback string) string {

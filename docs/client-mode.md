@@ -24,3 +24,17 @@ Nitejaguar supports distributed execution where remote **Clients** (runners) reg
 3. **Local Execution**: Assigned nodes (such as file watches or file transformations) execute locally against the client's file system (e.g., expanding `~` paths locally).
 4. **Result Reporting**: Success or error results are transmitted back to the server and logged in `./results/`.
 5. **Resilience**: The client implements exponential backoff on connection/polling failures and stops cleanly on SIGINT / context cancellation.
+
+## Workflow Import / Clone via the Server
+
+The client command can import workflows through a running server's HTTP API
+(no direct database access; the server must be running):
+
+```bash
+./nitejaguar client workflow import <file.json> [--server http://127.0.0.1:8080]
+./nitejaguar client workflow clone <file.json> [--server http://127.0.0.1:8080]
+```
+
+- `workflow import` POSTs the JSON to `POST /api/workflows/import`; the server saves it verbatim (upsert; ids and name untouched) and returns the workflow id.
+- `workflow clone` POSTs the JSON to `POST /api/workflows/clone`; the server saves an independent copy with fresh `workflow_`/`trigger_`/`action_` ids, rewritten edges, and a `"Clone of: "` name prefix, returning the new workflow id.
+- `--server` (or `NITEJAGUAR_SERVER`) selects the server; `--token` (or `NITEJAGUAR_TOKEN`) is forwarded as the API token when the server requires auth.
