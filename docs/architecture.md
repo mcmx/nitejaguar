@@ -14,7 +14,8 @@ Nitejaguar follows a clean, modular Go architecture designed for standalone depl
 
 ## Data Flow
 
-1. **Workflows Definition**: Stored as JSON defining trigger and action nodes connected via dependencies (`conditions.nexts`).
+1. **Workflows Definition**: Stored as JSON defining trigger and action nodes connected via dependencies (`conditions.nexts`). Each workflow carries `default_client`/`default_client_tags`; each node may override with `client`/`client_tags`.
 2. **Execution**:
    - **Standalone / Server Mode**: Trigger nodes emit events; the workflow engine evaluates dependencies and triggers dependent action nodes.
-   - **Client/Runner Mode**: The server exposes tasks/assignments; remote clients poll the server, execute assigned tasks locally, and report results back.
+   - **Client/Runner Mode**: The server exposes task definitions plus persisted pending handoffs; remote clients poll the server, execute assigned definitions and owned pending nodes locally, and report results back.
+3. **Distributed dispatch**: `IngestResult` persists one pending assignment per downstream `next` (idempotent per workflow/execution/node) and marks the reporting node done. `POST /api/results` returns only caller-owned nexts; foreign nexts are picked up via the `pending` array in `GET /api/clients/{id}/assignments` with tenant isolation and workflow-default resolution.

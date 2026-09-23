@@ -7,6 +7,7 @@ import (
 
 	"github.com/mcmx/nitejaguar/ent/auditlog"
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
+	"github.com/mcmx/nitejaguar/ent/nodeassignment"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
 	"github.com/mcmx/nitejaguar/ent/schema"
 	"github.com/mcmx/nitejaguar/ent/workflow"
@@ -80,6 +81,50 @@ func init() {
 	enrollmenttokenDescID := enrollmenttokenFields[0].Descriptor()
 	// enrollmenttoken.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	enrollmenttoken.IDValidator = enrollmenttokenDescID.Validators[0].(func(string) error)
+	nodeassignmentFields := schema.NodeAssignment{}.Fields()
+	_ = nodeassignmentFields
+	// nodeassignmentDescTenantID is the schema descriptor for tenant_id field.
+	nodeassignmentDescTenantID := nodeassignmentFields[1].Descriptor()
+	// nodeassignment.DefaultTenantID holds the default value on creation for the tenant_id field.
+	nodeassignment.DefaultTenantID = nodeassignmentDescTenantID.Default.(string)
+	// nodeassignmentDescWorkflowID is the schema descriptor for workflow_id field.
+	nodeassignmentDescWorkflowID := nodeassignmentFields[2].Descriptor()
+	// nodeassignment.WorkflowIDValidator is a validator for the "workflow_id" field. It is called by the builders before save.
+	nodeassignment.WorkflowIDValidator = nodeassignmentDescWorkflowID.Validators[0].(func(string) error)
+	// nodeassignmentDescExecutionID is the schema descriptor for execution_id field.
+	nodeassignmentDescExecutionID := nodeassignmentFields[3].Descriptor()
+	// nodeassignment.ExecutionIDValidator is a validator for the "execution_id" field. It is called by the builders before save.
+	nodeassignment.ExecutionIDValidator = nodeassignmentDescExecutionID.Validators[0].(func(string) error)
+	// nodeassignmentDescNodeID is the schema descriptor for node_id field.
+	nodeassignmentDescNodeID := nodeassignmentFields[4].Descriptor()
+	// nodeassignment.NodeIDValidator is a validator for the "node_id" field. It is called by the builders before save.
+	nodeassignment.NodeIDValidator = nodeassignmentDescNodeID.Validators[0].(func(string) error)
+	// nodeassignmentDescPayloadJSON is the schema descriptor for payload_json field.
+	nodeassignmentDescPayloadJSON := nodeassignmentFields[5].Descriptor()
+	// nodeassignment.DefaultPayloadJSON holds the default value on creation for the payload_json field.
+	nodeassignment.DefaultPayloadJSON = nodeassignmentDescPayloadJSON.Default.(string)
+	// nodeassignmentDescParentActionID is the schema descriptor for parent_action_id field.
+	nodeassignmentDescParentActionID := nodeassignmentFields[6].Descriptor()
+	// nodeassignment.DefaultParentActionID holds the default value on creation for the parent_action_id field.
+	nodeassignment.DefaultParentActionID = nodeassignmentDescParentActionID.Default.(string)
+	// nodeassignmentDescStatus is the schema descriptor for status field.
+	nodeassignmentDescStatus := nodeassignmentFields[7].Descriptor()
+	// nodeassignment.DefaultStatus holds the default value on creation for the status field.
+	nodeassignment.DefaultStatus = nodeassignmentDescStatus.Default.(string)
+	// nodeassignmentDescCreatedAt is the schema descriptor for created_at field.
+	nodeassignmentDescCreatedAt := nodeassignmentFields[8].Descriptor()
+	// nodeassignment.DefaultCreatedAt holds the default value on creation for the created_at field.
+	nodeassignment.DefaultCreatedAt = nodeassignmentDescCreatedAt.Default.(func() time.Time)
+	// nodeassignmentDescUpdatedAt is the schema descriptor for updated_at field.
+	nodeassignmentDescUpdatedAt := nodeassignmentFields[9].Descriptor()
+	// nodeassignment.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	nodeassignment.DefaultUpdatedAt = nodeassignmentDescUpdatedAt.Default.(func() time.Time)
+	// nodeassignment.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	nodeassignment.UpdateDefaultUpdatedAt = nodeassignmentDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// nodeassignmentDescID is the schema descriptor for id field.
+	nodeassignmentDescID := nodeassignmentFields[0].Descriptor()
+	// nodeassignment.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	nodeassignment.IDValidator = nodeassignmentDescID.Validators[0].(func(string) error)
 	remoteclientFields := schema.RemoteClient{}.Fields()
 	_ = remoteclientFields
 	// remoteclientDescName is the schema descriptor for name field.

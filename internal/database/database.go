@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	dsql "database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/mcmx/nitejaguar/ent"
 	"github.com/mcmx/nitejaguar/ent/auditlog"
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
+	"github.com/mcmx/nitejaguar/ent/nodeassignment"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
 	"github.com/mcmx/nitejaguar/ent/workflow"
 	"go.jetify.com/typeid"
@@ -62,6 +64,12 @@ type Service interface {
 	// Audit trail for enrollment use and lifecycle ops.
 	LogAudit(action, tenantID, actor, target, detail string) error
 	ListAuditLogs(limit int) ([]*ent.AuditLog, error)
+
+	// Distributed dispatch (roadmap slice 2): pending node assignments per
+	// execution. Enqueue is idempotent per (workflow, execution, node).
+	EnqueueNodeAssignment(tenantID, workflowID, executionID, nodeID, parentActionID string, payload any) (*ent.NodeAssignment, error)
+	ListPendingAssignments() ([]*ent.NodeAssignment, error)
+	CompleteNodeAssignment(workflowID, executionID, nodeID string) error
 }
 
 type service struct {
@@ -502,6 +510,88 @@ func (s *service) ListAuditLogs(limit int) ([]*ent.AuditLog, error) {
 		return nil, fmt.Errorf("failed to list audit logs: %w", err)
 	}
 	return logs, nil
+}
+
+// EnqueueNodeAssignment persists a pending node execution. It is idempotent
+// per (workflow, execution, node): an existing pending or done row is
+// returned unchanged so re-ingested results cannot double-enqueue.
+func (s *service) EnqueueNodeAssignment(tenantID, workflowID, executionID, nodeID, parentActionID string, payload any) (*ent.NodeAssignment, error) {
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	if workflowID == "" || executionID == "" || nodeID == "" {
+		return nil, fmt.Errorf("workflow_id, execution_id and node_id are required")
+	}
+	ctx := context.Background()
+	existing, err := s.client.NodeAssignment.Query().
+		Where(
+			nodeassignment.WorkflowID(workflowID),
+			nodeassignment.ExecutionID(executionID),
+			nodeassignment.NodeID(nodeID),
+		).
+		Only(ctx)
+	if err == nil {
+		return existing, nil
+	}
+	if !ent.IsNotFound(err) {
+		return nil, fmt.Errorf("failed to check existing assignment: %w", err)
+	}
+	payloadJSON := ""
+	if payload != nil {
+		if raw, merr := json.Marshal(payload); merr == nil {
+			payloadJSON = string(raw)
+		}
+	}
+	aid, _ := typeid.WithPrefix("assign")
+	row, err := s.client.NodeAssignment.Create().
+		SetID(aid.String()).
+		SetTenantID(tenantID).
+		SetWorkflowID(workflowID).
+		SetExecutionID(executionID).
+		SetNodeID(nodeID).
+		SetPayloadJSON(payloadJSON).
+		SetParentActionID(parentActionID).
+		SetStatus("pending").
+		Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to enqueue node assignment: %w", err)
+	}
+	return row, nil
+}
+
+func (s *service) ListPendingAssignments() ([]*ent.NodeAssignment, error) {
+	rows, err := s.client.NodeAssignment.Query().
+		Where(nodeassignment.Status("pending")).
+		Order(ent.Asc(nodeassignment.FieldCreatedAt)).
+		All(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pending assignments: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *service) CompleteNodeAssignment(workflowID, executionID, nodeID string) error {
+	ctx := context.Background()
+	row, err := s.client.NodeAssignment.Query().
+		Where(
+			nodeassignment.WorkflowID(workflowID),
+			nodeassignment.ExecutionID(executionID),
+			nodeassignment.NodeID(nodeID),
+		).
+		Only(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to check assignment: %w", err)
+	}
+	if row.Status == "done" {
+		return nil
+	}
+	if err := s.client.NodeAssignment.UpdateOneID(row.ID).SetStatus("done").Exec(ctx); err != nil {
+		return fmt.Errorf("failed to complete assignment: %w", err)
+	}
+	return nil
 }
 
 // Ensure remoteclient import is used even when only enrollment code paths run.

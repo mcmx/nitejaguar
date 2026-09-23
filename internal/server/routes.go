@@ -218,10 +218,24 @@ type HeartbeatOutput struct {
 // It intentionally has a distinct name from ent.Workflow so Huma can register
 // both schemas without a name collision.
 type WorkflowDefinition struct {
-	ID       string                   `json:"id"`
-	Name     string                   `json:"name"`
-	Revision string                   `json:"revision"`
-	Nodes    map[string]workflow.Node `json:"nodes"`
+	ID                string                   `json:"id"`
+	Name              string                   `json:"name"`
+	Revision          string                   `json:"revision"`
+	DefaultClient     string                   `json:"default_client,omitempty"`
+	DefaultClientTags []string                 `json:"default_client_tags,omitempty"`
+	Nodes             map[string]workflow.Node `json:"nodes"`
+}
+
+// PendingAssignment is a server-persisted downstream node ready for its
+// owner to execute. Payload carries the parent result as $input.
+type PendingAssignment struct {
+	ID             string `json:"id"`
+	WorkflowID     string `json:"workflow_id"`
+	ExecutionID    string `json:"execution_id"`
+	NodeID         string `json:"node_id"`
+	ParentActionID string `json:"parent_action_id,omitempty"`
+	Payload        any    `json:"payload,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type AssignmentsInput struct {
@@ -234,6 +248,7 @@ type AssignmentsOutput struct {
 	Body struct {
 		ClientID  string               `json:"client_id"`
 		Workflows []WorkflowDefinition `json:"workflows"`
+		Pending   []PendingAssignment  `json:"pending,omitempty"`
 	}
 }
 
@@ -331,6 +346,8 @@ func (s *Server) GetAssignments(_ context.Context, input *AssignmentsInput) (*As
 		return nil, huma.Error500InternalServerError("failed to get workflows")
 	}
 	workflows := []WorkflowDefinition{}
+	// Keep full definitions for pending filtering below.
+	defsByID := make(map[string]workflow.Workflow, len(rows))
 	for _, row := range rows {
 		// Tenant isolation check
 		if row.TenantID != "" && row.TenantID != "default" && client.TenantID != "" && client.TenantID != "default" && row.TenantID != client.TenantID {
@@ -340,9 +357,13 @@ func (s *Server) GetAssignments(_ context.Context, input *AssignmentsInput) (*As
 		if err := json.Unmarshal([]byte(row.JSONDefinition), &def); err != nil {
 			continue
 		}
+		defsByID[def.Id] = def
+		if def.Id == "" {
+			defsByID[row.ID] = def
+		}
 		filtered := make(map[string]workflow.Node, len(def.Nodes))
 		for id, n := range def.Nodes {
-			if n.AssignedTo(client.ID, client.Tags) {
+			if def.NodeAssignedTo(n, client.ID, client.Tags) {
 				filtered[id] = n
 			}
 		}
@@ -351,17 +372,57 @@ func (s *Server) GetAssignments(_ context.Context, input *AssignmentsInput) (*As
 		}
 		def.Nodes = filtered
 		workflows = append(workflows, WorkflowDefinition{
-			ID:       def.Id,
-			Name:     def.Name,
-			Revision: row.Revision,
-			Nodes:    def.Nodes,
+			ID:                def.Id,
+			Name:              def.Name,
+			Revision:          row.Revision,
+			DefaultClient:     def.DefaultClient,
+			DefaultClientTags: def.DefaultClientTags,
+			Nodes:             def.Nodes,
 		})
+	}
+	// Pending cross-client handoffs: only the owner's nodes, same tenant.
+	pending := []PendingAssignment{}
+	if assignRows, err := s.db.ListPendingAssignments(); err == nil {
+		for _, a := range assignRows {
+			if a.TenantID != "" && a.TenantID != "default" && client.TenantID != "" && client.TenantID != "default" && a.TenantID != client.TenantID {
+				continue
+			}
+			def, ok := defsByID[a.WorkflowID]
+			if !ok {
+				// Workflow disabled/unknown: skip stale assignment.
+				continue
+			}
+			n, ok := def.Nodes[a.NodeID]
+			if !ok {
+				// Node removed from the definition: complete it so it
+				// does not linger forever.
+				_ = s.db.CompleteNodeAssignment(a.WorkflowID, a.ExecutionID, a.NodeID)
+				continue
+			}
+			if !def.NodeAssignedTo(n, client.ID, client.Tags) {
+				continue
+			}
+			var payload any
+			if a.PayloadJSON != "" {
+				_ = json.Unmarshal([]byte(a.PayloadJSON), &payload)
+			}
+			pending = append(pending, PendingAssignment{
+				ID:             a.ID,
+				WorkflowID:     a.WorkflowID,
+				ExecutionID:    a.ExecutionID,
+				NodeID:         a.NodeID,
+				ParentActionID: a.ParentActionID,
+				Payload:        payload,
+				CreatedAt:      a.CreatedAt,
+			})
+		}
 	}
 	return &AssignmentsOutput{
 		Body: struct {
 			ClientID  string               `json:"client_id"`
 			Workflows []WorkflowDefinition `json:"workflows"`
-		}{ClientID: client.ID, Workflows: workflows},
+			Pending   []PendingAssignment  `json:"pending,omitempty"`
+		}{ClientID: client.ID, Workflows: workflows, Pending: pending},
 	}, nil
 }
 
@@ -621,12 +682,66 @@ func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostRes
 	if err != nil {
 		return nil, huma.Error404NotFound(err.Error())
 	}
-	s.results[result.ResultID] = postResultRecord{stored.WorkflowID, stored.ExecutionID, append([]string(nil), nexts...)}
+	// Cross-client handoff fix: route foreign nexts via persisted
+	// assignments instead of direct local execution. Return only the
+	// nexts owned by the reporting client; the rest are picked up via
+	// assignment polling. Local server execution (best-effort in
+	// IngestResult) is unchanged.
+	owned := s.filterNextsForExecutor(stored.WorkflowID, nexts, executorID)
+	_ = s.db.LogAudit("assignment.complete", stored.TenantID, executorID, stored.ActionID, "execution="+stored.ExecutionID+" workflow="+stored.WorkflowID)
+	s.results[result.ResultID] = postResultRecord{stored.WorkflowID, stored.ExecutionID, append([]string(nil), owned...)}
 	out := &PostResultOutput{}
 	out.Body.WorkflowID = stored.WorkflowID
 	out.Body.ExecutionID = stored.ExecutionID
-	out.Body.Nexts = nexts
+	out.Body.Nexts = owned
 	return out, nil
+}
+
+// filterNextsForExecutor keeps only the downstream nodes assigned to the
+// reporting client (workflow defaults applied). Unknown workflows or nodes
+// are kept so older definitions without targeting still execute locally.
+func (s *Server) filterNextsForExecutor(workflowID string, nexts []string, executorID string) []string {
+	if len(nexts) == 0 {
+		return []string{}
+	}
+	var tags []string
+	if c, ok := s.registry().getClient(executorID); ok {
+		tags = c.Tags
+	}
+	def, err := s.loadWorkflowDef(workflowID)
+	if err != nil || def == nil {
+		return nexts
+	}
+	owned := make([]string, 0, len(nexts))
+	for _, id := range nexts {
+		n, ok := def.Nodes[id]
+		if !ok {
+			owned = append(owned, id)
+			continue
+		}
+		if def.NodeAssignedTo(n, executorID, tags) {
+			owned = append(owned, id)
+		}
+	}
+	if owned == nil {
+		owned = []string{}
+	}
+	return owned
+}
+
+func (s *Server) loadWorkflowDef(workflowID string) (*workflow.Workflow, error) {
+	if workflowID == "" || s.db == nil {
+		return nil, fmt.Errorf("workflow not found")
+	}
+	row, err := s.db.GetWorkflow(workflowID)
+	if err != nil {
+		return nil, err
+	}
+	var def workflow.Workflow
+	if err := json.Unmarshal([]byte(row.JSONDefinition), &def); err != nil {
+		return nil, err
+	}
+	return &def, nil
 }
 
 // WorkflowUpsertBody mirrors workflow.Workflow for the import/clone
@@ -634,10 +749,12 @@ func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostRes
 // workflow.Workflow and ent.Workflow so Huma can register all schemas
 // without a name collision (see WorkflowDefinition above).
 type WorkflowUpsertBody struct {
-	ID       string                   `json:"id"`
-	Name     string                   `json:"name"`
-	TenantID string                   `json:"tenant_id,omitempty"`
-	Nodes    map[string]workflow.Node `json:"nodes"`
+	ID                string                   `json:"id"`
+	Name              string                   `json:"name"`
+	TenantID          string                   `json:"tenant_id,omitempty"`
+	DefaultClient     string                   `json:"default_client,omitempty"`
+	DefaultClientTags []string                 `json:"default_client_tags,omitempty"`
+	Nodes             map[string]workflow.Node `json:"nodes"`
 }
 
 // UpsertWorkflowInput carries a full workflow definition for the
@@ -657,10 +774,12 @@ type UpsertWorkflowOutput struct {
 // keeping the ids and name from the JSON.
 func (s *Server) ImportWorkflow(_ context.Context, input *UpsertWorkflowInput) (*UpsertWorkflowOutput, error) {
 	raw, err := json.Marshal(workflow.Workflow{
-		Id:       input.Body.ID,
-		Name:     input.Body.Name,
-		TenantID: input.Body.TenantID,
-		Nodes:    input.Body.Nodes,
+		Id:                input.Body.ID,
+		Name:              input.Body.Name,
+		TenantID:          input.Body.TenantID,
+		DefaultClient:     input.Body.DefaultClient,
+		DefaultClientTags: input.Body.DefaultClientTags,
+		Nodes:             input.Body.Nodes,
 	})
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid workflow definition")
@@ -679,10 +798,12 @@ func (s *Server) ImportWorkflow(_ context.Context, input *UpsertWorkflowInput) (
 // fresh ids, rewritten edges, and a "Clone of: " name prefix.
 func (s *Server) CloneWorkflow(_ context.Context, input *UpsertWorkflowInput) (*UpsertWorkflowOutput, error) {
 	raw, err := json.Marshal(workflow.Workflow{
-		Id:       input.Body.ID,
-		Name:     input.Body.Name,
-		TenantID: input.Body.TenantID,
-		Nodes:    input.Body.Nodes,
+		Id:                input.Body.ID,
+		Name:              input.Body.Name,
+		TenantID:          input.Body.TenantID,
+		DefaultClient:     input.Body.DefaultClient,
+		DefaultClientTags: input.Body.DefaultClientTags,
+		Nodes:             input.Body.Nodes,
 	})
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid workflow definition")

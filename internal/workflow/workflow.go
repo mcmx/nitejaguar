@@ -17,10 +17,12 @@ import (
 )
 
 type Workflow struct {
-	Id       string          `json:"id"`
-	Name     string          `json:"name"`
-	TenantID string          `json:"tenant_id,omitempty"`
-	Nodes    map[string]Node `json:"nodes"`
+	Id               string          `json:"id"`
+	Name             string          `json:"name"`
+	TenantID         string          `json:"tenant_id,omitempty"`
+	DefaultClient    string          `json:"default_client,omitempty"`
+	DefaultClientTags []string       `json:"default_client_tags,omitempty"`
+	Nodes            map[string]Node `json:"nodes"`
 }
 
 type WorkflowInt struct {
@@ -195,6 +197,25 @@ func (n *Node) AssignedTo(clientID string, tags []string) bool {
 		}
 	}
 	return false
+}
+
+// EffectiveTarget resolves the targeting for a node: an explicit per-node
+// Client/ClientTags override wins; otherwise the workflow-level
+// DefaultClient/DefaultClientTags apply; empty means broadcast.
+func (w *Workflow) EffectiveTarget(n Node) (string, []string) {
+	if n.Client != "" || len(n.ClientTags) > 0 {
+		return n.Client, n.ClientTags
+	}
+	return w.DefaultClient, w.DefaultClientTags
+}
+
+// NodeAssignedTo reports whether a node is assigned to the given client
+// after applying workflow-level defaults. Nodes without any targeting
+// (neither per-node nor workflow default) are broadcast to every client.
+func (w *Workflow) NodeAssignedTo(n Node, clientID string, tags []string) bool {
+	c, t := w.EffectiveTarget(n)
+	tmp := Node{Client: c, ClientTags: t}
+	return tmp.AssignedTo(clientID, tags)
 }
 
 // args how this node was called
@@ -421,6 +442,11 @@ func (wm *workflowManager) CloneWorkflowJSON(jsonDef string) (string, error) {
 // It mirrors what the Run loop does for local results: resolve the workflow,
 // mint an ExecutionID for trigger roots, persist via saveResult, compute the
 // next nodes and kick off downstream actions. It returns the next node IDs.
+//
+// Distributed dispatch: every computed next is persisted as a pending node
+// assignment (idempotent per workflow/execution/node) so foreign owners can
+// pick it up via assignment polling. The reporting node's own pending
+// assignment, if any, is marked done. Local ExecuteAction stays best-effort.
 func (wm *workflowManager) IngestResult(result common.ResultData) (common.ResultData, []string, error) {
 	if result.ActionID == "" {
 		return result, nil, errors.New("action_id is required")
@@ -444,11 +470,13 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 	}
 	var node Node
 	var nodeFound bool
+	var defTenantID string
 	if workflowID != "" {
 		if wf, ok := wm.Workflows[workflowID]; ok {
 			if n, ok := wf.Definition.Nodes[result.ActionID]; ok {
 				node = n
 				nodeFound = true
+				defTenantID = wf.Definition.TenantID
 			}
 		}
 	}
@@ -458,6 +486,7 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 				node = n
 				nodeFound = true
 				workflowID = id
+				defTenantID = wf.Definition.TenantID
 				break
 			}
 		}
@@ -476,6 +505,10 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 					workflowID = def.Id
 					if workflowID == "" {
 						workflowID = row.ID
+					}
+					defTenantID = def.TenantID
+					if defTenantID == "" {
+						defTenantID = row.TenantID
 					}
 					break
 				}
@@ -503,6 +536,23 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 	wm.rememberResult(result)
 
 	nexts := node.GetNextNodes([]any{}, result)
+	// Persist dispatch state: the reporting node is done, every downstream
+	// next becomes a pending assignment for its owner to poll. Enqueue is
+	// idempotent, so re-ingested (replayed) results are safe.
+	if wm.db != nil && result.ExecutionID != "" {
+		tenantID := result.TenantID
+		if tenantID == "" {
+			tenantID = defTenantID
+		}
+		_ = wm.db.CompleteNodeAssignment(workflowID, result.ExecutionID, result.ActionID)
+		for _, next := range nexts {
+			if _, err := wm.db.EnqueueNodeAssignment(tenantID, workflowID, result.ExecutionID, next, result.ActionID, result.Payload); err != nil {
+				log.Printf("IngestResult: failed to enqueue assignment for %s: %s", next, err)
+				continue
+			}
+			_ = wm.db.LogAudit("assignment.enqueue", tenantID, result.ExecutorID, next, "execution="+result.ExecutionID+" workflow="+workflowID)
+		}
+	}
 	for _, next := range nexts {
 		if !wm.enableActions {
 			continue

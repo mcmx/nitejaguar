@@ -60,6 +60,8 @@ type DesignerInit struct {
     WorkflowID string `json:"workflowId"`
     Name string `json:"name"`
     TenantID string `json:"tenantId"`
+    DefaultClient string `json:"defaultClient"`
+    DefaultClientTags string `json:"defaultClientTags"`
     Nodes []DesignerNodeInit `json:"nodes"`
 }
 
@@ -76,6 +78,8 @@ func DesignerInitFromWorkflow(def workflow.Workflow) DesignerInit {
         WorkflowID: def.Id,
         Name: def.Name,
         TenantID: def.TenantID,
+        DefaultClient: def.DefaultClient,
+        DefaultClientTags: strings.Join(def.DefaultClientTags, ", "),
         Nodes: []DesignerNodeInit{},
     }
     if init.TenantID == "" {
@@ -183,6 +187,7 @@ templ WorkflowDetailPage(data *WorkflowDetailData) {
             } else {
                 @pageTitle(data.Definition.Name)
                 <div class="mb-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground"><span class="break-all font-mono">{ data.Definition.Id }</span><span class="rounded-full border border-border px-2 py-1">{ fmt.Sprintf("%d nodes", len(data.Definition.Nodes)) }</span><a href={ templ.URL("/designer/" + data.Workflow.ID) } class="text-red-500 hover:underline">Edit in Designer</a><a href="/results" class="text-red-500 hover:underline">View executions</a></div>
+                <div class="mb-6 rounded-lg border border-border p-4 text-sm text-muted-foreground"><strong class="text-foreground">Default targeting:</strong> client: { data.Definition.DefaultClient } tags: { fmt.Sprint(data.Definition.DefaultClientTags) } <span class="ml-2">Per-node client/client_tags override the default; empty means broadcast.</span></div>
                 <form method="post" action={ templ.URL("/workflows/" + data.Workflow.ID + "/enabled") } class="mb-6"><input type="hidden" name="enabled" value={ fmt.Sprintf("%t", !data.Workflow.Enabled) }/>if data.Workflow.Enabled {
                         <button class="rounded border border-border px-3 py-2 text-sm hover:border-red-500" type="submit">Disable workflow</button>
                     } else {
@@ -316,6 +321,8 @@ templ DesignerPage(data *DesignerPageData) {
                 workflowId: (initial && initial.workflowId) || ('workflow_' + Math.random().toString(36).substring(2, 9)),
                 name: (initial && initial.name) || 'New Workflow',
                 tenantId: (initial && initial.tenantId) || 'default',
+                defaultClient: (initial && initial.defaultClient) || '',
+                defaultClientTags: (initial && initial.defaultClientTags) || '',
                 nodes: hasInitialNodes ? initial.nodes : defaultNodes(),
                 addNode() {
                     this.nodes.push({
@@ -340,6 +347,8 @@ templ DesignerPage(data *DesignerPageData) {
                         id: this.workflowId,
                         name: this.name,
                         tenant_id: this.tenantId,
+                        default_client: this.defaultClient || '',
+                        default_client_tags: splitList(this.defaultClientTags),
                         nodes: {}
                     };
                     this.nodes.forEach(n => {
@@ -410,6 +419,14 @@ templ DesignerPage(data *DesignerPageData) {
                     <div>
                         <label class="block text-xs font-medium mb-1">Tenant ID</label>
                         <input type="text" x-model="tenantId" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1">Default Client ID (optional)</label>
+                        <input type="text" x-model="defaultClient" placeholder="Leave empty to broadcast" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-medium mb-1">Default Client Tags (comma separated)</label>
+                        <input type="text" x-model="defaultClientTags" placeholder="gpu, tenant-a" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
                     </div>
                 </div>
 
