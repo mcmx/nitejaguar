@@ -14,6 +14,8 @@ type Tx struct {
 	config
 	// AuditLog is the client for interacting with the AuditLog builders.
 	AuditLog *AuditLogClient
+	// Credential is the client for interacting with the Credential builders.
+	Credential *CredentialClient
 	// EnrollmentToken is the client for interacting with the EnrollmentToken builders.
 	EnrollmentToken *EnrollmentTokenClient
 	// NodeAssignment is the client for interacting with the NodeAssignment builders.
@@ -154,6 +156,7 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.AuditLog = NewAuditLogClient(tx.config)
+	tx.Credential = NewCredentialClient(tx.config)
 	tx.EnrollmentToken = NewEnrollmentTokenClient(tx.config)
 	tx.NodeAssignment = NewNodeAssignmentClient(tx.config)
 	tx.RemoteClient = NewRemoteClientClient(tx.config)

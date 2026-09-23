@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mcmx/nitejaguar/ent/auditlog"
+	"github.com/mcmx/nitejaguar/ent/credential"
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
 	"github.com/mcmx/nitejaguar/ent/nodeassignment"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
@@ -47,6 +48,50 @@ func init() {
 	auditlogDescID := auditlogFields[0].Descriptor()
 	// auditlog.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	auditlog.IDValidator = auditlogDescID.Validators[0].(func(string) error)
+	credentialFields := schema.Credential{}.Fields()
+	_ = credentialFields
+	// credentialDescTenantID is the schema descriptor for tenant_id field.
+	credentialDescTenantID := credentialFields[1].Descriptor()
+	// credential.DefaultTenantID holds the default value on creation for the tenant_id field.
+	credential.DefaultTenantID = credentialDescTenantID.Default.(string)
+	// credentialDescName is the schema descriptor for name field.
+	credentialDescName := credentialFields[2].Descriptor()
+	// credential.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	credential.NameValidator = credentialDescName.Validators[0].(func(string) error)
+	// credentialDescType is the schema descriptor for type field.
+	credentialDescType := credentialFields[3].Descriptor()
+	// credential.DefaultType holds the default value on creation for the type field.
+	credential.DefaultType = credentialDescType.Default.(string)
+	// credentialDescScope is the schema descriptor for scope field.
+	credentialDescScope := credentialFields[4].Descriptor()
+	// credential.DefaultScope holds the default value on creation for the scope field.
+	credential.DefaultScope = credentialDescScope.Default.(string)
+	// credentialDescOwnerID is the schema descriptor for owner_id field.
+	credentialDescOwnerID := credentialFields[5].Descriptor()
+	// credential.DefaultOwnerID holds the default value on creation for the owner_id field.
+	credential.DefaultOwnerID = credentialDescOwnerID.Default.(string)
+	// credentialDescSecretEncrypted is the schema descriptor for secret_encrypted field.
+	credentialDescSecretEncrypted := credentialFields[6].Descriptor()
+	// credential.SecretEncryptedValidator is a validator for the "secret_encrypted" field. It is called by the builders before save.
+	credential.SecretEncryptedValidator = credentialDescSecretEncrypted.Validators[0].(func(string) error)
+	// credentialDescDescription is the schema descriptor for description field.
+	credentialDescDescription := credentialFields[7].Descriptor()
+	// credential.DefaultDescription holds the default value on creation for the description field.
+	credential.DefaultDescription = credentialDescDescription.Default.(string)
+	// credentialDescCreatedAt is the schema descriptor for created_at field.
+	credentialDescCreatedAt := credentialFields[8].Descriptor()
+	// credential.DefaultCreatedAt holds the default value on creation for the created_at field.
+	credential.DefaultCreatedAt = credentialDescCreatedAt.Default.(func() time.Time)
+	// credentialDescUpdatedAt is the schema descriptor for updated_at field.
+	credentialDescUpdatedAt := credentialFields[9].Descriptor()
+	// credential.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	credential.DefaultUpdatedAt = credentialDescUpdatedAt.Default.(func() time.Time)
+	// credential.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	credential.UpdateDefaultUpdatedAt = credentialDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// credentialDescID is the schema descriptor for id field.
+	credentialDescID := credentialFields[0].Descriptor()
+	// credential.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	credential.IDValidator = credentialDescID.Validators[0].(func(string) error)
 	enrollmenttokenFields := schema.EnrollmentToken{}.Fields()
 	_ = enrollmenttokenFields
 	// enrollmenttokenDescTenantID is the schema descriptor for tenant_id field.

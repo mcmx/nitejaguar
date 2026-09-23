@@ -51,6 +51,7 @@ type DesignerNodeInit struct {
     Arguments string `json:"arguments"`
     Client string `json:"client"`
     ClientTags string `json:"client_tags"`
+    CredentialRef string `json:"credential_ref"`
     Dependencies string `json:"dependencies"`
     Nexts string `json:"nexts"`
     MergeInput bool `json:"merge_input"`
@@ -107,6 +108,7 @@ func DesignerInitFromWorkflow(def workflow.Workflow) DesignerInit {
             Arguments: args,
             Client: n.Client,
             ClientTags: strings.Join(n.ClientTags, ", "),
+            CredentialRef: n.CredentialRef,
             Dependencies: strings.Join(n.Dependencies, ", "),
             Nexts: strings.Join(n.GetAllNextNodes(), ", "),
             MergeInput: n.MergeInput,
@@ -199,7 +201,7 @@ templ WorkflowDetailPage(data *WorkflowDetailData) {
                             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p class="text-xs uppercase tracking-wide text-red-500">{ node.ActionType }</p><h2 class="font-semibold">{ node.Name }</h2><p class="mt-1 break-all font-mono text-xs text-muted-foreground">{ id }</p></div><div class="flex items-center gap-2"><span class="rounded bg-muted px-2 py-1 font-mono text-xs">{ node.ActionName }</span>if node.MergeInput {
                                     <span class="rounded bg-muted px-2 py-1 font-mono text-xs" title="Merges $input into $result ($result wins)">merge_input</span>
                                 }</div></div>
-                            <div class="mt-4 grid gap-4 text-sm md:grid-cols-2"><div><h3 class="mb-1 font-medium">Arguments</h3><pre class="overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(node.Arguments) }</pre></div><div><h3 class="mb-1 font-medium">Conditions / next nodes</h3><pre class="overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(node.Conditions) }</pre></div><div><h3 class="mb-1 font-medium">Dependencies</h3><p class="break-all rounded bg-muted p-3 font-mono text-xs">{ fmt.Sprint(node.Dependencies) }</p></div><div><h3 class="mb-1 font-medium">Client targeting</h3><p class="break-all rounded bg-muted p-3 text-xs">client: { node.Client }<br/>tags: { fmt.Sprint(node.ClientTags) }</p></div></div>
+                            <div class="mt-4 grid gap-4 text-sm md:grid-cols-2"><div><h3 class="mb-1 font-medium">Arguments</h3><pre class="overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(node.Arguments) }</pre></div><div><h3 class="mb-1 font-medium">Conditions / next nodes</h3><pre class="overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(node.Conditions) }</pre></div><div><h3 class="mb-1 font-medium">Dependencies</h3><p class="break-all rounded bg-muted p-3 font-mono text-xs">{ fmt.Sprint(node.Dependencies) }</p></div><div><h3 class="mb-1 font-medium">Client targeting</h3><p class="break-all rounded bg-muted p-3 text-xs">client: { node.Client }<br/>tags: { fmt.Sprint(node.ClientTags) }<br/>credential: { node.CredentialRef }</p></div></div>
                         </article>
                     }
                 </div>
@@ -287,6 +289,7 @@ templ DesignerPage(data *DesignerPageData) {
                     arguments: '{\n  "path": "/tmp",\n  "event_type": "create"\n}',
                     client: '',
                     client_tags: 'gpu',
+                    credential_ref: '',
                     dependencies: '',
                     nexts: 'action_1',
                     merge_input: false
@@ -300,6 +303,7 @@ templ DesignerPage(data *DesignerPageData) {
                     arguments: '{\n  "action": "create",\n  "file": "/tmp/out.txt"\n}',
                     client: '',
                     client_tags: 'gpu',
+                    credential_ref: '',
                     dependencies: 'trigger_1',
                     nexts: '',
                     merge_input: false
@@ -334,6 +338,7 @@ templ DesignerPage(data *DesignerPageData) {
                         arguments: '{\n  "action": "create"\n}',
                         client: '',
                         client_tags: '',
+                        credential_ref: '',
                         dependencies: '',
                         nexts: '',
                         merge_input: false
@@ -373,6 +378,7 @@ templ DesignerPage(data *DesignerPageData) {
                             dependencies: splitList(n.dependencies),
                             client: n.client || '',
                             client_tags: splitList(n.client_tags),
+                            credential_ref: (n.credential_ref || '').trim(),
                             merge_input: !!n.merge_input
                         };
                     });
@@ -484,6 +490,10 @@ templ DesignerPage(data *DesignerPageData) {
                                 <div>
                                     <label class="block text-xs font-medium mb-1">Client Tags (comma separated)</label>
                                     <input type="text" x-model="node.client_tags" placeholder="gpu, tenant-a" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1">Credential ref (optional)</label>
+                                    <input type="text" x-model="node.credential_ref" placeholder="my-api-token (name or credential_ id)" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
                                 </div>
                             </div>
                             <div x-show="node.action_type === 'action'">

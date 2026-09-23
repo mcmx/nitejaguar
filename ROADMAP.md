@@ -61,17 +61,27 @@ Token issuance is not yet role-gated — that arrives with the RBAC slice.
 - Full audit trail (who did what, when): logins, token ops, client
   revoke, workflow import/clone/enable, credential fetch.
 
-## 4. Credentials model
+## 4. Credentials model — DONE
 
-- New `Credential` entity; nodes (actions AND triggers) hold a
-  **reference** (`credential_ref`), never the secret. Secrets never live
-  in workflow JSON, logs, or results.
-- Scopes: tenant, group, user. Resolution: user > group > tenant.
-- Credential types are declared by actions/providers
-  (e.g. AWS keys, S3, generic username/password, token, SSH key).
-- Secrets encrypted at rest; fetched just-in-time by the executing
-  client over an authenticated endpoint; short TTL; every fetch audited.
-- Designer support: pick a credential reference per node, no secret entry.
+Status: implemented. New `Credential` entity (`credential_` ids);
+nodes (actions AND triggers) hold a `credential_ref` (id or name),
+never the secret — workflow JSON, logs, results, and assignment
+payloads carry only the reference; import/clone preserve it and the
+designer edits it as a name-or-id field with no secret entry.
+Scopes: tenant, group, user; name resolution is most-specific-wins
+(user > group > tenant), id references resolve directly, strictly
+tenant-isolated. Credential types are declared by actions/providers
+(`generic`, `token`, `username_password`, `aws`, `s3`, `ssh_key`;
+built-ins declare none). Secrets are AES-256-GCM encrypted at rest
+(`CREDENTIALS_KEY`; ephemeral process-local key with a warning when
+unset) and fetched just-in-time by the executing client over an
+authenticated endpoint (`GET /api/credentials/{ref}/fetch`, client-token
+auth, 60s memory-only TTL); the server never ships secrets inside
+assignments. Management API (`POST`/`GET`/`DELETE /api/credentials`)
+exposes metadata only. Every create/delete/fetch is audit-logged
+(`credential.create`/`credential.delete`/`credential.fetch`).
+Credential issuance is not yet role-gated — that arrives with the RBAC
+slice.
 
 ## 5. Providers (= Ansible collections) & actions
 
@@ -101,7 +111,7 @@ Token issuance is not yet role-gated — that arrives with the RBAC slice.
 
 1. Tenant enrollment & client lifecycle ✅ done
 2. Client targeting + cross-client handoff fix ✅ done
-3. Credentials model (reference + JIT fetch + resolution)
+3. Credentials model (reference + JIT fetch + resolution) ✅ done
 4. RBAC + web auth + management pages + audit
 5. Provider actions (AWS EC2, generic S3, …)
 6. Client-to-client transfer (P2P + relay fallback)

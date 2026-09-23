@@ -181,6 +181,36 @@ func addApiRoutes(api huma.API, s *Server) {
 		Path:        "/workflows/clone",
 		Summary:     "Clone a workflow definition with fresh ids",
 	}, s.CloneWorkflow)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "create-credential",
+		Method:      http.MethodPost,
+		Path:        "/credentials",
+		Summary:     "Store a credential secret encrypted at rest (RBAC-gated in a later slice)",
+	}, s.CreateCredential)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "list-credentials",
+		Method:      http.MethodGet,
+		Path:        "/credentials",
+		Summary:     "List credential metadata (secrets never exposed)",
+	}, s.ListCredentials)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "get-credential",
+		Method:      http.MethodGet,
+		Path:        "/credentials/{id}",
+		Summary:     "Credential metadata by id (secrets never exposed)",
+	}, s.GetCredential)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "delete-credential",
+		Method:      http.MethodDelete,
+		Path:        "/credentials/{id}",
+		Summary:     "Delete a stored credential (RBAC-gated in a later slice)",
+	}, s.DeleteCredential)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "fetch-credential",
+		Method:      http.MethodGet,
+		Path:        "/credentials/{ref}/fetch",
+		Summary:     "Just-in-time secret fetch for the executing client (audited, short TTL)",
+	}, s.FetchCredential)
 }
 
 type RegisterClientInput struct {

@@ -15,6 +15,7 @@ import (
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"github.com/mcmx/nitejaguar/ent/auditlog"
+	"github.com/mcmx/nitejaguar/ent/credential"
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
 	"github.com/mcmx/nitejaguar/ent/nodeassignment"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
@@ -28,6 +29,8 @@ type Client struct {
 	Schema *migrate.Schema
 	// AuditLog is the client for interacting with the AuditLog builders.
 	AuditLog *AuditLogClient
+	// Credential is the client for interacting with the Credential builders.
+	Credential *CredentialClient
 	// EnrollmentToken is the client for interacting with the EnrollmentToken builders.
 	EnrollmentToken *EnrollmentTokenClient
 	// NodeAssignment is the client for interacting with the NodeAssignment builders.
@@ -48,6 +51,7 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.AuditLog = NewAuditLogClient(c.config)
+	c.Credential = NewCredentialClient(c.config)
 	c.EnrollmentToken = NewEnrollmentTokenClient(c.config)
 	c.NodeAssignment = NewNodeAssignmentClient(c.config)
 	c.RemoteClient = NewRemoteClientClient(c.config)
@@ -145,6 +149,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ctx:             ctx,
 		config:          cfg,
 		AuditLog:        NewAuditLogClient(cfg),
+		Credential:      NewCredentialClient(cfg),
 		EnrollmentToken: NewEnrollmentTokenClient(cfg),
 		NodeAssignment:  NewNodeAssignmentClient(cfg),
 		RemoteClient:    NewRemoteClientClient(cfg),
@@ -169,6 +174,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ctx:             ctx,
 		config:          cfg,
 		AuditLog:        NewAuditLogClient(cfg),
+		Credential:      NewCredentialClient(cfg),
 		EnrollmentToken: NewEnrollmentTokenClient(cfg),
 		NodeAssignment:  NewNodeAssignmentClient(cfg),
 		RemoteClient:    NewRemoteClientClient(cfg),
@@ -201,21 +207,23 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.AuditLog.Use(hooks...)
-	c.EnrollmentToken.Use(hooks...)
-	c.NodeAssignment.Use(hooks...)
-	c.RemoteClient.Use(hooks...)
-	c.Workflow.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.AuditLog, c.Credential, c.EnrollmentToken, c.NodeAssignment, c.RemoteClient,
+		c.Workflow,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.AuditLog.Intercept(interceptors...)
-	c.EnrollmentToken.Intercept(interceptors...)
-	c.NodeAssignment.Intercept(interceptors...)
-	c.RemoteClient.Intercept(interceptors...)
-	c.Workflow.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.AuditLog, c.Credential, c.EnrollmentToken, c.NodeAssignment, c.RemoteClient,
+		c.Workflow,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -223,6 +231,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *AuditLogMutation:
 		return c.AuditLog.mutate(ctx, m)
+	case *CredentialMutation:
+		return c.Credential.mutate(ctx, m)
 	case *EnrollmentTokenMutation:
 		return c.EnrollmentToken.mutate(ctx, m)
 	case *NodeAssignmentMutation:
@@ -366,6 +376,139 @@ func (c *AuditLogClient) mutate(ctx context.Context, m *AuditLogMutation) (Value
 		return (&AuditLogDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown AuditLog mutation op: %q", m.Op())
+	}
+}
+
+// CredentialClient is a client for the Credential schema.
+type CredentialClient struct {
+	config
+}
+
+// NewCredentialClient returns a client for the Credential from the given config.
+func NewCredentialClient(c config) *CredentialClient {
+	return &CredentialClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `credential.Hooks(f(g(h())))`.
+func (c *CredentialClient) Use(hooks ...Hook) {
+	c.hooks.Credential = append(c.hooks.Credential, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `credential.Intercept(f(g(h())))`.
+func (c *CredentialClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Credential = append(c.inters.Credential, interceptors...)
+}
+
+// Create returns a builder for creating a Credential entity.
+func (c *CredentialClient) Create() *CredentialCreate {
+	mutation := newCredentialMutation(c.config, OpCreate)
+	return &CredentialCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Credential entities.
+func (c *CredentialClient) CreateBulk(builders ...*CredentialCreate) *CredentialCreateBulk {
+	return &CredentialCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CredentialClient) MapCreateBulk(slice any, setFunc func(*CredentialCreate, int)) *CredentialCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CredentialCreateBulk{err: fmt.Errorf("calling to CredentialClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CredentialCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CredentialCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Credential.
+func (c *CredentialClient) Update() *CredentialUpdate {
+	mutation := newCredentialMutation(c.config, OpUpdate)
+	return &CredentialUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CredentialClient) UpdateOne(_m *Credential) *CredentialUpdateOne {
+	mutation := newCredentialMutation(c.config, OpUpdateOne, withCredential(_m))
+	return &CredentialUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CredentialClient) UpdateOneID(id string) *CredentialUpdateOne {
+	mutation := newCredentialMutation(c.config, OpUpdateOne, withCredentialID(id))
+	return &CredentialUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Credential.
+func (c *CredentialClient) Delete() *CredentialDelete {
+	mutation := newCredentialMutation(c.config, OpDelete)
+	return &CredentialDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CredentialClient) DeleteOne(_m *Credential) *CredentialDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CredentialClient) DeleteOneID(id string) *CredentialDeleteOne {
+	builder := c.Delete().Where(credential.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CredentialDeleteOne{builder}
+}
+
+// Query returns a query builder for Credential.
+func (c *CredentialClient) Query() *CredentialQuery {
+	return &CredentialQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCredential},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Credential entity by its id.
+func (c *CredentialClient) Get(ctx context.Context, id string) (*Credential, error) {
+	return c.Query().Where(credential.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CredentialClient) GetX(ctx context.Context, id string) *Credential {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CredentialClient) Hooks() []Hook {
+	return c.hooks.Credential
+}
+
+// Interceptors returns the client interceptors.
+func (c *CredentialClient) Interceptors() []Interceptor {
+	return c.inters.Credential
+}
+
+func (c *CredentialClient) mutate(ctx context.Context, m *CredentialMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CredentialCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CredentialUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CredentialUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CredentialDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Credential mutation op: %q", m.Op())
 	}
 }
 
@@ -904,10 +1047,11 @@ func (c *WorkflowClient) mutate(ctx context.Context, m *WorkflowMutation) (Value
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AuditLog, EnrollmentToken, NodeAssignment, RemoteClient, Workflow []ent.Hook
+		AuditLog, Credential, EnrollmentToken, NodeAssignment, RemoteClient,
+		Workflow []ent.Hook
 	}
 	inters struct {
-		AuditLog, EnrollmentToken, NodeAssignment, RemoteClient,
+		AuditLog, Credential, EnrollmentToken, NodeAssignment, RemoteClient,
 		Workflow []ent.Interceptor
 	}
 )

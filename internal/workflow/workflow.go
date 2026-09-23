@@ -166,6 +166,12 @@ type Node struct {
 	Dependencies []string             `json:"dependencies"`
 	Client       string               `json:"client,omitempty"`
 	ClientTags   []string             `json:"client_tags,omitempty"`
+	// CredentialRef names the credential this node needs (credential id
+	// or credential name resolved user > group > tenant). The secret
+	// itself never lives in workflow JSON, logs, results, or assignment
+	// payloads; the executing client fetches it just-in-time over an
+	// authenticated endpoint.
+	CredentialRef string `json:"credential_ref,omitempty"`
 	// MergeInput merges the upstream $input payload into this node's
 	// $result payload (deep merge, $result keys win). Exported/imported
 	// as part of the workflow JSON and forwarded to remote clients via

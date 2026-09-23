@@ -12,7 +12,7 @@ This guide covers building, testing, code generation, and extending Nitejaguar.
     ```
   - **Important**: Always use the pinned version (`v0.3.1020`). Never use `templ@latest`.
 - **Ent**:
-  - Entity schemas reside in `ent/schema/workflow.go` and `ent/schema/client.go`.
+  - Entity schemas reside in `ent/schema/` (`workflow.go`, `client.go`, `credential.go`, `enrollment_token.go`, `audit_log.go`, `node_assignment.go`).
   - Regenerate ORM code after schema changes:
     ```bash
     make ent # go generate ./ent

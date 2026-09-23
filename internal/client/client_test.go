@@ -255,8 +255,8 @@ func TestRunnerDrainsPendingOnce(t *testing.T) {
 		NodeID: "action_pending", ParentActionID: "trigger_pending",
 		Payload: map[string]any{"file": "/tmp/x"},
 	}}
-	r.drainPending(pending)
-	r.drainPending(pending) // second poll must not re-execute
+	r.drainPending(context.Background(), pending)
+	r.drainPending(context.Background(), pending) // second poll must not re-execute
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.pendingSeen["assign_test"] {
