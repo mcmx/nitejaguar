@@ -53,3 +53,53 @@ The `action_name` field uses one concise, lowercase, category-free identifier fo
   - Rewrites all dependency edges (`conditions.nexts` and `dependencies`) through the old-to-new ID map.
   - Prefixes the workflow name with `"Clone of: "`.
   - `server -c` clones at server startup; `client workflow clone` POSTs the file to `POST /api/workflows/clone` on a running server and prints the new workflow id.
+
+## Client targeting & distributed execution
+
+Each workflow selects a default client target; each node can override it.
+
+- **Workflow defaults**: `default_client` (exact client ID) and
+  `default_client_tags` (tag list). Empty means broadcast to every client.
+- **Per-node overrides**: `client` and `client_tags` on a node win over
+  the workflow default. A node with neither per-node nor workflow-default
+  targeting is broadcast.
+- **Resolution**: `NodeAssignedTo` applies the override-or-default rule;
+  the designer, `GET /api/clients/{id}/assignments`, and
+  `POST /api/results` filtering all use the same resolution.
+- **Cross-client handoff**: `POST /api/results` returns only the `nexts`
+  owned by the reporting client. Foreign downstream nodes are persisted
+  as pending assignments (`assign_` rows) and delivered via the
+  `pending` array in assignment polling — never via direct local
+  execution. The owner executes the pending node with the parent payload
+  as `$input` and reports back; the pending row is marked `done`.
+
+```json
+{
+  "id": "workflow_01h...",
+  "name": "Cross-client demo",
+  "default_client_tags": ["gpu"],
+  "nodes": {
+    "trigger_01h...": {
+      "id": "trigger_01h...",
+      "action_type": "trigger",
+      "action_name": "filechange",
+      "arguments": {"path": "/tmp"},
+      "conditions": {"entries": {"entry1": {"condition": {"leftOperand": true, "operator": "", "rightOperand": null}, "nexts": ["action_01h..."]}}},
+      "dependencies": []
+    },
+    "action_01h...": {
+      "id": "action_01h...",
+      "action_type": "action",
+      "action_name": "file",
+      "arguments": {"action": "create", "file": "/tmp/out.txt"},
+      "conditions": {"entries": {}},
+      "dependencies": ["trigger_01h..."],
+      "client_tags": ["cpu"]
+    }
+  }
+}
+```
+
+In the example the trigger inherits the workflow `gpu` default while the
+action overrides it to `cpu`. Import/clone preserve the defaults; the
+designer edits them as workflow-level fields.

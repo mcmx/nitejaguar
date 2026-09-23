@@ -33,6 +33,18 @@ func (f EnrollmentTokenFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Va
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.EnrollmentTokenMutation", m)
 }
 
+// The NodeAssignmentFunc type is an adapter to allow the use of ordinary
+// function as NodeAssignment mutator.
+type NodeAssignmentFunc func(context.Context, *ent.NodeAssignmentMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f NodeAssignmentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.NodeAssignmentMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.NodeAssignmentMutation", m)
+}
+
 // The RemoteClientFunc type is an adapter to allow the use of ordinary
 // function as RemoteClient mutator.
 type RemoteClientFunc func(context.Context, *ent.RemoteClientMutation) (ent.Value, error)

@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/mcmx/nitejaguar/ent/auditlog"
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
+	"github.com/mcmx/nitejaguar/ent/nodeassignment"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
 	"github.com/mcmx/nitejaguar/ent/workflow"
 )
@@ -78,6 +79,7 @@ func checkColumn(t, c string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			auditlog.Table:        auditlog.ValidColumn,
 			enrollmenttoken.Table: enrollmenttoken.ValidColumn,
+			nodeassignment.Table:  nodeassignment.ValidColumn,
 			remoteclient.Table:    remoteclient.ValidColumn,
 			workflow.Table:        workflow.ValidColumn,
 		})

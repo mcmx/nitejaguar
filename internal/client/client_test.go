@@ -233,3 +233,36 @@ func TestRunnerAppliesMergeInput(t *testing.T) {
 		t.Fatalf("unexpected merged payload: %v", m)
 	}
 }
+
+func TestRunnerDrainsPendingOnce(t *testing.T) {
+	r := newRunner(API{BaseURL: "http://localhost", HTTPClient: http.DefaultClient}, slog.Default())
+	defer r.close()
+	r.install(Workflow{ID: "workflow_pending", Name: "pending", Nodes: map[string]workflow.Node{
+		"action_pending": {
+			Id: "action_pending", Name: "Action", ActionType: "action", ActionName: "file",
+			Arguments: map[string]string{"action": "create", "file": "/tmp/out.txt"},
+		},
+	}})
+	r.mu.Lock()
+	if r.nodeAction["action_pending"] == nil {
+		r.mu.Unlock()
+		t.Fatal("expected pending action installed")
+	}
+	r.mu.Unlock()
+
+	pending := []PendingAssignment{{
+		ID: "assign_test", WorkflowID: "workflow_pending", ExecutionID: "exec_pending",
+		NodeID: "action_pending", ParentActionID: "trigger_pending",
+		Payload: map[string]any{"file": "/tmp/x"},
+	}}
+	r.drainPending(pending)
+	r.drainPending(pending) // second poll must not re-execute
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.pendingSeen["assign_test"] {
+		t.Fatal("expected pending marked seen")
+	}
+	if got := r.history["exec_pending"]["trigger_pending"]; got == nil {
+		t.Fatalf("expected parent payload seeded for merge_input, got %v", r.history["exec_pending"])
+	}
+}

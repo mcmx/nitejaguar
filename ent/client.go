@@ -16,6 +16,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/mcmx/nitejaguar/ent/auditlog"
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
+	"github.com/mcmx/nitejaguar/ent/nodeassignment"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
 	"github.com/mcmx/nitejaguar/ent/workflow"
 )
@@ -29,6 +30,8 @@ type Client struct {
 	AuditLog *AuditLogClient
 	// EnrollmentToken is the client for interacting with the EnrollmentToken builders.
 	EnrollmentToken *EnrollmentTokenClient
+	// NodeAssignment is the client for interacting with the NodeAssignment builders.
+	NodeAssignment *NodeAssignmentClient
 	// RemoteClient is the client for interacting with the RemoteClient builders.
 	RemoteClient *RemoteClientClient
 	// Workflow is the client for interacting with the Workflow builders.
@@ -46,6 +49,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.AuditLog = NewAuditLogClient(c.config)
 	c.EnrollmentToken = NewEnrollmentTokenClient(c.config)
+	c.NodeAssignment = NewNodeAssignmentClient(c.config)
 	c.RemoteClient = NewRemoteClientClient(c.config)
 	c.Workflow = NewWorkflowClient(c.config)
 }
@@ -142,6 +146,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:          cfg,
 		AuditLog:        NewAuditLogClient(cfg),
 		EnrollmentToken: NewEnrollmentTokenClient(cfg),
+		NodeAssignment:  NewNodeAssignmentClient(cfg),
 		RemoteClient:    NewRemoteClientClient(cfg),
 		Workflow:        NewWorkflowClient(cfg),
 	}, nil
@@ -165,6 +170,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:          cfg,
 		AuditLog:        NewAuditLogClient(cfg),
 		EnrollmentToken: NewEnrollmentTokenClient(cfg),
+		NodeAssignment:  NewNodeAssignmentClient(cfg),
 		RemoteClient:    NewRemoteClientClient(cfg),
 		Workflow:        NewWorkflowClient(cfg),
 	}, nil
@@ -197,6 +203,7 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	c.AuditLog.Use(hooks...)
 	c.EnrollmentToken.Use(hooks...)
+	c.NodeAssignment.Use(hooks...)
 	c.RemoteClient.Use(hooks...)
 	c.Workflow.Use(hooks...)
 }
@@ -206,6 +213,7 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.AuditLog.Intercept(interceptors...)
 	c.EnrollmentToken.Intercept(interceptors...)
+	c.NodeAssignment.Intercept(interceptors...)
 	c.RemoteClient.Intercept(interceptors...)
 	c.Workflow.Intercept(interceptors...)
 }
@@ -217,6 +225,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.AuditLog.mutate(ctx, m)
 	case *EnrollmentTokenMutation:
 		return c.EnrollmentToken.mutate(ctx, m)
+	case *NodeAssignmentMutation:
+		return c.NodeAssignment.mutate(ctx, m)
 	case *RemoteClientMutation:
 		return c.RemoteClient.mutate(ctx, m)
 	case *WorkflowMutation:
@@ -492,6 +502,139 @@ func (c *EnrollmentTokenClient) mutate(ctx context.Context, m *EnrollmentTokenMu
 	}
 }
 
+// NodeAssignmentClient is a client for the NodeAssignment schema.
+type NodeAssignmentClient struct {
+	config
+}
+
+// NewNodeAssignmentClient returns a client for the NodeAssignment from the given config.
+func NewNodeAssignmentClient(c config) *NodeAssignmentClient {
+	return &NodeAssignmentClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `nodeassignment.Hooks(f(g(h())))`.
+func (c *NodeAssignmentClient) Use(hooks ...Hook) {
+	c.hooks.NodeAssignment = append(c.hooks.NodeAssignment, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `nodeassignment.Intercept(f(g(h())))`.
+func (c *NodeAssignmentClient) Intercept(interceptors ...Interceptor) {
+	c.inters.NodeAssignment = append(c.inters.NodeAssignment, interceptors...)
+}
+
+// Create returns a builder for creating a NodeAssignment entity.
+func (c *NodeAssignmentClient) Create() *NodeAssignmentCreate {
+	mutation := newNodeAssignmentMutation(c.config, OpCreate)
+	return &NodeAssignmentCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of NodeAssignment entities.
+func (c *NodeAssignmentClient) CreateBulk(builders ...*NodeAssignmentCreate) *NodeAssignmentCreateBulk {
+	return &NodeAssignmentCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *NodeAssignmentClient) MapCreateBulk(slice any, setFunc func(*NodeAssignmentCreate, int)) *NodeAssignmentCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &NodeAssignmentCreateBulk{err: fmt.Errorf("calling to NodeAssignmentClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*NodeAssignmentCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &NodeAssignmentCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for NodeAssignment.
+func (c *NodeAssignmentClient) Update() *NodeAssignmentUpdate {
+	mutation := newNodeAssignmentMutation(c.config, OpUpdate)
+	return &NodeAssignmentUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *NodeAssignmentClient) UpdateOne(_m *NodeAssignment) *NodeAssignmentUpdateOne {
+	mutation := newNodeAssignmentMutation(c.config, OpUpdateOne, withNodeAssignment(_m))
+	return &NodeAssignmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *NodeAssignmentClient) UpdateOneID(id string) *NodeAssignmentUpdateOne {
+	mutation := newNodeAssignmentMutation(c.config, OpUpdateOne, withNodeAssignmentID(id))
+	return &NodeAssignmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for NodeAssignment.
+func (c *NodeAssignmentClient) Delete() *NodeAssignmentDelete {
+	mutation := newNodeAssignmentMutation(c.config, OpDelete)
+	return &NodeAssignmentDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *NodeAssignmentClient) DeleteOne(_m *NodeAssignment) *NodeAssignmentDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *NodeAssignmentClient) DeleteOneID(id string) *NodeAssignmentDeleteOne {
+	builder := c.Delete().Where(nodeassignment.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &NodeAssignmentDeleteOne{builder}
+}
+
+// Query returns a query builder for NodeAssignment.
+func (c *NodeAssignmentClient) Query() *NodeAssignmentQuery {
+	return &NodeAssignmentQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeNodeAssignment},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a NodeAssignment entity by its id.
+func (c *NodeAssignmentClient) Get(ctx context.Context, id string) (*NodeAssignment, error) {
+	return c.Query().Where(nodeassignment.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *NodeAssignmentClient) GetX(ctx context.Context, id string) *NodeAssignment {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *NodeAssignmentClient) Hooks() []Hook {
+	return c.hooks.NodeAssignment
+}
+
+// Interceptors returns the client interceptors.
+func (c *NodeAssignmentClient) Interceptors() []Interceptor {
+	return c.inters.NodeAssignment
+}
+
+func (c *NodeAssignmentClient) mutate(ctx context.Context, m *NodeAssignmentMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&NodeAssignmentCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&NodeAssignmentUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&NodeAssignmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&NodeAssignmentDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown NodeAssignment mutation op: %q", m.Op())
+	}
+}
+
 // RemoteClientClient is a client for the RemoteClient schema.
 type RemoteClientClient struct {
 	config
@@ -761,9 +904,10 @@ func (c *WorkflowClient) mutate(ctx context.Context, m *WorkflowMutation) (Value
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AuditLog, EnrollmentToken, RemoteClient, Workflow []ent.Hook
+		AuditLog, EnrollmentToken, NodeAssignment, RemoteClient, Workflow []ent.Hook
 	}
 	inters struct {
-		AuditLog, EnrollmentToken, RemoteClient, Workflow []ent.Interceptor
+		AuditLog, EnrollmentToken, NodeAssignment, RemoteClient,
+		Workflow []ent.Interceptor
 	}
 )

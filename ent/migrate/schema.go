@@ -42,6 +42,25 @@ var (
 		Columns:    EnrollmentTokensColumns,
 		PrimaryKey: []*schema.Column{EnrollmentTokensColumns[0]},
 	}
+	// NodeAssignmentsColumns holds the columns for the "node_assignments" table.
+	NodeAssignmentsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "tenant_id", Type: field.TypeString, Default: "default"},
+		{Name: "workflow_id", Type: field.TypeString},
+		{Name: "execution_id", Type: field.TypeString},
+		{Name: "node_id", Type: field.TypeString},
+		{Name: "payload_json", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "parent_action_id", Type: field.TypeString, Default: ""},
+		{Name: "status", Type: field.TypeString, Default: "pending"},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// NodeAssignmentsTable holds the schema information for the "node_assignments" table.
+	NodeAssignmentsTable = &schema.Table{
+		Name:       "node_assignments",
+		Columns:    NodeAssignmentsColumns,
+		PrimaryKey: []*schema.Column{NodeAssignmentsColumns[0]},
+	}
 	// RemoteClientsColumns holds the columns for the "remote_clients" table.
 	RemoteClientsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
@@ -81,6 +100,7 @@ var (
 	Tables = []*schema.Table{
 		AuditLogsTable,
 		EnrollmentTokensTable,
+		NodeAssignmentsTable,
 		RemoteClientsTable,
 		WorkflowsTable,
 	}

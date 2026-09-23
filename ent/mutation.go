@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/mcmx/nitejaguar/ent/auditlog"
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
+	"github.com/mcmx/nitejaguar/ent/nodeassignment"
 	"github.com/mcmx/nitejaguar/ent/predicate"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
 	"github.com/mcmx/nitejaguar/ent/workflow"
@@ -29,6 +30,7 @@ const (
 	// Node types.
 	TypeAuditLog        = "AuditLog"
 	TypeEnrollmentToken = "EnrollmentToken"
+	TypeNodeAssignment  = "NodeAssignment"
 	TypeRemoteClient    = "RemoteClient"
 	TypeWorkflow        = "Workflow"
 )
@@ -1434,6 +1436,770 @@ func (m *EnrollmentTokenMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *EnrollmentTokenMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown EnrollmentToken edge %s", name)
+}
+
+// NodeAssignmentMutation represents an operation that mutates the NodeAssignment nodes in the graph.
+type NodeAssignmentMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *string
+	tenant_id        *string
+	workflow_id      *string
+	execution_id     *string
+	node_id          *string
+	payload_json     *string
+	parent_action_id *string
+	status           *string
+	created_at       *time.Time
+	updated_at       *time.Time
+	clearedFields    map[string]struct{}
+	done             bool
+	oldValue         func(context.Context) (*NodeAssignment, error)
+	predicates       []predicate.NodeAssignment
+}
+
+var _ ent.Mutation = (*NodeAssignmentMutation)(nil)
+
+// nodeassignmentOption allows management of the mutation configuration using functional options.
+type nodeassignmentOption func(*NodeAssignmentMutation)
+
+// newNodeAssignmentMutation creates new mutation for the NodeAssignment entity.
+func newNodeAssignmentMutation(c config, op Op, opts ...nodeassignmentOption) *NodeAssignmentMutation {
+	m := &NodeAssignmentMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeNodeAssignment,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withNodeAssignmentID sets the ID field of the mutation.
+func withNodeAssignmentID(id string) nodeassignmentOption {
+	return func(m *NodeAssignmentMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *NodeAssignment
+		)
+		m.oldValue = func(ctx context.Context) (*NodeAssignment, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().NodeAssignment.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withNodeAssignment sets the old NodeAssignment of the mutation.
+func withNodeAssignment(node *NodeAssignment) nodeassignmentOption {
+	return func(m *NodeAssignmentMutation) {
+		m.oldValue = func(context.Context) (*NodeAssignment, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m NodeAssignmentMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m NodeAssignmentMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of NodeAssignment entities.
+func (m *NodeAssignmentMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *NodeAssignmentMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *NodeAssignmentMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().NodeAssignment.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetTenantID sets the "tenant_id" field.
+func (m *NodeAssignmentMutation) SetTenantID(s string) {
+	m.tenant_id = &s
+}
+
+// TenantID returns the value of the "tenant_id" field in the mutation.
+func (m *NodeAssignmentMutation) TenantID() (r string, exists bool) {
+	v := m.tenant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTenantID returns the old "tenant_id" field's value of the NodeAssignment entity.
+// If the NodeAssignment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NodeAssignmentMutation) OldTenantID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTenantID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTenantID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTenantID: %w", err)
+	}
+	return oldValue.TenantID, nil
+}
+
+// ResetTenantID resets all changes to the "tenant_id" field.
+func (m *NodeAssignmentMutation) ResetTenantID() {
+	m.tenant_id = nil
+}
+
+// SetWorkflowID sets the "workflow_id" field.
+func (m *NodeAssignmentMutation) SetWorkflowID(s string) {
+	m.workflow_id = &s
+}
+
+// WorkflowID returns the value of the "workflow_id" field in the mutation.
+func (m *NodeAssignmentMutation) WorkflowID() (r string, exists bool) {
+	v := m.workflow_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWorkflowID returns the old "workflow_id" field's value of the NodeAssignment entity.
+// If the NodeAssignment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NodeAssignmentMutation) OldWorkflowID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWorkflowID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWorkflowID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWorkflowID: %w", err)
+	}
+	return oldValue.WorkflowID, nil
+}
+
+// ResetWorkflowID resets all changes to the "workflow_id" field.
+func (m *NodeAssignmentMutation) ResetWorkflowID() {
+	m.workflow_id = nil
+}
+
+// SetExecutionID sets the "execution_id" field.
+func (m *NodeAssignmentMutation) SetExecutionID(s string) {
+	m.execution_id = &s
+}
+
+// ExecutionID returns the value of the "execution_id" field in the mutation.
+func (m *NodeAssignmentMutation) ExecutionID() (r string, exists bool) {
+	v := m.execution_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExecutionID returns the old "execution_id" field's value of the NodeAssignment entity.
+// If the NodeAssignment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NodeAssignmentMutation) OldExecutionID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExecutionID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExecutionID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExecutionID: %w", err)
+	}
+	return oldValue.ExecutionID, nil
+}
+
+// ResetExecutionID resets all changes to the "execution_id" field.
+func (m *NodeAssignmentMutation) ResetExecutionID() {
+	m.execution_id = nil
+}
+
+// SetNodeID sets the "node_id" field.
+func (m *NodeAssignmentMutation) SetNodeID(s string) {
+	m.node_id = &s
+}
+
+// NodeID returns the value of the "node_id" field in the mutation.
+func (m *NodeAssignmentMutation) NodeID() (r string, exists bool) {
+	v := m.node_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNodeID returns the old "node_id" field's value of the NodeAssignment entity.
+// If the NodeAssignment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NodeAssignmentMutation) OldNodeID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNodeID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNodeID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNodeID: %w", err)
+	}
+	return oldValue.NodeID, nil
+}
+
+// ResetNodeID resets all changes to the "node_id" field.
+func (m *NodeAssignmentMutation) ResetNodeID() {
+	m.node_id = nil
+}
+
+// SetPayloadJSON sets the "payload_json" field.
+func (m *NodeAssignmentMutation) SetPayloadJSON(s string) {
+	m.payload_json = &s
+}
+
+// PayloadJSON returns the value of the "payload_json" field in the mutation.
+func (m *NodeAssignmentMutation) PayloadJSON() (r string, exists bool) {
+	v := m.payload_json
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPayloadJSON returns the old "payload_json" field's value of the NodeAssignment entity.
+// If the NodeAssignment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NodeAssignmentMutation) OldPayloadJSON(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPayloadJSON is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPayloadJSON requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPayloadJSON: %w", err)
+	}
+	return oldValue.PayloadJSON, nil
+}
+
+// ResetPayloadJSON resets all changes to the "payload_json" field.
+func (m *NodeAssignmentMutation) ResetPayloadJSON() {
+	m.payload_json = nil
+}
+
+// SetParentActionID sets the "parent_action_id" field.
+func (m *NodeAssignmentMutation) SetParentActionID(s string) {
+	m.parent_action_id = &s
+}
+
+// ParentActionID returns the value of the "parent_action_id" field in the mutation.
+func (m *NodeAssignmentMutation) ParentActionID() (r string, exists bool) {
+	v := m.parent_action_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldParentActionID returns the old "parent_action_id" field's value of the NodeAssignment entity.
+// If the NodeAssignment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NodeAssignmentMutation) OldParentActionID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldParentActionID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldParentActionID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldParentActionID: %w", err)
+	}
+	return oldValue.ParentActionID, nil
+}
+
+// ResetParentActionID resets all changes to the "parent_action_id" field.
+func (m *NodeAssignmentMutation) ResetParentActionID() {
+	m.parent_action_id = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *NodeAssignmentMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *NodeAssignmentMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the NodeAssignment entity.
+// If the NodeAssignment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NodeAssignmentMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *NodeAssignmentMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *NodeAssignmentMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *NodeAssignmentMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the NodeAssignment entity.
+// If the NodeAssignment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NodeAssignmentMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *NodeAssignmentMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *NodeAssignmentMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *NodeAssignmentMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the NodeAssignment entity.
+// If the NodeAssignment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NodeAssignmentMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *NodeAssignmentMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the NodeAssignmentMutation builder.
+func (m *NodeAssignmentMutation) Where(ps ...predicate.NodeAssignment) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the NodeAssignmentMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *NodeAssignmentMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.NodeAssignment, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *NodeAssignmentMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *NodeAssignmentMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (NodeAssignment).
+func (m *NodeAssignmentMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *NodeAssignmentMutation) Fields() []string {
+	fields := make([]string, 0, 9)
+	if m.tenant_id != nil {
+		fields = append(fields, nodeassignment.FieldTenantID)
+	}
+	if m.workflow_id != nil {
+		fields = append(fields, nodeassignment.FieldWorkflowID)
+	}
+	if m.execution_id != nil {
+		fields = append(fields, nodeassignment.FieldExecutionID)
+	}
+	if m.node_id != nil {
+		fields = append(fields, nodeassignment.FieldNodeID)
+	}
+	if m.payload_json != nil {
+		fields = append(fields, nodeassignment.FieldPayloadJSON)
+	}
+	if m.parent_action_id != nil {
+		fields = append(fields, nodeassignment.FieldParentActionID)
+	}
+	if m.status != nil {
+		fields = append(fields, nodeassignment.FieldStatus)
+	}
+	if m.created_at != nil {
+		fields = append(fields, nodeassignment.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, nodeassignment.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *NodeAssignmentMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case nodeassignment.FieldTenantID:
+		return m.TenantID()
+	case nodeassignment.FieldWorkflowID:
+		return m.WorkflowID()
+	case nodeassignment.FieldExecutionID:
+		return m.ExecutionID()
+	case nodeassignment.FieldNodeID:
+		return m.NodeID()
+	case nodeassignment.FieldPayloadJSON:
+		return m.PayloadJSON()
+	case nodeassignment.FieldParentActionID:
+		return m.ParentActionID()
+	case nodeassignment.FieldStatus:
+		return m.Status()
+	case nodeassignment.FieldCreatedAt:
+		return m.CreatedAt()
+	case nodeassignment.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *NodeAssignmentMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case nodeassignment.FieldTenantID:
+		return m.OldTenantID(ctx)
+	case nodeassignment.FieldWorkflowID:
+		return m.OldWorkflowID(ctx)
+	case nodeassignment.FieldExecutionID:
+		return m.OldExecutionID(ctx)
+	case nodeassignment.FieldNodeID:
+		return m.OldNodeID(ctx)
+	case nodeassignment.FieldPayloadJSON:
+		return m.OldPayloadJSON(ctx)
+	case nodeassignment.FieldParentActionID:
+		return m.OldParentActionID(ctx)
+	case nodeassignment.FieldStatus:
+		return m.OldStatus(ctx)
+	case nodeassignment.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case nodeassignment.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown NodeAssignment field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *NodeAssignmentMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case nodeassignment.FieldTenantID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTenantID(v)
+		return nil
+	case nodeassignment.FieldWorkflowID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWorkflowID(v)
+		return nil
+	case nodeassignment.FieldExecutionID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExecutionID(v)
+		return nil
+	case nodeassignment.FieldNodeID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNodeID(v)
+		return nil
+	case nodeassignment.FieldPayloadJSON:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPayloadJSON(v)
+		return nil
+	case nodeassignment.FieldParentActionID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetParentActionID(v)
+		return nil
+	case nodeassignment.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case nodeassignment.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case nodeassignment.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown NodeAssignment field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *NodeAssignmentMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *NodeAssignmentMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *NodeAssignmentMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown NodeAssignment numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *NodeAssignmentMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *NodeAssignmentMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *NodeAssignmentMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown NodeAssignment nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *NodeAssignmentMutation) ResetField(name string) error {
+	switch name {
+	case nodeassignment.FieldTenantID:
+		m.ResetTenantID()
+		return nil
+	case nodeassignment.FieldWorkflowID:
+		m.ResetWorkflowID()
+		return nil
+	case nodeassignment.FieldExecutionID:
+		m.ResetExecutionID()
+		return nil
+	case nodeassignment.FieldNodeID:
+		m.ResetNodeID()
+		return nil
+	case nodeassignment.FieldPayloadJSON:
+		m.ResetPayloadJSON()
+		return nil
+	case nodeassignment.FieldParentActionID:
+		m.ResetParentActionID()
+		return nil
+	case nodeassignment.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case nodeassignment.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case nodeassignment.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown NodeAssignment field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *NodeAssignmentMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *NodeAssignmentMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *NodeAssignmentMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *NodeAssignmentMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *NodeAssignmentMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *NodeAssignmentMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *NodeAssignmentMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown NodeAssignment unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *NodeAssignmentMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown NodeAssignment edge %s", name)
 }
 
 // RemoteClientMutation represents an operation that mutates the RemoteClient nodes in the graph.

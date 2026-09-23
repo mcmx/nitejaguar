@@ -62,3 +62,18 @@ is ignored).
   recorded; `GET /api/audit?limit=100` returns the trail
   (`enrollment.use`, `enrollment.create`, `enrollment.revoke`,
   `client.revoke`).
+
+## Client targeting & distributed dispatch
+
+- **Targeting**: workflows carry `default_client`/`default_client_tags`;
+  nodes override with `client`/`client_tags`. Empty means broadcast.
+  `GET /api/clients/{id}/assignments` filters definitions with the same
+  override-or-default resolution and tenant isolation.
+- **Pending handoffs**: every ingested result enqueues one pending
+  assignment per downstream `next` (idempotent per
+  workflow/execution/node, `assign_` ids) and marks the reporting node
+  done. `GET .../assignments` returns owned pending items in `pending`
+  with the parent payload as `$input`.
+- **Handoff fix**: `POST /api/results` returns only caller-owned `nexts`;
+  foreign edges are never executed locally — they are routed via pending
+  assignments. Audited as `assignment.enqueue` and `assignment.complete`.

@@ -14,7 +14,17 @@ orchestrated through a central server.
 
 ## 1. Client targeting & distributed execution
 
-- Workflow selects default client(s); each node can override which client runs it.
+Status: implemented. Workflows carry `default_client`/`default_client_tags`;
+per-node `client`/`client_tags` override the default (empty = broadcast).
+`IngestResult` persists one pending node assignment per downstream `next`
+(idempotent per workflow/execution/node, `assign_` rows) and marks the
+reporting node done; `POST /api/results` returns only caller-owned nexts
+(foreign edges routed via assignments, not direct local execution).
+`GET /api/clients/{id}/assignments` returns filtered definitions plus owned
+`pending` handoffs with the parent payload as `$input`; clients execute
+pending at most once per process and report back. Tenant-isolated, audited
+(`assignment.enqueue`/`assignment.complete`). Designer + workflow JSON
+support defaults and overrides; import/clone preserve them.
 - Multiple clients execute different parts of the same workflow.
 - Server is the dispatcher: it persists pending node assignments per client;
   clients pick up only their own nodes via assignment polling.
@@ -90,7 +100,7 @@ Token issuance is not yet role-gated — that arrives with the RBAC slice.
 ## Build order
 
 1. Tenant enrollment & client lifecycle ✅ done
-2. Client targeting + cross-client handoff fix
+2. Client targeting + cross-client handoff fix ✅ done
 3. Credentials model (reference + JIT fetch + resolution)
 4. RBAC + web auth + management pages + audit
 5. Provider actions (AWS EC2, generic S3, …)

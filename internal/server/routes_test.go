@@ -550,3 +550,257 @@ func TestTenantEnrollmentLifecycle(t *testing.T) {
 		}
 	}
 }
+
+const crossClientWorkflow = `{
+  "id": "workflow_01kcrossclienthandoff0001",
+  "name": "Cross-client handoff workflow",
+  "nodes": {
+    "trigger_01kcrossclienthandoff0001": {
+      "id": "trigger_01kcrossclienthandoff0001",
+      "name": "Broadcast trigger",
+      "action_type": "trigger",
+      "action_name": "filechange",
+      "arguments": {"path": "/tmp", "event_type": "create"},
+      "conditions": {"entries": {"entry1": {"condition": {"leftOperand": true, "operator": "", "rightOperand": null}, "nexts": ["action_01kcrossclienthandoff0001"]}}},
+      "dependencies": null
+    },
+    "action_01kcrossclienthandoff0001": {
+      "id": "action_01kcrossclienthandoff0001",
+      "name": "GPU action",
+      "action_type": "action",
+      "action_name": "file",
+      "arguments": {"action": "create", "file": "/tmp/gpu.txt"},
+      "conditions": {"entries": {}},
+      "dependencies": ["trigger_01kcrossclienthandoff0001"],
+      "client_tags": ["gpu"]
+    }
+  }
+}`
+
+func TestCrossClientHandoff(t *testing.T) {
+	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
+	wm := workflow.NewWorkflowManager(false, db)
+	s := &Server{db: db, wm: wm}
+	_, api := humatest.New(t)
+	addApiRoutes(api, s)
+
+	if _, err := wm.ImportWorkflowJSON(crossClientWorkflow); err != nil {
+		t.Fatalf("seed workflow: %v", err)
+	}
+
+	register := func(name string, tags []string) (string, string) {
+		t.Helper()
+		resp := api.Post("/api/clients/register", map[string]any{
+			"name": name, "tags": tags, "enrollment_token": mintEnrollmentToken(t, db, "default", 0),
+		})
+		if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+			t.Fatalf("register %s status = %v", name, resp.Code)
+		}
+		var reg struct {
+			ClientID string `json:"client_id"`
+			Token    string `json:"token"`
+		}
+		decodeBody(t, strings.NewReader(resp.Body.String()), &reg)
+		return reg.ClientID, reg.Token
+	}
+	cpuID, cpuToken := register("cpu-handoff", []string{"cpu"})
+	gpuID, gpuToken := register("gpu-handoff", []string{"gpu"})
+
+	// CPU executes the broadcast trigger. The gpu-owned next must NOT be
+	// returned to the CPU client — it is routed via pending assignments.
+	resp := api.Post("/api/results", "Authorization: Bearer "+cpuToken, map[string]any{
+		"action_id":   "trigger_01kcrossclienthandoff0001",
+		"action_type": "trigger",
+		"action_name": "filechange",
+		"payload":     map[string]any{"file": "/tmp/x"},
+	})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("cpu post result status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	var cpuOut struct {
+		WorkflowID  string   `json:"workflow_id"`
+		ExecutionID string   `json:"execution_id"`
+		Nexts       []string `json:"nexts"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &cpuOut)
+	if cpuOut.ExecutionID == "" {
+		t.Fatalf("expected execution id, got empty")
+	}
+	for _, n := range cpuOut.Nexts {
+		if n == "action_01kcrossclienthandoff0001" {
+			t.Fatalf("cpu client must not receive foreign next directly: %v", cpuOut.Nexts)
+		}
+	}
+
+	// Server persisted the handoff for the gpu owner.
+	pending, err := db.ListPendingAssignments()
+	if err != nil {
+		t.Fatalf("list pending: %v", err)
+	}
+	found := false
+	for _, p := range pending {
+		if p.WorkflowID == "workflow_01kcrossclienthandoff0001" && p.ExecutionID == cpuOut.ExecutionID && p.NodeID == "action_01kcrossclienthandoff0001" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected pending assignment for gpu action, got %+v", pending)
+	}
+
+	// GPU poll sees the pending handoff; CPU poll does not.
+	resp = api.Get("/api/clients/"+gpuID+"/assignments", "Authorization: Bearer "+gpuToken)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("gpu assignments status = %v", resp.Code)
+	}
+	var gpuAssign struct {
+		Pending []struct {
+			WorkflowID  string `json:"workflow_id"`
+			ExecutionID string `json:"execution_id"`
+			NodeID      string `json:"node_id"`
+		} `json:"pending"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &gpuAssign)
+	found = false
+	for _, p := range gpuAssign.Pending {
+		if p.NodeID == "action_01kcrossclienthandoff0001" && p.ExecutionID == cpuOut.ExecutionID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("gpu poll missing pending handoff: %s", resp.Body.String())
+	}
+	resp = api.Get("/api/clients/"+cpuID+"/assignments", "Authorization: Bearer "+cpuToken)
+	var cpuAssign struct {
+		Pending []struct {
+			NodeID string `json:"node_id"`
+		} `json:"pending"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &cpuAssign)
+	for _, p := range cpuAssign.Pending {
+		if p.NodeID == "action_01kcrossclienthandoff0001" {
+			t.Fatalf("cpu poll must not see gpu-owned pending: %s", resp.Body.String())
+		}
+	}
+
+	// GPU executes its node with the same execution: pending completes.
+	resp = api.Post("/api/results", "Authorization: Bearer "+gpuToken, map[string]any{
+		"execution_id": cpuOut.ExecutionID,
+		"action_id":    "action_01kcrossclienthandoff0001",
+		"action_type":  "action",
+		"action_name":  "file",
+		"payload":      map[string]any{"ok": true},
+	})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("gpu post result status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	pending, err = db.ListPendingAssignments()
+	if err != nil {
+		t.Fatalf("list pending after complete: %v", err)
+	}
+	for _, p := range pending {
+		if p.WorkflowID == "workflow_01kcrossclienthandoff0001" && p.ExecutionID == cpuOut.ExecutionID && p.NodeID == "action_01kcrossclienthandoff0001" {
+			t.Fatalf("pending assignment should be done after gpu result: %+v", p)
+		}
+	}
+}
+
+const defaultTargetingWorkflow = `{
+  "id": "workflow_01kdefaulttargeting000001",
+  "name": "Default targeting workflow",
+  "default_client_tags": ["gpu"],
+  "nodes": {
+    "trigger_01kdefaulttargeting000001": {
+      "id": "trigger_01kdefaulttargeting000001",
+      "name": "Defaulted trigger",
+      "action_type": "trigger",
+      "action_name": "filechange",
+      "arguments": {"path": "/tmp"},
+      "conditions": {"entries": {}},
+      "dependencies": null
+    },
+    "action_01kdefaulttargetingoverride1": {
+      "id": "action_01kdefaulttargetingoverride1",
+      "name": "Override broadcast",
+      "action_type": "action",
+      "action_name": "file",
+      "arguments": {"action": "create", "file": "/tmp/x"},
+      "conditions": {"entries": {}},
+      "dependencies": ["trigger_01kdefaulttargeting000001"],
+      "client": "",
+      "client_tags": []
+    }
+  }
+}`
+
+func TestWorkflowDefaultTargeting(t *testing.T) {
+	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
+	wm := workflow.NewWorkflowManager(false, db)
+	s := &Server{db: db, wm: wm}
+	_, api := humatest.New(t)
+	addApiRoutes(api, s)
+
+	if _, err := wm.ImportWorkflowJSON(defaultTargetingWorkflow); err != nil {
+		t.Fatalf("seed workflow: %v", err)
+	}
+	register := func(name string, tags []string) (string, string) {
+		t.Helper()
+		resp := api.Post("/api/clients/register", map[string]any{
+			"name": name, "tags": tags, "enrollment_token": mintEnrollmentToken(t, db, "default", 0),
+		})
+		var reg struct {
+			ClientID string `json:"client_id"`
+			Token    string `json:"token"`
+		}
+		decodeBody(t, strings.NewReader(resp.Body.String()), &reg)
+		return reg.ClientID, reg.Token
+	}
+	gpuID, gpuToken := register("gpu-default", []string{"gpu"})
+	cpuID, cpuToken := register("cpu-default", []string{"cpu"})
+
+	resp := api.Get("/api/clients/"+gpuID+"/assignments", "Authorization: Bearer "+gpuToken)
+	var gpuAssign struct {
+		Workflows []struct {
+			ID    string         `json:"id"`
+			Nodes map[string]any `json:"nodes"`
+		} `json:"workflows"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &gpuAssign)
+	foundDefault := false
+	for _, wf := range gpuAssign.Workflows {
+		if wf.ID != "workflow_01kdefaulttargeting000001" {
+			continue
+		}
+		if _, ok := wf.Nodes["trigger_01kdefaulttargeting000001"]; !ok {
+			t.Fatalf("gpu should inherit the default-targeted trigger: %s", resp.Body.String())
+		}
+		foundDefault = true
+	}
+	if !foundDefault {
+		t.Fatalf("gpu missing default workflow: %s", resp.Body.String())
+	}
+
+	resp = api.Get("/api/clients/"+cpuID+"/assignments", "Authorization: Bearer "+cpuToken)
+	var cpuAssign struct {
+		Workflows []struct {
+			ID    string         `json:"id"`
+			Nodes map[string]any `json:"nodes"`
+		} `json:"workflows"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &cpuAssign)
+	for _, wf := range cpuAssign.Workflows {
+		if wf.ID != "workflow_01kdefaulttargeting000001" {
+			continue
+		}
+		if _, ok := wf.Nodes["trigger_01kdefaulttargeting000001"]; ok {
+			t.Fatalf("cpu must not inherit the gpu-defaulted trigger: %s", resp.Body.String())
+		}
+	}
+}

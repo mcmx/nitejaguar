@@ -21,9 +21,9 @@ Nitejaguar supports distributed execution where remote **Clients** (runners) reg
 ## Execution Lifecycle
 
 1. **Registration**: On startup, the client registers itself with the server using its enrollment token (or reconnects using an existing `--client-id`). Without a valid join token the server returns `401`.
-2. **Polling**: The client periodically polls the server for assigned workflow nodes.
-3. **Local Execution**: Assigned nodes (such as file watches or file transformations) execute locally against the client's file system (e.g., expanding `~` paths locally).
-4. **Result Reporting**: Success or error results are transmitted back to the server and logged in `./results/`.
+2. **Polling**: The client periodically polls the server for assigned workflow nodes (`workflows`) plus owned pending cross-client handoffs (`pending`). Node filtering applies per-node overrides over workflow defaults; untargeted nodes broadcast.
+3. **Local Execution**: Assigned nodes (such as file watches or file transformations) execute locally against the client's file system (e.g., expanding `~` paths locally). Pending handoffs execute at most once per process with the parent payload as `$input` (seeded for `merge_input`); completion is confirmed when the node's result is posted.
+4. **Result Reporting**: Success or error results are transmitted back to the server and logged in `./results/`. The server returns only caller-owned `nexts`; foreign nexts arrive later as `pending` for their owners.
 5. **Resilience**: The client implements exponential backoff on connection/polling failures and stops cleanly on SIGINT / context cancellation.
 
 ## Workflow Import / Clone via the Server

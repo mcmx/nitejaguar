@@ -12,6 +12,9 @@ type AuditLog func(*sql.Selector)
 // EnrollmentToken is the predicate function for enrollmenttoken builders.
 type EnrollmentToken func(*sql.Selector)
 
+// NodeAssignment is the predicate function for nodeassignment builders.
+type NodeAssignment func(*sql.Selector)
+
 // RemoteClient is the predicate function for remoteclient builders.
 type RemoteClient func(*sql.Selector)
 

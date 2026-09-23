@@ -39,14 +39,25 @@ type RegisterResponse struct {
 	Token    string `json:"token"`
 }
 type Workflow struct {
-	ID       string                   `json:"id"`
-	Name     string                   `json:"name"`
-	Revision string                   `json:"revision"`
-	Nodes    map[string]workflow.Node `json:"nodes"`
+	ID                string                   `json:"id"`
+	Name              string                   `json:"name"`
+	Revision          string                   `json:"revision"`
+	DefaultClient     string                   `json:"default_client,omitempty"`
+	DefaultClientTags []string                 `json:"default_client_tags,omitempty"`
+	Nodes             map[string]workflow.Node `json:"nodes"`
+}
+type PendingAssignment struct {
+	ID             string `json:"id"`
+	WorkflowID     string `json:"workflow_id"`
+	ExecutionID    string `json:"execution_id"`
+	NodeID         string `json:"node_id"`
+	ParentActionID string `json:"parent_action_id,omitempty"`
+	Payload        any    `json:"payload,omitempty"`
 }
 type AssignmentsResponse struct {
-	ClientID  string     `json:"client_id"`
-	Workflows []Workflow `json:"workflows"`
+	ClientID  string              `json:"client_id"`
+	Workflows []Workflow          `json:"workflows"`
+	Pending   []PendingAssignment `json:"pending,omitempty"`
 }
 type API struct {
 	BaseURL, Token string
@@ -186,6 +197,7 @@ type runner struct {
 	nodeMeta        map[string]nodeConfig
 	nodeAction      map[string]common.Action
 	history         map[string]map[string]any
+	pendingSeen     map[string]bool
 }
 
 // managedWorkflow is one installed revision of a workflow.
@@ -217,6 +229,7 @@ func newRunner(api API, logger *slog.Logger) *runner {
 		nodeMeta:        make(map[string]nodeConfig),
 		nodeAction:      make(map[string]common.Action),
 		history:         make(map[string]map[string]any),
+		pendingSeen:     make(map[string]bool),
 	}
 }
 
@@ -360,6 +373,59 @@ func (r *runner) runResult(ctx context.Context, result common.ResultData) {
 	}
 }
 
+// drainPending executes server-persisted cross-client handoffs assigned to
+// this runner. Each pending item runs at most once per process (pendingSeen);
+// completion is confirmed server-side when the node's result is posted.
+func (r *runner) drainPending(pending []PendingAssignment) {
+	for _, p := range pending {
+		if p.NodeID == "" || p.ExecutionID == "" {
+			continue
+		}
+		r.mu.Lock()
+		if r.pendingSeen == nil {
+			r.pendingSeen = make(map[string]bool)
+		}
+		key := p.ID
+		if key == "" {
+			key = p.WorkflowID + "/" + p.ExecutionID + "/" + p.NodeID
+		}
+		if r.pendingSeen[key] {
+			r.mu.Unlock()
+			continue
+		}
+		r.pendingSeen[key] = true
+		a := r.nodeAction[p.NodeID]
+		// Seed history with the parent payload so merge_input can fold
+		// cross-client upstream data even though the parent ran elsewhere.
+		if p.ParentActionID != "" && p.ExecutionID != "" {
+			if r.history == nil {
+				r.history = make(map[string]map[string]any)
+			}
+			byNode, ok := r.history[p.ExecutionID]
+			if !ok {
+				byNode = make(map[string]any)
+				r.history[p.ExecutionID] = byNode
+			}
+			if _, exists := byNode[p.ParentActionID]; !exists {
+				byNode[p.ParentActionID] = p.Payload
+			}
+		}
+		r.mu.Unlock()
+		if a == nil {
+			r.log.Warn("pending assignment for unknown local node; skipping", "node_id", p.NodeID, "execution_id", p.ExecutionID)
+			continue
+		}
+		parent := common.ResultData{
+			WorkflowID:  p.WorkflowID,
+			ExecutionID: p.ExecutionID,
+			ActionID:    p.ParentActionID,
+			Payload:     p.Payload,
+		}
+		r.log.Info("executing pending assignment", "node_id", p.NodeID, "execution_id", p.ExecutionID)
+		go a.Execute(p.ExecutionID, []any{parent})
+	}
+}
+
 // mergedPayloadLocked folds recorded upstream dependency payloads into
 // the result when the node opts into merge_input. Deep merge, reported
 // $result wins. Callers must hold r.mu.
@@ -485,6 +551,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		backoff = cfg.RetryInitial
 		logger.Debug("client assignment poll succeeded", "client_id", id, "workflows", len(assignments.Workflows))
 		r.syncAssignments(assignments.Workflows)
+		r.drainPending(assignments.Pending)
 		select {
 		case result := <-r.events:
 			r.mu.Lock()
