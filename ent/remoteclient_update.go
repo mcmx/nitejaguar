@@ -95,6 +95,40 @@ func (_u *RemoteClientUpdate) SetLastPoll(v time.Time) *RemoteClientUpdate {
 	return _u
 }
 
+// SetRevoked sets the "revoked" field.
+func (_u *RemoteClientUpdate) SetRevoked(v bool) *RemoteClientUpdate {
+	_u.mutation.SetRevoked(v)
+	return _u
+}
+
+// SetNillableRevoked sets the "revoked" field if the given value is not nil.
+func (_u *RemoteClientUpdate) SetNillableRevoked(v *bool) *RemoteClientUpdate {
+	if v != nil {
+		_u.SetRevoked(*v)
+	}
+	return _u
+}
+
+// SetRevokedAt sets the "revoked_at" field.
+func (_u *RemoteClientUpdate) SetRevokedAt(v time.Time) *RemoteClientUpdate {
+	_u.mutation.SetRevokedAt(v)
+	return _u
+}
+
+// SetNillableRevokedAt sets the "revoked_at" field if the given value is not nil.
+func (_u *RemoteClientUpdate) SetNillableRevokedAt(v *time.Time) *RemoteClientUpdate {
+	if v != nil {
+		_u.SetRevokedAt(*v)
+	}
+	return _u
+}
+
+// ClearRevokedAt clears the value of the "revoked_at" field.
+func (_u *RemoteClientUpdate) ClearRevokedAt() *RemoteClientUpdate {
+	_u.mutation.ClearRevokedAt()
+	return _u
+}
+
 // Mutation returns the RemoteClientMutation object of the builder.
 func (_u *RemoteClientUpdate) Mutation() *RemoteClientMutation {
 	return _u.mutation
@@ -190,6 +224,15 @@ func (_u *RemoteClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if value, ok := _u.mutation.LastPoll(); ok {
 		_spec.SetField(remoteclient.FieldLastPoll, field.TypeTime, value)
 	}
+	if value, ok := _u.mutation.Revoked(); ok {
+		_spec.SetField(remoteclient.FieldRevoked, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RevokedAt(); ok {
+		_spec.SetField(remoteclient.FieldRevokedAt, field.TypeTime, value)
+	}
+	if _u.mutation.RevokedAtCleared() {
+		_spec.ClearField(remoteclient.FieldRevokedAt, field.TypeTime)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{remoteclient.Label}
@@ -273,6 +316,40 @@ func (_u *RemoteClientUpdateOne) SetLastHeartbeat(v time.Time) *RemoteClientUpda
 // SetLastPoll sets the "last_poll" field.
 func (_u *RemoteClientUpdateOne) SetLastPoll(v time.Time) *RemoteClientUpdateOne {
 	_u.mutation.SetLastPoll(v)
+	return _u
+}
+
+// SetRevoked sets the "revoked" field.
+func (_u *RemoteClientUpdateOne) SetRevoked(v bool) *RemoteClientUpdateOne {
+	_u.mutation.SetRevoked(v)
+	return _u
+}
+
+// SetNillableRevoked sets the "revoked" field if the given value is not nil.
+func (_u *RemoteClientUpdateOne) SetNillableRevoked(v *bool) *RemoteClientUpdateOne {
+	if v != nil {
+		_u.SetRevoked(*v)
+	}
+	return _u
+}
+
+// SetRevokedAt sets the "revoked_at" field.
+func (_u *RemoteClientUpdateOne) SetRevokedAt(v time.Time) *RemoteClientUpdateOne {
+	_u.mutation.SetRevokedAt(v)
+	return _u
+}
+
+// SetNillableRevokedAt sets the "revoked_at" field if the given value is not nil.
+func (_u *RemoteClientUpdateOne) SetNillableRevokedAt(v *time.Time) *RemoteClientUpdateOne {
+	if v != nil {
+		_u.SetRevokedAt(*v)
+	}
+	return _u
+}
+
+// ClearRevokedAt clears the value of the "revoked_at" field.
+func (_u *RemoteClientUpdateOne) ClearRevokedAt() *RemoteClientUpdateOne {
+	_u.mutation.ClearRevokedAt()
 	return _u
 }
 
@@ -400,6 +477,15 @@ func (_u *RemoteClientUpdateOne) sqlSave(ctx context.Context) (_node *RemoteClie
 	}
 	if value, ok := _u.mutation.LastPoll(); ok {
 		_spec.SetField(remoteclient.FieldLastPoll, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.Revoked(); ok {
+		_spec.SetField(remoteclient.FieldRevoked, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RevokedAt(); ok {
+		_spec.SetField(remoteclient.FieldRevokedAt, field.TypeTime, value)
+	}
+	if _u.mutation.RevokedAtCleared() {
+		_spec.ClearField(remoteclient.FieldRevokedAt, field.TypeTime)
 	}
 	_node = &RemoteClient{config: _u.config}
 	_spec.Assign = _node.assignValues

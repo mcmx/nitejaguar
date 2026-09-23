@@ -6,6 +6,12 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// AuditLog is the predicate function for auditlog builders.
+type AuditLog func(*sql.Selector)
+
+// EnrollmentToken is the predicate function for enrollmenttoken builders.
+type EnrollmentToken func(*sql.Selector)
+
 // RemoteClient is the predicate function for remoteclient builders.
 type RemoteClient func(*sql.Selector)
 

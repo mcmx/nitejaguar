@@ -31,3 +31,34 @@ Server configuration relies on environment variables (loaded via `godotenv` from
 - **Artifacts**:
   - Logs: `./log/server.log`
   - Results: `./results/`
+
+## Tenant Enrollment & Client Lifecycle
+
+Open client registration is closed. Clients self-register with a
+**tenant enrollment (join) token**; the tenant is derived from the token
+and never from client-supplied input (a `tenant_id` in the register body
+is ignored).
+
+- **Bootstrap**: the first server run creates the `default` tenant's
+  one-time join token and prints its plaintext once to stdout
+  (`BOOTSTRAP enrollment token ...`). The plaintext is never stored —
+  only its hash is persisted.
+- **Register**: `POST /api/clients/register` requires
+  `enrollment_token` (alias `join_token`); missing/invalid/expired/
+  revoked/exhausted tokens return `401`.
+- **Token management** (currently unauthenticated; role-gating arrives
+  with the RBAC slice):
+  - `POST /api/enrollment/tokens` — mint a token
+    (`{tenant_id, label, expires_in_hours, max_uses}`; `max_uses: 0`
+    means unlimited). Returns the plaintext `token` once.
+  - `GET /api/enrollment/tokens` — list tokens (hashes never exposed).
+  - `POST /api/enrollment/tokens/{id}/revoke` — revoke a token to
+    block new joins.
+- **Client revoke**: `POST /api/clients/{id}/revoke` — the client's
+  token stops authenticating (heartbeat, assignments, results all
+  return `401`); revoked clients show as `revoked`/stale in
+  `GET /api/clients` and on the `/clients` page.
+- **Audit**: every enrollment use, token op, and client revoke is
+  recorded; `GET /api/audit?limit=100` returns the trail
+  (`enrollment.use`, `enrollment.create`, `enrollment.revoke`,
+  `client.revoke`).

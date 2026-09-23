@@ -14,6 +14,9 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"github.com/mcmx/nitejaguar/ent"
+	"github.com/mcmx/nitejaguar/ent/auditlog"
+	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
+	"github.com/mcmx/nitejaguar/ent/remoteclient"
 	"github.com/mcmx/nitejaguar/ent/workflow"
 	"go.jetify.com/typeid"
 
@@ -47,6 +50,18 @@ type Service interface {
 	PollClient(id string) error
 	GetClients() ([]*ent.RemoteClient, error)
 	AuthenticateClient(id, token string) (string, bool)
+	RevokeClient(id string) error
+
+	// Tenant enrollment & client lifecycle (roadmap slice 1).
+	CreateEnrollmentToken(tenantID, label string, expiresAt *time.Time, maxUses int) (*ent.EnrollmentToken, string, error)
+	ListEnrollmentTokens() ([]*ent.EnrollmentToken, error)
+	RevokeEnrollmentToken(id string) error
+	ConsumeEnrollmentToken(token string) (*ent.EnrollmentToken, error)
+	EnsureDefaultEnrollmentToken() (plaintext string, created bool, err error)
+
+	// Audit trail for enrollment use and lifecycle ops.
+	LogAudit(action, tenantID, actor, target, detail string) error
+	ListAuditLogs(limit int) ([]*ent.AuditLog, error)
 }
 
 type service struct {
@@ -99,6 +114,14 @@ func New() (Service, error) {
 	}
 	if err := client.Schema.Create(context.Background()); err != nil {
 		return nil, fmt.Errorf("failed creating schema resources: %w", err)
+	}
+	if plaintext, created, err := dbInstance.EnsureDefaultEnrollmentToken(); err != nil {
+		log.Printf("failed bootstrapping default enrollment token: %v", err)
+	} else if created {
+		// The plaintext is only available here; print to stdout so the
+		// operator can enroll the first client. It is never stored.
+		fmt.Printf("BOOTSTRAP enrollment token (tenant=default, one-time): %s\n", plaintext)
+		log.Printf("BOOTSTRAP enrollment token created for tenant=default (one-time, see stdout)")
 	}
 	return dbInstance, nil
 }
@@ -295,6 +318,9 @@ func (s *service) AuthenticateClient(id, token string) (string, bool) {
 		if err != nil {
 			return "", false
 		}
+		if c.Revoked {
+			return "", false
+		}
 		return c.ID, subtle.ConstantTimeCompare([]byte(c.TokenHash), []byte(h)) == 1
 	}
 	cs, err := s.client.RemoteClient.Query().All(context.Background())
@@ -302,9 +328,181 @@ func (s *service) AuthenticateClient(id, token string) (string, bool) {
 		return "", false
 	}
 	for _, c := range cs {
+		if c.Revoked {
+			continue
+		}
 		if subtle.ConstantTimeCompare([]byte(c.TokenHash), []byte(h)) == 1 {
 			return c.ID, true
 		}
 	}
 	return "", false
 }
+
+func (s *service) RevokeClient(id string) error {
+	c, err := s.client.RemoteClient.Get(context.Background(), id)
+	if err != nil {
+		return fmt.Errorf("client not found: %w", err)
+	}
+	if c.Revoked {
+		return nil
+	}
+	if err := s.client.RemoteClient.UpdateOneID(id).
+		SetRevoked(true).
+		SetRevokedAt(time.Now()).
+		Exec(context.Background()); err != nil {
+		return fmt.Errorf("failed to revoke client: %w", err)
+	}
+	return nil
+}
+
+// CreateEnrollmentToken mints a tenant-scoped join token. The plaintext is
+// returned once and never stored; only its sha256 hash is persisted.
+func (s *service) CreateEnrollmentToken(tenantID, label string, expiresAt *time.Time, maxUses int) (*ent.EnrollmentToken, string, error) {
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	if maxUses < 0 {
+		return nil, "", fmt.Errorf("max_uses cannot be negative")
+	}
+	tid, _ := typeid.WithPrefix("enroll")
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return nil, "", fmt.Errorf("failed to generate token: %w", err)
+	}
+	plaintext := hex.EncodeToString(buf)
+	create := s.client.EnrollmentToken.Create().
+		SetID(tid.String()).
+		SetTenantID(tenantID).
+		SetLabel(label).
+		SetTokenHash(hashToken(plaintext)).
+		SetMaxUses(maxUses)
+	if expiresAt != nil {
+		create.SetExpiresAt(*expiresAt)
+	}
+	tok, err := create.Save(context.Background())
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create enrollment token: %w", err)
+	}
+	return tok, plaintext, nil
+}
+
+func (s *service) ListEnrollmentTokens() ([]*ent.EnrollmentToken, error) {
+	toks, err := s.client.EnrollmentToken.Query().
+		Order(ent.Desc(enrollmenttoken.FieldCreatedAt)).
+		All(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list enrollment tokens: %w", err)
+	}
+	return toks, nil
+}
+
+func (s *service) RevokeEnrollmentToken(id string) error {
+	tok, err := s.client.EnrollmentToken.Get(context.Background(), id)
+	if err != nil {
+		return fmt.Errorf("enrollment token not found: %w", err)
+	}
+	if tok.Revoked {
+		return nil
+	}
+	if err := s.client.EnrollmentToken.UpdateOneID(id).
+		SetRevoked(true).
+		Exec(context.Background()); err != nil {
+		return fmt.Errorf("failed to revoke enrollment token: %w", err)
+	}
+	return nil
+}
+
+// ConsumeEnrollmentToken validates a join token and records one use.
+// It returns the token row (tenant comes from here, never from client input).
+func (s *service) ConsumeEnrollmentToken(token string) (*ent.EnrollmentToken, error) {
+	if token == "" {
+		return nil, fmt.Errorf("enrollment token is required")
+	}
+	h := hashToken(token)
+	tok, err := s.client.EnrollmentToken.Query().
+		Where(enrollmenttoken.TokenHash(h)).
+		Only(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("invalid enrollment token")
+	}
+	if tok.Revoked {
+		return nil, fmt.Errorf("enrollment token revoked")
+	}
+	if tok.ExpiresAt != nil && time.Now().After(*tok.ExpiresAt) {
+		return nil, fmt.Errorf("enrollment token expired")
+	}
+	if tok.MaxUses > 0 && tok.UseCount >= tok.MaxUses {
+		return nil, fmt.Errorf("enrollment token exhausted")
+	}
+	updated, err := s.client.EnrollmentToken.UpdateOneID(tok.ID).
+		SetUseCount(tok.UseCount + 1).
+		Save(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to consume enrollment token: %w", err)
+	}
+	return updated, nil
+}
+
+// EnsureDefaultEnrollmentToken bootstraps the `default` tenant with a
+// one-time join token when no usable token exists. It returns the plaintext
+// only when a token was newly created.
+func (s *service) EnsureDefaultEnrollmentToken() (string, bool, error) {
+	toks, err := s.client.EnrollmentToken.Query().
+		Where(enrollmenttoken.TenantID("default")).
+		All(context.Background())
+	if err != nil {
+		return "", false, fmt.Errorf("failed to check enrollment tokens: %w", err)
+	}
+	now := time.Now()
+	for _, tok := range toks {
+		if tok.Revoked {
+			continue
+		}
+		if tok.ExpiresAt != nil && now.After(*tok.ExpiresAt) {
+			continue
+		}
+		if tok.MaxUses > 0 && tok.UseCount >= tok.MaxUses {
+			continue
+		}
+		return "", false, nil
+	}
+	tok, plaintext, err := s.CreateEnrollmentToken("default", "bootstrap", nil, 1)
+	if err != nil {
+		return "", false, err
+	}
+	_ = s.LogAudit("enrollment.create", "default", "system", tok.ID, "bootstrap one-time token")
+	return plaintext, true, nil
+}
+
+func (s *service) LogAudit(action, tenantID, actor, target, detail string) error {
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	aid, _ := typeid.WithPrefix("audit")
+	if err := s.client.AuditLog.Create().
+		SetID(aid.String()).
+		SetAction(action).
+		SetTenantID(tenantID).
+		SetActor(actor).
+		SetTarget(target).
+		SetDetail(detail).
+		Exec(context.Background()); err != nil {
+		return fmt.Errorf("failed to write audit log: %w", err)
+	}
+	return nil
+}
+
+func (s *service) ListAuditLogs(limit int) ([]*ent.AuditLog, error) {
+	q := s.client.AuditLog.Query().Order(ent.Desc(auditlog.FieldCreatedAt))
+	if limit > 0 {
+		q.Limit(limit)
+	}
+	logs, err := q.All(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list audit logs: %w", err)
+	}
+	return logs, nil
+}
+
+// Ensure remoteclient import is used even when only enrollment code paths run.
+var _ = remoteclient.FieldRevoked

@@ -94,6 +94,16 @@ func LastPoll(v time.Time) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldEQ(FieldLastPoll, v))
 }
 
+// Revoked applies equality check predicate on the "revoked" field. It's identical to RevokedEQ.
+func Revoked(v bool) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEQ(FieldRevoked, v))
+}
+
+// RevokedAt applies equality check predicate on the "revoked_at" field. It's identical to RevokedAtEQ.
+func RevokedAt(v time.Time) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEQ(FieldRevokedAt, v))
+}
+
 // NameEQ applies the EQ predicate on the "name" field.
 func NameEQ(v string) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldEQ(FieldName, v))
@@ -407,6 +417,66 @@ func LastPollLT(v time.Time) predicate.RemoteClient {
 // LastPollLTE applies the LTE predicate on the "last_poll" field.
 func LastPollLTE(v time.Time) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldLTE(FieldLastPoll, v))
+}
+
+// RevokedEQ applies the EQ predicate on the "revoked" field.
+func RevokedEQ(v bool) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEQ(FieldRevoked, v))
+}
+
+// RevokedNEQ applies the NEQ predicate on the "revoked" field.
+func RevokedNEQ(v bool) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldNEQ(FieldRevoked, v))
+}
+
+// RevokedAtEQ applies the EQ predicate on the "revoked_at" field.
+func RevokedAtEQ(v time.Time) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEQ(FieldRevokedAt, v))
+}
+
+// RevokedAtNEQ applies the NEQ predicate on the "revoked_at" field.
+func RevokedAtNEQ(v time.Time) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldNEQ(FieldRevokedAt, v))
+}
+
+// RevokedAtIn applies the In predicate on the "revoked_at" field.
+func RevokedAtIn(vs ...time.Time) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldIn(FieldRevokedAt, vs...))
+}
+
+// RevokedAtNotIn applies the NotIn predicate on the "revoked_at" field.
+func RevokedAtNotIn(vs ...time.Time) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldNotIn(FieldRevokedAt, vs...))
+}
+
+// RevokedAtGT applies the GT predicate on the "revoked_at" field.
+func RevokedAtGT(v time.Time) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldGT(FieldRevokedAt, v))
+}
+
+// RevokedAtGTE applies the GTE predicate on the "revoked_at" field.
+func RevokedAtGTE(v time.Time) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldGTE(FieldRevokedAt, v))
+}
+
+// RevokedAtLT applies the LT predicate on the "revoked_at" field.
+func RevokedAtLT(v time.Time) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldLT(FieldRevokedAt, v))
+}
+
+// RevokedAtLTE applies the LTE predicate on the "revoked_at" field.
+func RevokedAtLTE(v time.Time) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldLTE(FieldRevokedAt, v))
+}
+
+// RevokedAtIsNil applies the IsNil predicate on the "revoked_at" field.
+func RevokedAtIsNil() predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldIsNull(FieldRevokedAt))
+}
+
+// RevokedAtNotNil applies the NotNil predicate on the "revoked_at" field.
+func RevokedAtNotNil() predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldNotNull(FieldRevokedAt))
 }
 
 // And groups predicates with the AND operator between them.

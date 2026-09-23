@@ -94,6 +94,34 @@ func (_c *RemoteClientCreate) SetNillableLastPoll(v *time.Time) *RemoteClientCre
 	return _c
 }
 
+// SetRevoked sets the "revoked" field.
+func (_c *RemoteClientCreate) SetRevoked(v bool) *RemoteClientCreate {
+	_c.mutation.SetRevoked(v)
+	return _c
+}
+
+// SetNillableRevoked sets the "revoked" field if the given value is not nil.
+func (_c *RemoteClientCreate) SetNillableRevoked(v *bool) *RemoteClientCreate {
+	if v != nil {
+		_c.SetRevoked(*v)
+	}
+	return _c
+}
+
+// SetRevokedAt sets the "revoked_at" field.
+func (_c *RemoteClientCreate) SetRevokedAt(v time.Time) *RemoteClientCreate {
+	_c.mutation.SetRevokedAt(v)
+	return _c
+}
+
+// SetNillableRevokedAt sets the "revoked_at" field if the given value is not nil.
+func (_c *RemoteClientCreate) SetNillableRevokedAt(v *time.Time) *RemoteClientCreate {
+	if v != nil {
+		_c.SetRevokedAt(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *RemoteClientCreate) SetID(v string) *RemoteClientCreate {
 	_c.mutation.SetID(v)
@@ -151,6 +179,10 @@ func (_c *RemoteClientCreate) defaults() {
 		v := remoteclient.DefaultLastPoll()
 		_c.mutation.SetLastPoll(v)
 	}
+	if _, ok := _c.mutation.Revoked(); !ok {
+		v := remoteclient.DefaultRevoked
+		_c.mutation.SetRevoked(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -185,6 +217,9 @@ func (_c *RemoteClientCreate) check() error {
 	}
 	if _, ok := _c.mutation.LastPoll(); !ok {
 		return &ValidationError{Name: "last_poll", err: errors.New(`ent: missing required field "RemoteClient.last_poll"`)}
+	}
+	if _, ok := _c.mutation.Revoked(); !ok {
+		return &ValidationError{Name: "revoked", err: errors.New(`ent: missing required field "RemoteClient.revoked"`)}
 	}
 	if v, ok := _c.mutation.ID(); ok {
 		if err := remoteclient.IDValidator(v); err != nil {
@@ -253,6 +288,14 @@ func (_c *RemoteClientCreate) createSpec() (*RemoteClient, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.LastPoll(); ok {
 		_spec.SetField(remoteclient.FieldLastPoll, field.TypeTime, value)
 		_node.LastPoll = value
+	}
+	if value, ok := _c.mutation.Revoked(); ok {
+		_spec.SetField(remoteclient.FieldRevoked, field.TypeBool, value)
+		_node.Revoked = value
+	}
+	if value, ok := _c.mutation.RevokedAt(); ok {
+		_spec.SetField(remoteclient.FieldRevokedAt, field.TypeTime, value)
+		_node.RevokedAt = &value
 	}
 	return _node, _spec
 }

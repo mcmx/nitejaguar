@@ -40,6 +40,11 @@ func (RemoteClient) Fields() []ent.Field {
 		field.Time("last_poll").
 			Default(time.Now).
 			UpdateDefault(time.Now),
+		field.Bool("revoked").
+			Default(false),
+		field.Time("revoked_at").
+			Optional().
+			Nillable(),
 	}
 }
 

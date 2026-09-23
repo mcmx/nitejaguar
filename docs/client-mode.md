@@ -5,7 +5,7 @@ Nitejaguar supports distributed execution where remote **Clients** (runners) reg
 ## Starting a Client
 
 ```bash
-./nitejaguar client --server http://127.0.0.1:8080 --name worker-node-1
+./nitejaguar client --server http://127.0.0.1:8080 --name worker-node-1 --enrollment-token <join-token>
 ```
 
 ### CLI Flags & Environment Variables
@@ -16,10 +16,11 @@ Nitejaguar supports distributed execution where remote **Clients** (runners) reg
 | `--name` | `NITEJAGUAR_CLIENT_NAME` | `default` | Human-readable client name |
 | `--client-id` | `NITEJAGUAR_CLIENT_ID` | (auto-generated) | Persistent client ID for reconnection |
 | `--token` | `NITEJAGUAR_TOKEN` | `""` | Authentication token for secured servers |
+| `--enrollment-token` | `NITEJAGUAR_ENROLLMENT_TOKEN` | `""` | Tenant enrollment/join token for self-registration (required on first register; tenant comes from the token) |
 
 ## Execution Lifecycle
 
-1. **Registration**: On startup, the client registers itself with the server (or reconnects using an existing `--client-id`).
+1. **Registration**: On startup, the client registers itself with the server using its enrollment token (or reconnects using an existing `--client-id`). Without a valid join token the server returns `401`.
 2. **Polling**: The client periodically polls the server for assigned workflow nodes.
 3. **Local Execution**: Assigned nodes (such as file watches or file transformations) execute locally against the client's file system (e.g., expanding `~` paths locally).
 4. **Result Reporting**: Success or error results are transmitted back to the server and logged in `./results/`.

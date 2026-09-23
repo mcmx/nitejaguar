@@ -23,7 +23,16 @@ orchestrated through a central server.
   must be routed via server-side assignments, not direct local execution.
 - Designer + workflow JSON support for defaults and overrides.
 
-## 2. Tenant enrollment & client lifecycle (FIRST)
+## 2. Tenant enrollment & client lifecycle (FIRST) — DONE
+
+Status: implemented. `POST /api/clients/register` requires an
+`enrollment_token`/`join_token`; tenant is derived from the token
+(client-supplied `tenant_id` ignored). Tokens are tenant-scoped with
+expiry, `max_uses`, and revocation (`/api/enrollment/tokens*`);
+clients can be revoked (`/api/clients/{id}/revoke`, auth rejected
+thereafter). First server run bootstraps a one-time `default` token
+(plaintext printed once). Every use/op is audit-logged (`/api/audit`).
+Token issuance is not yet role-gated — that arrives with the RBAC slice.
 
 - Clients self-register with a **tenant enrollment/join token**
   (scoped per tenant, expirable, limited uses, revocable).
@@ -80,7 +89,7 @@ orchestrated through a central server.
 
 ## Build order
 
-1. Tenant enrollment & client lifecycle
+1. Tenant enrollment & client lifecycle ✅ done
 2. Client targeting + cross-client handoff fix
 3. Credentials model (reference + JIT fetch + resolution)
 4. RBAC + web auth + management pages + audit

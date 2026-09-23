@@ -35,6 +35,7 @@ type ClientView struct {
     LastHeartbeat string
     LastPoll string
     Online bool
+    Revoked bool
 }
 
 type ClientsPageData struct {
@@ -239,7 +240,9 @@ templ ClientsPage(data *ClientsPageData) {
                         <article class="rounded-lg border border-border p-5">
                             <div class="flex items-start justify-between gap-4">
                                 <div><h2 class="font-semibold">{ client.Name }</h2><p class="mt-1 break-all font-mono text-xs text-muted-foreground">{ client.ID }</p></div>
-                                if client.Online {
+                                if client.Revoked {
+                                    <span class="rounded-full bg-red-500/15 px-2 py-1 text-xs text-red-600">revoked</span>
+                                } else if client.Online {
                                     <span class="rounded-full bg-green-500/15 px-2 py-1 text-xs text-green-600">online</span>
                                 } else {
                                     <span class="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">stale</span>

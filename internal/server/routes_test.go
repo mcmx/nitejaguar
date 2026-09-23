@@ -85,6 +85,17 @@ func decodeBody(t *testing.T, respBody *strings.Reader, v any) {
 	}
 }
 
+// mintEnrollmentToken creates a tenant-scoped join token for tests and
+// returns its plaintext (the only time it is visible).
+func mintEnrollmentToken(t *testing.T, db database.Service, tenant string, maxUses int) string {
+	t.Helper()
+	_, plaintext, err := db.CreateEnrollmentToken(tenant, "test", nil, maxUses)
+	if err != nil {
+		t.Fatalf("create enrollment token: %v", err)
+	}
+	return plaintext
+}
+
 func TestClientAssignmentFlow(t *testing.T) {
 	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
 	db, err := database.New()
@@ -100,10 +111,12 @@ func TestClientAssignmentFlow(t *testing.T) {
 		t.Fatalf("seed workflow: %v", err)
 	}
 
-	// register a gpu client
+	// register a gpu client (tenant comes from the enrollment token)
+	joinToken := mintEnrollmentToken(t, db, "default", 0)
 	resp := api.Post("/api/clients/register", map[string]any{
-		"name": "gpu-worker",
-		"tags": []string{"gpu"},
+		"name":             "gpu-worker",
+		"tags":             []string{"gpu"},
+		"enrollment_token": joinToken,
 	})
 	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
 		t.Fatalf("register gpu client status = %v, body = %s", resp.Code, resp.Body.String())
@@ -189,8 +202,9 @@ func TestClientAssignmentFlow(t *testing.T) {
 
 	// register a cpu client: should only see the broadcast trigger
 	resp = api.Post("/api/clients/register", map[string]any{
-		"name": "cpu-worker",
-		"tags": []string{"cpu"},
+		"name":             "cpu-worker",
+		"tags":             []string{"cpu"},
+		"enrollment_token": mintEnrollmentToken(t, db, "default", 0),
 	})
 	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
 		t.Fatalf("register cpu client status = %v", resp.Code)
@@ -311,7 +325,7 @@ func TestClientAssignmentsExcludeDisabledWorkflows(t *testing.T) {
 	if err := db.SetWorkflowEnabled("workflow_01kassignmentsync1test0001", false); err != nil {
 		t.Fatalf("disable workflow: %v", err)
 	}
-	resp := api.Post("/api/clients/register", map[string]any{"name": "disabled-test", "tags": []string{"gpu"}})
+	resp := api.Post("/api/clients/register", map[string]any{"name": "disabled-test", "tags": []string{"gpu"}, "enrollment_token": mintEnrollmentToken(t, db, "default", 0)})
 	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
 		t.Fatalf("register status = %v", resp.Code)
 	}
@@ -392,5 +406,147 @@ func TestWorkflowImportCloneAPI(t *testing.T) {
 	resp = api.Post("/api/workflows/import", map[string]any{})
 	if resp.Code != http.StatusUnprocessableEntity && resp.Code != http.StatusBadRequest {
 		t.Fatalf("invalid import status = %v, want 400 or 422", resp.Code)
+	}
+}
+
+func TestTenantEnrollmentLifecycle(t *testing.T) {
+	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
+	wm := workflow.NewWorkflowManager(false, db)
+	s := &Server{db: db, wm: wm}
+	_, api := humatest.New(t)
+	addApiRoutes(api, s)
+
+	// Open registration is closed: no token -> 401.
+	resp := api.Post("/api/clients/register", map[string]any{"name": "no-token"})
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("register without token status = %v, want 401", resp.Code)
+	}
+
+	// Invalid token -> 401.
+	resp = api.Post("/api/clients/register", map[string]any{"name": "bad-token", "enrollment_token": "not-a-real-token"})
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("register with bad token status = %v, want 401", resp.Code)
+	}
+
+	// Mint a token via the API for tenant acme.
+	resp = api.Post("/api/enrollment/tokens", map[string]any{"tenant_id": "acme", "label": "test"})
+	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+		t.Fatalf("create enrollment token status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	var created struct {
+		ID       string `json:"id"`
+		TenantID string `json:"tenant_id"`
+		Token    string `json:"token"`
+		MaxUses  int    `json:"max_uses"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &created)
+	if created.Token == "" || created.TenantID != "acme" {
+		t.Fatalf("unexpected token response: %s", resp.Body.String())
+	}
+
+	// Tenant comes from the token: a mismatched client-supplied tenant_id
+	// is ignored, the client lands in the token tenant.
+	resp = api.Post("/api/clients/register", map[string]any{
+		"name": "acme-worker", "tenant_id": "someone-else", "enrollment_token": created.Token,
+	})
+	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+		t.Fatalf("register with token status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	var registered struct {
+		ClientID string `json:"client_id"`
+		Token    string `json:"token"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &registered)
+
+	resp = api.Get("/api/clients")
+	var clients struct {
+		Clients []struct {
+			ID       string `json:"client_id"`
+			TenantID string `json:"tenant_id"`
+		} `json:"clients"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &clients)
+	tenantOf := ""
+	for _, c := range clients.Clients {
+		if c.ID == registered.ClientID {
+			tenantOf = c.TenantID
+		}
+	}
+	if tenantOf != "acme" {
+		t.Fatalf("client tenant = %q, want acme (token tenant wins)", tenantOf)
+	}
+
+	// One-time token: second use is exhausted -> 401.
+	resp = api.Post("/api/enrollment/tokens", map[string]any{"tenant_id": "acme", "max_uses": 1})
+	var oneTime struct {
+		ID    string `json:"id"`
+		Token string `json:"token"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &oneTime)
+	resp = api.Post("/api/clients/register", map[string]any{"name": "first", "enrollment_token": oneTime.Token})
+	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+		t.Fatalf("first one-time use status = %v", resp.Code)
+	}
+	resp = api.Post("/api/clients/register", map[string]any{"name": "second", "enrollment_token": oneTime.Token})
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("exhausted token status = %v, want 401", resp.Code)
+	}
+
+	// Revoking a token blocks new joins.
+	resp = api.Post("/api/enrollment/tokens", map[string]any{"tenant_id": "acme"})
+	var revokable struct {
+		ID    string `json:"id"`
+		Token string `json:"token"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &revokable)
+	resp = api.Post("/api/enrollment/tokens/" + revokable.ID + "/revoke", map[string]any{})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("revoke token status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	resp = api.Post("/api/clients/register", map[string]any{"name": "after-revoke", "enrollment_token": revokable.Token})
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked token status = %v, want 401", resp.Code)
+	}
+
+	// Revoking a client stops its token from authenticating.
+	resp = api.Post("/api/clients/"+registered.ClientID+"/revoke", map[string]any{})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("revoke client status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	resp = api.Post("/api/clients/heartbeat", "Authorization: Bearer "+registered.Token, map[string]any{
+		"client_id": registered.ClientID,
+	})
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked client heartbeat status = %v, want 401", resp.Code)
+	}
+	resp = api.Get("/api/clients/"+registered.ClientID+"/assignments", "Authorization: Bearer "+registered.Token)
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked client assignments status = %v, want 401", resp.Code)
+	}
+
+	// Every enrollment use is audited.
+	resp = api.Get("/api/audit?limit=500")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("audit status = %v", resp.Code)
+	}
+	var audit struct {
+		Entries []struct {
+			Action string `json:"action"`
+			Target string `json:"target"`
+		} `json:"entries"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &audit)
+	seen := map[string]bool{}
+	for _, e := range audit.Entries {
+		seen[e.Action] = true
+	}
+	for _, action := range []string{"enrollment.use", "enrollment.create", "enrollment.revoke", "client.revoke"} {
+		if !seen[action] {
+			t.Fatalf("audit missing action %q: %s", action, resp.Body.String())
+		}
 	}
 }
