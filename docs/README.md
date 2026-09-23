@@ -11,6 +11,7 @@ Welcome to the official documentation for **Nitejaguar**, a lightweight and powe
 - [Client Mode](./client-mode.md) — Running remote clients/runners, task polling, and local execution.
 - [Workflows](./workflows.md) — Workflow JSON schemas, triggers, actions, conditions, dependencies, import (`server -i`, `client workflow import`), and clone (`server -c`, `client workflow clone`) operations.
 - [Development Guide](./development.md) — Building, codegen (`templ` & `ent`), testing (`make test`), and linting (`make lint`).
+- [Credentials](./credentials.md) — Credential storage (encrypted at rest), scopes & resolution (`user > group > tenant`), just-in-time fetch, and `credential_ref` workflow usage.
 
 ### Actions & Triggers Reference
 - [File Change Trigger (`filechange`)](./actions/filechange-trigger.md)

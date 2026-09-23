@@ -24,6 +24,25 @@ var (
 		Columns:    AuditLogsColumns,
 		PrimaryKey: []*schema.Column{AuditLogsColumns[0]},
 	}
+	// CredentialsColumns holds the columns for the "credentials" table.
+	CredentialsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "tenant_id", Type: field.TypeString, Default: "default"},
+		{Name: "name", Type: field.TypeString},
+		{Name: "type", Type: field.TypeString, Default: "generic"},
+		{Name: "scope", Type: field.TypeString, Default: "tenant"},
+		{Name: "owner_id", Type: field.TypeString, Default: ""},
+		{Name: "secret_encrypted", Type: field.TypeString, Size: 2147483647},
+		{Name: "description", Type: field.TypeString, Default: ""},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// CredentialsTable holds the schema information for the "credentials" table.
+	CredentialsTable = &schema.Table{
+		Name:       "credentials",
+		Columns:    CredentialsColumns,
+		PrimaryKey: []*schema.Column{CredentialsColumns[0]},
+	}
 	// EnrollmentTokensColumns holds the columns for the "enrollment_tokens" table.
 	EnrollmentTokensColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
@@ -99,6 +118,7 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		AuditLogsTable,
+		CredentialsTable,
 		EnrollmentTokensTable,
 		NodeAssignmentsTable,
 		RemoteClientsTable,

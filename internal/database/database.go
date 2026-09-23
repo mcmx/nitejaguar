@@ -70,6 +70,16 @@ type Service interface {
 	EnqueueNodeAssignment(tenantID, workflowID, executionID, nodeID, parentActionID string, payload any) (*ent.NodeAssignment, error)
 	ListPendingAssignments() ([]*ent.NodeAssignment, error)
 	CompleteNodeAssignment(workflowID, executionID, nodeID string) error
+
+	// Credentials model (roadmap slice 3): nodes hold a credential_ref,
+	// never the secret. Secrets are encrypted at rest and delivered
+	// just-in-time to the executing client.
+	CreateCredential(tenantID, name, credType, scope, ownerID, secretPlaintext, description string) (*ent.Credential, error)
+	ListCredentials(tenantID string) ([]*ent.Credential, error)
+	GetCredential(id string) (*ent.Credential, error)
+	DeleteCredential(id string) error
+	ResolveCredential(tenantID, ref, userID string, groupIDs []string) (*ent.Credential, error)
+	DecryptCredentialSecret(row *ent.Credential) (string, error)
 }
 
 type service struct {

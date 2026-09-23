@@ -103,3 +103,25 @@ Each workflow selects a default client target; each node can override it.
 In the example the trigger inherits the workflow `gpu` default while the
 action overrides it to `cpu`. Import/clone preserve the defaults; the
 designer edits them as workflow-level fields.
+
+## Credential references
+
+Every node (actions AND triggers) may set `credential_ref` to a
+credential id (`credential_...`) or a credential name (resolved
+`user > group > tenant`). The secret itself never lives in workflow
+JSON — import/clone preserve the reference verbatim, assignment
+polling ships only the reference, and the executing client fetches the
+secret just-in-time via `GET /api/credentials/{ref}/fetch`. See
+[Credentials](./credentials.md) for scopes, types, and the fetch API.
+
+```json
+{
+  "id": "action_01h...",
+  "action_type": "action",
+  "action_name": "s3",
+  "credential_ref": "prod-s3-backup",
+  "arguments": {"bucket": "backups"},
+  "conditions": {"entries": {}},
+  "dependencies": ["trigger_01h..."]
+}
+```

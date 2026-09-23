@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -161,6 +162,43 @@ func (a API) PostResult(ctx context.Context, r common.ResultData) ([]string, err
 	return out.Nexts, err
 }
 
+// CredentialFetch is the just-in-time secret delivery for a node
+// credential_ref. The secret must be held in memory only for TTLSeconds
+// and never persisted to disk, logs, or results.
+type CredentialFetch struct {
+	CredentialID string `json:"credential_id"`
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	Secret       string `json:"secret"`
+	TTLSeconds   int    `json:"ttl_seconds"`
+}
+
+// FetchCredential fetches the secret for a node credential reference with
+// the client's own token. The server never ships secrets inside workflow
+// assignments; every fetch is audited server-side.
+func (a API) FetchCredential(ctx context.Context, ref, userID string, groups []string, workflowID, nodeID string) (CredentialFetch, error) {
+	var out CredentialFetch
+	path := "/api/credentials/" + url.PathEscape(ref) + "/fetch"
+	query := []string{}
+	if userID != "" {
+		query = append(query, "user_id="+userID)
+	}
+	if len(groups) > 0 {
+		query = append(query, "groups="+strings.Join(groups, ","))
+	}
+	if workflowID != "" {
+		query = append(query, "workflow_id="+workflowID)
+	}
+	if nodeID != "" {
+		query = append(query, "node_id="+nodeID)
+	}
+	if len(query) > 0 {
+		path += "?" + strings.Join(query, "&")
+	}
+	err := a.request(ctx, http.MethodGet, path, nil, &out)
+	return out, err
+}
+
 // UpsertWorkflowResponse is the server reply for the workflow
 // import/clone endpoints.
 type UpsertWorkflowResponse struct {
@@ -198,6 +236,7 @@ type runner struct {
 	nodeAction      map[string]common.Action
 	history         map[string]map[string]any
 	pendingSeen     map[string]bool
+	credCache       map[string]credentialCacheEntry
 }
 
 // managedWorkflow is one installed revision of a workflow.
@@ -213,8 +252,16 @@ type managedWorkflow struct {
 // Actions stay unaware of it; the runner applies the merge before
 // reporting the result.
 type nodeConfig struct {
-	mergeInput   bool
-	dependencies []string
+	mergeInput    bool
+	dependencies  []string
+	credentialRef string
+}
+
+// credentialCacheEntry is a short-lived in-memory secret. Secrets are never
+// persisted; entries expire after the server-advertised TTL.
+type credentialCacheEntry struct {
+	secret    string
+	expiresAt time.Time
 }
 
 func newRunner(api API, logger *slog.Logger) *runner {
@@ -230,6 +277,7 @@ func newRunner(api API, logger *slog.Logger) *runner {
 		nodeAction:      make(map[string]common.Action),
 		history:         make(map[string]map[string]any),
 		pendingSeen:     make(map[string]bool),
+		credCache:       make(map[string]credentialCacheEntry),
 	}
 }
 
@@ -304,7 +352,7 @@ func (r *runner) buildManagedWorkflow(w Workflow) *managedWorkflow {
 		meta:       make(map[string]nodeConfig),
 	}
 	for id, n := range w.Nodes {
-		mw.meta[id] = nodeConfig{mergeInput: n.MergeInput, dependencies: n.Dependencies}
+		mw.meta[id] = nodeConfig{mergeInput: n.MergeInput, dependencies: n.Dependencies, credentialRef: n.CredentialRef}
 		switch n.ActionType {
 		case "action":
 			a, err := newClientAction(r.events, common.ActionArgs{Id: n.Id, Name: n.Name, ActionType: n.ActionType, ActionName: n.ActionName, Args: n.Arguments})
@@ -376,7 +424,10 @@ func (r *runner) runResult(ctx context.Context, result common.ResultData) {
 // drainPending executes server-persisted cross-client handoffs assigned to
 // this runner. Each pending item runs at most once per process (pendingSeen);
 // completion is confirmed server-side when the node's result is posted.
-func (r *runner) drainPending(pending []PendingAssignment) {
+// Nodes carrying a credential_ref resolve their secret just-in-time before
+// execution; a failed fetch fails closed and the item is retried on the
+// next poll.
+func (r *runner) drainPending(ctx context.Context, pending []PendingAssignment) {
 	for _, p := range pending {
 		if p.NodeID == "" || p.ExecutionID == "" {
 			continue
@@ -395,6 +446,7 @@ func (r *runner) drainPending(pending []PendingAssignment) {
 		}
 		r.pendingSeen[key] = true
 		a := r.nodeAction[p.NodeID]
+		credRef := r.nodeMeta[p.NodeID].credentialRef
 		// Seed history with the parent payload so merge_input can fold
 		// cross-client upstream data even though the parent ran elsewhere.
 		if p.ParentActionID != "" && p.ExecutionID != "" {
@@ -411,6 +463,15 @@ func (r *runner) drainPending(pending []PendingAssignment) {
 			}
 		}
 		r.mu.Unlock()
+		if credRef != "" {
+			if _, err := r.fetchCredentialCached(ctx, p.NodeID); err != nil {
+				r.log.Error("credential fetch failed; deferring pending assignment", "node_id", p.NodeID, "execution_id", p.ExecutionID, "error", err)
+				r.mu.Lock()
+				delete(r.pendingSeen, key)
+				r.mu.Unlock()
+				continue
+			}
+		}
 		if a == nil {
 			r.log.Warn("pending assignment for unknown local node; skipping", "node_id", p.NodeID, "execution_id", p.ExecutionID)
 			continue
@@ -444,6 +505,42 @@ func (r *runner) mergedPayloadLocked(result common.ResultData) any {
 		}
 	}
 	return merged
+}
+
+// fetchCredentialCached resolves a node's credential_ref just-in-time and
+// caches the secret in memory only until the server-advertised TTL expires.
+// Provider actions call this at execution time; the secret is never written
+// to disk, logs, or results. Nodes without a credential_ref return "".
+func (r *runner) fetchCredentialCached(ctx context.Context, nodeID string) (string, error) {
+	r.mu.Lock()
+	cfg := r.nodeMeta[nodeID]
+	workflowID := r.nodeWorkflow[nodeID]
+	if cfg.credentialRef == "" {
+		r.mu.Unlock()
+		return "", nil
+	}
+	if entry, ok := r.credCache[cfg.credentialRef]; ok && time.Now().Before(entry.expiresAt) {
+		secret := entry.secret
+		r.mu.Unlock()
+		return secret, nil
+	}
+	ref := cfg.credentialRef
+	r.mu.Unlock()
+	fetched, err := r.api.FetchCredential(ctx, ref, "", nil, workflowID, nodeID)
+	if err != nil {
+		return "", err
+	}
+	ttl := fetched.TTLSeconds
+	if ttl <= 0 {
+		ttl = 60
+	}
+	r.mu.Lock()
+	if r.credCache == nil {
+		r.credCache = make(map[string]credentialCacheEntry)
+	}
+	r.credCache[ref] = credentialCacheEntry{secret: fetched.Secret, expiresAt: time.Now().Add(time.Duration(ttl) * time.Second)}
+	r.mu.Unlock()
+	return fetched.Secret, nil
 }
 
 // rememberLocked records a result payload for later merge_input lookups.
@@ -551,7 +648,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		backoff = cfg.RetryInitial
 		logger.Debug("client assignment poll succeeded", "client_id", id, "workflows", len(assignments.Workflows))
 		r.syncAssignments(assignments.Workflows)
-		r.drainPending(assignments.Pending)
+		r.drainPending(ctx, assignments.Pending)
 		select {
 		case result := <-r.events:
 			r.mu.Lock()

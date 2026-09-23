@@ -14,6 +14,26 @@ import (
 	"go.jetify.com/typeid"
 )
 
+// SupportedCredentialTypes lists the credential types actions/providers may
+// declare (roadmap: AWS keys, S3, generic username/password, token, SSH
+// key). The built-in local actions need no credentials and declare none;
+// provider actions (e.g. AWS EC2, generic S3) will declare what they need.
+func SupportedCredentialTypes() []string {
+	return []string{"generic", "token", "username_password", "aws", "s3", "ssh_key"}
+}
+
+// RequiredCredentialTypes declares which credential type(s) an action needs
+// by action_name. An empty slice means the action runs without a credential.
+// Nodes that set credential_ref fetch the secret just-in-time regardless;
+// this registry documents intent for providers and the designer.
+func RequiredCredentialTypes(actionName string) []string {
+	switch actionName {
+	case "file", "datetime", "wait", "filechange":
+		return nil
+	default:
+		return nil
+	}
+}
 // ActionManager manages a collection of actions
 type ActionManager struct {
 	actions       map[string]common.Action

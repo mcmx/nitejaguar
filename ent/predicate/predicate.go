@@ -9,6 +9,9 @@ import (
 // AuditLog is the predicate function for auditlog builders.
 type AuditLog func(*sql.Selector)
 
+// Credential is the predicate function for credential builders.
+type Credential func(*sql.Selector)
+
 // EnrollmentToken is the predicate function for enrollmenttoken builders.
 type EnrollmentToken func(*sql.Selector)
 

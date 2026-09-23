@@ -8,6 +8,7 @@ Server configuration relies on environment variables (loaded via `godotenv` from
 
 - `PORT` — HTTP server port (defaults to `8080`).
 - `DB_URL` — Database connection string (e.g., `file:./test.db?_fk=1&cache=shared`). If unset, falls back to in-memory SQLite.
+- `CREDENTIALS_KEY` — AES-256 key for credential secrets at rest (64-char hex, base64 32-byte key, or any passphrase hashed with SHA-256). If unset, an ephemeral process-local key is generated (stored secrets do not survive restarts).
 
 ## Starting the Server
 
@@ -77,3 +78,20 @@ is ignored).
 - **Handoff fix**: `POST /api/results` returns only caller-owned `nexts`;
   foreign edges are never executed locally — they are routed via pending
   assignments. Audited as `assignment.enqueue` and `assignment.complete`.
+
+## Credentials model
+
+Nodes hold a `credential_ref` (credential id or name) — never the
+secret. See [Credentials](./credentials.md) for the full reference.
+
+- **Management** (currently unauthenticated; role-gating arrives with
+  the RBAC slice): `POST /api/credentials` (store encrypted at rest),
+  `GET /api/credentials`, `GET /api/credentials/{id}`,
+  `DELETE /api/credentials/{id}` — secrets are never exposed here.
+- **Just-in-time fetch**: `GET /api/credentials/{ref}/fetch`
+  authenticates with the executing client's own token, is
+  tenant-isolated, resolves names `user > group > tenant`, and returns
+  `{credential_id, name, type, secret, ttl_seconds}` (60s, memory-only).
+- **Audit**: `credential.create`, `credential.delete`, and every
+  `credential.fetch` are recorded; `GET /api/audit?limit=100` returns
+  the trail.
