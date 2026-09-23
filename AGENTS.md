@@ -7,8 +7,8 @@ Workflow automation app (Go). Module `github.com/mcmx/nitejaguar`. Entrypoint `c
 - `*.templ` files are the source of truth; `*_templ.go` and `*_templ.txt` are **gitignored and generated**. After editing a `.templ` file you must run `templ generate -path .` before build/test/lint (CI does this explicitly). The generated files exist in the working tree but are not committed.
 - The templ **generator** version must match the templ **runtime** in `go.mod` (`v0.3.1020`, pinned in the Makefile and all CI workflows). A newer generator emits code (e.g. `templ.ResolveAttributeValue`) the pinned runtime lacks, which breaks `go build` and lint. Never install/generate with `templ@latest`.
 - `ent/` is checked in, but schema lives in `ent/schema/workflow.go` — regenerate with `make ent` (`go generate ./ent`) after schema changes.
-- `tailwindcss` is a downloaded standalone binary (gitignored), fetched by `make tailwind`. CSS pipeline: `cmd/web/assets/css/input.css` → `output.css`.
-- `make build` calls ent, tailwind, and templ generation, then builds binary `main`.
+- `tailwindcss` is a downloaded standalone binary (gitignored), fetched by `make tailwind`. CSS pipeline: `cmd/web/assets/css/input.css` → `output.css`. Unlike the `_templ.go` files, `output.css` **is committed**, so after any `.templ` markup change you must regenerate it (`make build`, or `./tailwindcss -i cmd/web/assets/css/input.css -o cmd/web/assets/css/output.css`) and commit the updated `output.css` — otherwise the PR ships classes with no CSS.
+- `make build` calls ent, tailwind, and templ generation, then builds binary `main`. Run it before opening a PR so `output.css` and all other codegen are fresh.
 
 ## Commands
 
@@ -26,6 +26,7 @@ Workflow automation app (Go). Module `github.com/mcmx/nitejaguar`. Entrypoint `c
 - Start every task from fresh `main`: `git checkout main && git pull`.
 - One feature branch per task: `git checkout -b <type>/short-desc` (`fix/`, `feat/`, `chore/`).
 - Verify with `make lint` and `make test` before pushing.
+- Run `make build` before opening a PR so committed codegen (`output.css`, ent, templ) is fresh — in particular, any `.templ` markup change requires a regenerated + committed `output.css` (see above).
 - Push and open a PR (`gh pr create`); reference issues as `Fixes #N` so they auto-close on merge.
 - Merge only with CI (lint + test jobs) green. Never push directly to `main`.
 
