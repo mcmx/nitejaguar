@@ -31,7 +31,11 @@ type RemoteClient struct {
 	// LastHeartbeat holds the value of the "last_heartbeat" field.
 	LastHeartbeat time.Time `json:"last_heartbeat,omitempty"`
 	// LastPoll holds the value of the "last_poll" field.
-	LastPoll     time.Time `json:"last_poll,omitempty"`
+	LastPoll time.Time `json:"last_poll,omitempty"`
+	// Revoked holds the value of the "revoked" field.
+	Revoked bool `json:"revoked,omitempty"`
+	// RevokedAt holds the value of the "revoked_at" field.
+	RevokedAt    *time.Time `json:"revoked_at,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -42,9 +46,11 @@ func (*RemoteClient) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case remoteclient.FieldTags:
 			values[i] = new([]byte)
+		case remoteclient.FieldRevoked:
+			values[i] = new(sql.NullBool)
 		case remoteclient.FieldID, remoteclient.FieldName, remoteclient.FieldTenantID, remoteclient.FieldTokenHash:
 			values[i] = new(sql.NullString)
-		case remoteclient.FieldRegisteredAt, remoteclient.FieldLastHeartbeat, remoteclient.FieldLastPoll:
+		case remoteclient.FieldRegisteredAt, remoteclient.FieldLastHeartbeat, remoteclient.FieldLastPoll, remoteclient.FieldRevokedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -111,6 +117,19 @@ func (_m *RemoteClient) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.LastPoll = value.Time
 			}
+		case remoteclient.FieldRevoked:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field revoked", values[i])
+			} else if value.Valid {
+				_m.Revoked = value.Bool
+			}
+		case remoteclient.FieldRevokedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field revoked_at", values[i])
+			} else if value.Valid {
+				_m.RevokedAt = new(time.Time)
+				*_m.RevokedAt = value.Time
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -167,6 +186,14 @@ func (_m *RemoteClient) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("last_poll=")
 	builder.WriteString(_m.LastPoll.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("revoked=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Revoked))
+	builder.WriteString(", ")
+	if v := _m.RevokedAt; v != nil {
+		builder.WriteString("revoked_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

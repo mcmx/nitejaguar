@@ -9,6 +9,30 @@ import (
 	"github.com/mcmx/nitejaguar/ent"
 )
 
+// The AuditLogFunc type is an adapter to allow the use of ordinary
+// function as AuditLog mutator.
+type AuditLogFunc func(context.Context, *ent.AuditLogMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AuditLogFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AuditLogMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AuditLogMutation", m)
+}
+
+// The EnrollmentTokenFunc type is an adapter to allow the use of ordinary
+// function as EnrollmentToken mutator.
+type EnrollmentTokenFunc func(context.Context, *ent.EnrollmentTokenMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f EnrollmentTokenFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.EnrollmentTokenMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.EnrollmentTokenMutation", m)
+}
+
 // The RemoteClientFunc type is an adapter to allow the use of ordinary
 // function as RemoteClient mutator.
 type RemoteClientFunc func(context.Context, *ent.RemoteClientMutation) (ent.Value, error)

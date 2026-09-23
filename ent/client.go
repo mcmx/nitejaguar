@@ -14,6 +14,8 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
+	"github.com/mcmx/nitejaguar/ent/auditlog"
+	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
 	"github.com/mcmx/nitejaguar/ent/workflow"
 )
@@ -23,6 +25,10 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// AuditLog is the client for interacting with the AuditLog builders.
+	AuditLog *AuditLogClient
+	// EnrollmentToken is the client for interacting with the EnrollmentToken builders.
+	EnrollmentToken *EnrollmentTokenClient
 	// RemoteClient is the client for interacting with the RemoteClient builders.
 	RemoteClient *RemoteClientClient
 	// Workflow is the client for interacting with the Workflow builders.
@@ -38,6 +44,8 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.AuditLog = NewAuditLogClient(c.config)
+	c.EnrollmentToken = NewEnrollmentTokenClient(c.config)
 	c.RemoteClient = NewRemoteClientClient(c.config)
 	c.Workflow = NewWorkflowClient(c.config)
 }
@@ -130,10 +138,12 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:          ctx,
-		config:       cfg,
-		RemoteClient: NewRemoteClientClient(cfg),
-		Workflow:     NewWorkflowClient(cfg),
+		ctx:             ctx,
+		config:          cfg,
+		AuditLog:        NewAuditLogClient(cfg),
+		EnrollmentToken: NewEnrollmentTokenClient(cfg),
+		RemoteClient:    NewRemoteClientClient(cfg),
+		Workflow:        NewWorkflowClient(cfg),
 	}, nil
 }
 
@@ -151,17 +161,19 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:          ctx,
-		config:       cfg,
-		RemoteClient: NewRemoteClientClient(cfg),
-		Workflow:     NewWorkflowClient(cfg),
+		ctx:             ctx,
+		config:          cfg,
+		AuditLog:        NewAuditLogClient(cfg),
+		EnrollmentToken: NewEnrollmentTokenClient(cfg),
+		RemoteClient:    NewRemoteClientClient(cfg),
+		Workflow:        NewWorkflowClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		RemoteClient.
+//		AuditLog.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -183,6 +195,8 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.AuditLog.Use(hooks...)
+	c.EnrollmentToken.Use(hooks...)
 	c.RemoteClient.Use(hooks...)
 	c.Workflow.Use(hooks...)
 }
@@ -190,6 +204,8 @@ func (c *Client) Use(hooks ...Hook) {
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.AuditLog.Intercept(interceptors...)
+	c.EnrollmentToken.Intercept(interceptors...)
 	c.RemoteClient.Intercept(interceptors...)
 	c.Workflow.Intercept(interceptors...)
 }
@@ -197,12 +213,282 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *AuditLogMutation:
+		return c.AuditLog.mutate(ctx, m)
+	case *EnrollmentTokenMutation:
+		return c.EnrollmentToken.mutate(ctx, m)
 	case *RemoteClientMutation:
 		return c.RemoteClient.mutate(ctx, m)
 	case *WorkflowMutation:
 		return c.Workflow.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// AuditLogClient is a client for the AuditLog schema.
+type AuditLogClient struct {
+	config
+}
+
+// NewAuditLogClient returns a client for the AuditLog from the given config.
+func NewAuditLogClient(c config) *AuditLogClient {
+	return &AuditLogClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `auditlog.Hooks(f(g(h())))`.
+func (c *AuditLogClient) Use(hooks ...Hook) {
+	c.hooks.AuditLog = append(c.hooks.AuditLog, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `auditlog.Intercept(f(g(h())))`.
+func (c *AuditLogClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AuditLog = append(c.inters.AuditLog, interceptors...)
+}
+
+// Create returns a builder for creating a AuditLog entity.
+func (c *AuditLogClient) Create() *AuditLogCreate {
+	mutation := newAuditLogMutation(c.config, OpCreate)
+	return &AuditLogCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AuditLog entities.
+func (c *AuditLogClient) CreateBulk(builders ...*AuditLogCreate) *AuditLogCreateBulk {
+	return &AuditLogCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AuditLogClient) MapCreateBulk(slice any, setFunc func(*AuditLogCreate, int)) *AuditLogCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AuditLogCreateBulk{err: fmt.Errorf("calling to AuditLogClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AuditLogCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AuditLogCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AuditLog.
+func (c *AuditLogClient) Update() *AuditLogUpdate {
+	mutation := newAuditLogMutation(c.config, OpUpdate)
+	return &AuditLogUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AuditLogClient) UpdateOne(_m *AuditLog) *AuditLogUpdateOne {
+	mutation := newAuditLogMutation(c.config, OpUpdateOne, withAuditLog(_m))
+	return &AuditLogUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AuditLogClient) UpdateOneID(id string) *AuditLogUpdateOne {
+	mutation := newAuditLogMutation(c.config, OpUpdateOne, withAuditLogID(id))
+	return &AuditLogUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AuditLog.
+func (c *AuditLogClient) Delete() *AuditLogDelete {
+	mutation := newAuditLogMutation(c.config, OpDelete)
+	return &AuditLogDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AuditLogClient) DeleteOne(_m *AuditLog) *AuditLogDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AuditLogClient) DeleteOneID(id string) *AuditLogDeleteOne {
+	builder := c.Delete().Where(auditlog.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AuditLogDeleteOne{builder}
+}
+
+// Query returns a query builder for AuditLog.
+func (c *AuditLogClient) Query() *AuditLogQuery {
+	return &AuditLogQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAuditLog},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AuditLog entity by its id.
+func (c *AuditLogClient) Get(ctx context.Context, id string) (*AuditLog, error) {
+	return c.Query().Where(auditlog.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AuditLogClient) GetX(ctx context.Context, id string) *AuditLog {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *AuditLogClient) Hooks() []Hook {
+	return c.hooks.AuditLog
+}
+
+// Interceptors returns the client interceptors.
+func (c *AuditLogClient) Interceptors() []Interceptor {
+	return c.inters.AuditLog
+}
+
+func (c *AuditLogClient) mutate(ctx context.Context, m *AuditLogMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AuditLogCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AuditLogUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AuditLogUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AuditLogDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AuditLog mutation op: %q", m.Op())
+	}
+}
+
+// EnrollmentTokenClient is a client for the EnrollmentToken schema.
+type EnrollmentTokenClient struct {
+	config
+}
+
+// NewEnrollmentTokenClient returns a client for the EnrollmentToken from the given config.
+func NewEnrollmentTokenClient(c config) *EnrollmentTokenClient {
+	return &EnrollmentTokenClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `enrollmenttoken.Hooks(f(g(h())))`.
+func (c *EnrollmentTokenClient) Use(hooks ...Hook) {
+	c.hooks.EnrollmentToken = append(c.hooks.EnrollmentToken, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `enrollmenttoken.Intercept(f(g(h())))`.
+func (c *EnrollmentTokenClient) Intercept(interceptors ...Interceptor) {
+	c.inters.EnrollmentToken = append(c.inters.EnrollmentToken, interceptors...)
+}
+
+// Create returns a builder for creating a EnrollmentToken entity.
+func (c *EnrollmentTokenClient) Create() *EnrollmentTokenCreate {
+	mutation := newEnrollmentTokenMutation(c.config, OpCreate)
+	return &EnrollmentTokenCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of EnrollmentToken entities.
+func (c *EnrollmentTokenClient) CreateBulk(builders ...*EnrollmentTokenCreate) *EnrollmentTokenCreateBulk {
+	return &EnrollmentTokenCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *EnrollmentTokenClient) MapCreateBulk(slice any, setFunc func(*EnrollmentTokenCreate, int)) *EnrollmentTokenCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &EnrollmentTokenCreateBulk{err: fmt.Errorf("calling to EnrollmentTokenClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*EnrollmentTokenCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &EnrollmentTokenCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for EnrollmentToken.
+func (c *EnrollmentTokenClient) Update() *EnrollmentTokenUpdate {
+	mutation := newEnrollmentTokenMutation(c.config, OpUpdate)
+	return &EnrollmentTokenUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *EnrollmentTokenClient) UpdateOne(_m *EnrollmentToken) *EnrollmentTokenUpdateOne {
+	mutation := newEnrollmentTokenMutation(c.config, OpUpdateOne, withEnrollmentToken(_m))
+	return &EnrollmentTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *EnrollmentTokenClient) UpdateOneID(id string) *EnrollmentTokenUpdateOne {
+	mutation := newEnrollmentTokenMutation(c.config, OpUpdateOne, withEnrollmentTokenID(id))
+	return &EnrollmentTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for EnrollmentToken.
+func (c *EnrollmentTokenClient) Delete() *EnrollmentTokenDelete {
+	mutation := newEnrollmentTokenMutation(c.config, OpDelete)
+	return &EnrollmentTokenDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *EnrollmentTokenClient) DeleteOne(_m *EnrollmentToken) *EnrollmentTokenDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *EnrollmentTokenClient) DeleteOneID(id string) *EnrollmentTokenDeleteOne {
+	builder := c.Delete().Where(enrollmenttoken.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &EnrollmentTokenDeleteOne{builder}
+}
+
+// Query returns a query builder for EnrollmentToken.
+func (c *EnrollmentTokenClient) Query() *EnrollmentTokenQuery {
+	return &EnrollmentTokenQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeEnrollmentToken},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a EnrollmentToken entity by its id.
+func (c *EnrollmentTokenClient) Get(ctx context.Context, id string) (*EnrollmentToken, error) {
+	return c.Query().Where(enrollmenttoken.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *EnrollmentTokenClient) GetX(ctx context.Context, id string) *EnrollmentToken {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *EnrollmentTokenClient) Hooks() []Hook {
+	return c.hooks.EnrollmentToken
+}
+
+// Interceptors returns the client interceptors.
+func (c *EnrollmentTokenClient) Interceptors() []Interceptor {
+	return c.inters.EnrollmentToken
+}
+
+func (c *EnrollmentTokenClient) mutate(ctx context.Context, m *EnrollmentTokenMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&EnrollmentTokenCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&EnrollmentTokenUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&EnrollmentTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&EnrollmentTokenDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown EnrollmentToken mutation op: %q", m.Op())
 	}
 }
 
@@ -475,9 +761,9 @@ func (c *WorkflowClient) mutate(ctx context.Context, m *WorkflowMutation) (Value
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		RemoteClient, Workflow []ent.Hook
+		AuditLog, EnrollmentToken, RemoteClient, Workflow []ent.Hook
 	}
 	inters struct {
-		RemoteClient, Workflow []ent.Interceptor
+		AuditLog, EnrollmentToken, RemoteClient, Workflow []ent.Interceptor
 	}
 )

@@ -5,6 +5,8 @@ package ent
 import (
 	"time"
 
+	"github.com/mcmx/nitejaguar/ent/auditlog"
+	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
 	"github.com/mcmx/nitejaguar/ent/schema"
 	"github.com/mcmx/nitejaguar/ent/workflow"
@@ -14,6 +16,70 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	auditlogFields := schema.AuditLog{}.Fields()
+	_ = auditlogFields
+	// auditlogDescAction is the schema descriptor for action field.
+	auditlogDescAction := auditlogFields[1].Descriptor()
+	// auditlog.ActionValidator is a validator for the "action" field. It is called by the builders before save.
+	auditlog.ActionValidator = auditlogDescAction.Validators[0].(func(string) error)
+	// auditlogDescTenantID is the schema descriptor for tenant_id field.
+	auditlogDescTenantID := auditlogFields[2].Descriptor()
+	// auditlog.DefaultTenantID holds the default value on creation for the tenant_id field.
+	auditlog.DefaultTenantID = auditlogDescTenantID.Default.(string)
+	// auditlogDescActor is the schema descriptor for actor field.
+	auditlogDescActor := auditlogFields[3].Descriptor()
+	// auditlog.DefaultActor holds the default value on creation for the actor field.
+	auditlog.DefaultActor = auditlogDescActor.Default.(string)
+	// auditlogDescTarget is the schema descriptor for target field.
+	auditlogDescTarget := auditlogFields[4].Descriptor()
+	// auditlog.DefaultTarget holds the default value on creation for the target field.
+	auditlog.DefaultTarget = auditlogDescTarget.Default.(string)
+	// auditlogDescDetail is the schema descriptor for detail field.
+	auditlogDescDetail := auditlogFields[5].Descriptor()
+	// auditlog.DefaultDetail holds the default value on creation for the detail field.
+	auditlog.DefaultDetail = auditlogDescDetail.Default.(string)
+	// auditlogDescCreatedAt is the schema descriptor for created_at field.
+	auditlogDescCreatedAt := auditlogFields[6].Descriptor()
+	// auditlog.DefaultCreatedAt holds the default value on creation for the created_at field.
+	auditlog.DefaultCreatedAt = auditlogDescCreatedAt.Default.(func() time.Time)
+	// auditlogDescID is the schema descriptor for id field.
+	auditlogDescID := auditlogFields[0].Descriptor()
+	// auditlog.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	auditlog.IDValidator = auditlogDescID.Validators[0].(func(string) error)
+	enrollmenttokenFields := schema.EnrollmentToken{}.Fields()
+	_ = enrollmenttokenFields
+	// enrollmenttokenDescTenantID is the schema descriptor for tenant_id field.
+	enrollmenttokenDescTenantID := enrollmenttokenFields[1].Descriptor()
+	// enrollmenttoken.DefaultTenantID holds the default value on creation for the tenant_id field.
+	enrollmenttoken.DefaultTenantID = enrollmenttokenDescTenantID.Default.(string)
+	// enrollmenttokenDescLabel is the schema descriptor for label field.
+	enrollmenttokenDescLabel := enrollmenttokenFields[2].Descriptor()
+	// enrollmenttoken.DefaultLabel holds the default value on creation for the label field.
+	enrollmenttoken.DefaultLabel = enrollmenttokenDescLabel.Default.(string)
+	// enrollmenttokenDescTokenHash is the schema descriptor for token_hash field.
+	enrollmenttokenDescTokenHash := enrollmenttokenFields[3].Descriptor()
+	// enrollmenttoken.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
+	enrollmenttoken.TokenHashValidator = enrollmenttokenDescTokenHash.Validators[0].(func(string) error)
+	// enrollmenttokenDescMaxUses is the schema descriptor for max_uses field.
+	enrollmenttokenDescMaxUses := enrollmenttokenFields[5].Descriptor()
+	// enrollmenttoken.DefaultMaxUses holds the default value on creation for the max_uses field.
+	enrollmenttoken.DefaultMaxUses = enrollmenttokenDescMaxUses.Default.(int)
+	// enrollmenttokenDescUseCount is the schema descriptor for use_count field.
+	enrollmenttokenDescUseCount := enrollmenttokenFields[6].Descriptor()
+	// enrollmenttoken.DefaultUseCount holds the default value on creation for the use_count field.
+	enrollmenttoken.DefaultUseCount = enrollmenttokenDescUseCount.Default.(int)
+	// enrollmenttokenDescRevoked is the schema descriptor for revoked field.
+	enrollmenttokenDescRevoked := enrollmenttokenFields[7].Descriptor()
+	// enrollmenttoken.DefaultRevoked holds the default value on creation for the revoked field.
+	enrollmenttoken.DefaultRevoked = enrollmenttokenDescRevoked.Default.(bool)
+	// enrollmenttokenDescCreatedAt is the schema descriptor for created_at field.
+	enrollmenttokenDescCreatedAt := enrollmenttokenFields[8].Descriptor()
+	// enrollmenttoken.DefaultCreatedAt holds the default value on creation for the created_at field.
+	enrollmenttoken.DefaultCreatedAt = enrollmenttokenDescCreatedAt.Default.(func() time.Time)
+	// enrollmenttokenDescID is the schema descriptor for id field.
+	enrollmenttokenDescID := enrollmenttokenFields[0].Descriptor()
+	// enrollmenttoken.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	enrollmenttoken.IDValidator = enrollmenttokenDescID.Validators[0].(func(string) error)
 	remoteclientFields := schema.RemoteClient{}.Fields()
 	_ = remoteclientFields
 	// remoteclientDescName is the schema descriptor for name field.
@@ -44,6 +110,10 @@ func init() {
 	remoteclient.DefaultLastPoll = remoteclientDescLastPoll.Default.(func() time.Time)
 	// remoteclient.UpdateDefaultLastPoll holds the default value on update for the last_poll field.
 	remoteclient.UpdateDefaultLastPoll = remoteclientDescLastPoll.UpdateDefault.(func() time.Time)
+	// remoteclientDescRevoked is the schema descriptor for revoked field.
+	remoteclientDescRevoked := remoteclientFields[8].Descriptor()
+	// remoteclient.DefaultRevoked holds the default value on creation for the revoked field.
+	remoteclient.DefaultRevoked = remoteclientDescRevoked.Default.(bool)
 	// remoteclientDescID is the schema descriptor for id field.
 	remoteclientDescID := remoteclientFields[0].Descriptor()
 	// remoteclient.IDValidator is a validator for the "id" field. It is called by the builders before save.

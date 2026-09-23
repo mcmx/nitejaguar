@@ -26,11 +26,13 @@ import (
 
 type Config struct {
 	Server, ClientID, Name, Token string
+	EnrollmentToken               string
 	PollInterval, RetryInitial    time.Duration
 }
 type RegisterRequest struct {
-	Name string   `json:"name"`
-	Tags []string `json:"tags"`
+	Name            string   `json:"name"`
+	Tags            []string `json:"tags"`
+	EnrollmentToken string   `json:"enrollment_token,omitempty"`
 }
 type RegisterResponse struct {
 	ClientID string `json:"client_id"`
@@ -124,8 +126,12 @@ func (a API) request(ctx context.Context, method, path string, body, out any) er
 	return nil
 }
 func (a API) Register(ctx context.Context, name string) (RegisterResponse, error) {
+	return a.RegisterWithToken(ctx, name, "")
+}
+
+func (a API) RegisterWithToken(ctx context.Context, name, enrollmentToken string) (RegisterResponse, error) {
 	var out RegisterResponse
-	err := a.request(ctx, http.MethodPost, "/api/clients/register", RegisterRequest{Name: name, Tags: []string{}}, &out)
+	err := a.request(ctx, http.MethodPost, "/api/clients/register", RegisterRequest{Name: name, Tags: []string{}, EnrollmentToken: enrollmentToken}, &out)
 	return out, err
 }
 func (a API) Heartbeat(ctx context.Context, id string) error {
@@ -435,7 +441,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 	backoff := cfg.RetryInitial
 	for {
 		if id == "" {
-			reg, err := api.Register(ctx, cfg.Name)
+			reg, err := api.RegisterWithToken(ctx, cfg.Name, cfg.EnrollmentToken)
 			if err != nil {
 				logger.Warn("client registration failed; retrying", "server", cfg.Server, "error", err, "after", backoff)
 				if !wait(ctx, backoff) {

@@ -8,10 +8,11 @@ import (
 )
 
 var (
-	clientServer string
-	clientID     string
-	clientName   string
-	clientToken  string
+	clientServer          string
+	clientID              string
+	clientName            string
+	clientToken           string
+	clientEnrollmentToken string
 )
 
 var clientCmd = &cobra.Command{
@@ -20,6 +21,7 @@ var clientCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		return njclient.Run(cmd.Context(), njclient.Config{
 			Server: clientServer, ClientID: clientID, Name: clientName, Token: clientToken,
+			EnrollmentToken: clientEnrollmentToken,
 		}, nil)
 	},
 }
@@ -31,6 +33,7 @@ func init() {
 	clientCmd.PersistentFlags().StringVar(&clientID, "client-id", os.Getenv("NITEJAGUAR_CLIENT_ID"), "existing registered client ID")
 	clientCmd.PersistentFlags().StringVar(&clientName, "name", envOr("NITEJAGUAR_CLIENT_NAME", "nitejaguar-client"), "client name used during registration")
 	clientCmd.PersistentFlags().StringVar(&clientToken, "token", os.Getenv("NITEJAGUAR_TOKEN"), "API token")
+	clientCmd.PersistentFlags().StringVar(&clientEnrollmentToken, "enrollment-token", os.Getenv("NITEJAGUAR_ENROLLMENT_TOKEN"), "tenant enrollment/join token for self-registration")
 }
 
 func envOr(name, fallback string) string {

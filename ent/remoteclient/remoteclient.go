@@ -27,6 +27,10 @@ const (
 	FieldLastHeartbeat = "last_heartbeat"
 	// FieldLastPoll holds the string denoting the last_poll field in the database.
 	FieldLastPoll = "last_poll"
+	// FieldRevoked holds the string denoting the revoked field in the database.
+	FieldRevoked = "revoked"
+	// FieldRevokedAt holds the string denoting the revoked_at field in the database.
+	FieldRevokedAt = "revoked_at"
 	// Table holds the table name of the remoteclient in the database.
 	Table = "remote_clients"
 )
@@ -41,6 +45,8 @@ var Columns = []string{
 	FieldRegisteredAt,
 	FieldLastHeartbeat,
 	FieldLastPoll,
+	FieldRevoked,
+	FieldRevokedAt,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -70,6 +76,8 @@ var (
 	DefaultLastPoll func() time.Time
 	// UpdateDefaultLastPoll holds the default value on update for the "last_poll" field.
 	UpdateDefaultLastPoll func() time.Time
+	// DefaultRevoked holds the default value on creation for the "revoked" field.
+	DefaultRevoked bool
 	// IDValidator is a validator for the "id" field. It is called by the builders before save.
 	IDValidator func(string) error
 )
@@ -110,4 +118,14 @@ func ByLastHeartbeat(opts ...sql.OrderTermOption) OrderOption {
 // ByLastPoll orders the results by the last_poll field.
 func ByLastPoll(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldLastPoll, opts...).ToFunc()
+}
+
+// ByRevoked orders the results by the revoked field.
+func ByRevoked(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRevoked, opts...).ToFunc()
+}
+
+// ByRevokedAt orders the results by the revoked_at field.
+func ByRevokedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRevokedAt, opts...).ToFunc()
 }

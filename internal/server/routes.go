@@ -42,7 +42,9 @@ type WorkflowsResponse struct {
 type ClientStatus struct {
 	ID            string    `json:"client_id"`
 	Name          string    `json:"name"`
+	TenantID      string    `json:"tenant_id"`
 	Tags          []string  `json:"tags"`
+	Revoked       bool      `json:"revoked"`
 	RegisteredAt  time.Time `json:"registered_at"`
 	LastHeartbeat time.Time `json:"last_heartbeat"`
 	LastPoll      time.Time `json:"last_poll"`
@@ -138,6 +140,36 @@ func addApiRoutes(api huma.API, s *Server) {
 		Summary:     "Registered polling clients and connection status",
 	}, s.GetClients)
 	huma.Register(apiGrp, huma.Operation{
+		OperationID: "create-enrollment-token",
+		Method:      http.MethodPost,
+		Path:        "/enrollment/tokens",
+		Summary:     "Create a tenant-scoped enrollment token (RBAC-gated in a later slice)",
+	}, s.CreateEnrollmentToken)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "list-enrollment-tokens",
+		Method:      http.MethodGet,
+		Path:        "/enrollment/tokens",
+		Summary:     "List enrollment tokens (hashes never exposed)",
+	}, s.ListEnrollmentTokens)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "revoke-enrollment-token",
+		Method:      http.MethodPost,
+		Path:        "/enrollment/tokens/{id}/revoke",
+		Summary:     "Revoke an enrollment token to block new joins",
+	}, s.RevokeEnrollmentToken)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "revoke-client",
+		Method:      http.MethodPost,
+		Path:        "/clients/{id}/revoke",
+		Summary:     "Revoke a client; its token stops authenticating",
+	}, s.RevokeClient)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "list-audit",
+		Method:      http.MethodGet,
+		Path:        "/audit",
+		Summary:     "Audit trail for enrollment use and lifecycle ops",
+	}, s.ListAudit)
+	huma.Register(apiGrp, huma.Operation{
 		OperationID: "import-workflow",
 		Method:      http.MethodPost,
 		Path:        "/workflows/import",
@@ -153,9 +185,11 @@ func addApiRoutes(api huma.API, s *Server) {
 
 type RegisterClientInput struct {
 	Body struct {
-		Name     string   `json:"name"`
-		TenantID string   `json:"tenant_id,omitempty"`
-		Tags     []string `json:"tags"`
+		Name            string   `json:"name"`
+		TenantID        string   `json:"tenant_id,omitempty"`
+		Tags            []string `json:"tags,omitempty"`
+		EnrollmentToken string   `json:"enrollment_token,omitempty"`
+		JoinToken       string   `json:"join_token,omitempty"`
 	}
 }
 
@@ -237,7 +271,23 @@ func (s *Server) RegisterClient(_ context.Context, input *RegisterClientInput) (
 	if input.Body.Name == "" {
 		return nil, huma.Error400BadRequest("name is required")
 	}
-	c, token := s.registry().register(input.Body.Name, input.Body.Tags, input.Body.TenantID)
+	joinToken := input.Body.EnrollmentToken
+	if joinToken == "" {
+		joinToken = input.Body.JoinToken
+	}
+	if joinToken == "" {
+		return nil, huma.Error401Unauthorized("enrollment token is required")
+	}
+	c, token, err := s.registry().register(input.Body.Name, input.Body.Tags, joinToken)
+	if err != nil {
+		return nil, huma.Error401Unauthorized(err.Error())
+	}
+	// Tenant comes from the enrollment token; a client-supplied tenant_id
+	// is ignored and never honored.
+	if input.Body.TenantID != "" && input.Body.TenantID != c.TenantID {
+		log.Printf("client registration ignored mismatched tenant_id: supplied=%q token-tenant=%q id=%s",
+			input.Body.TenantID, c.TenantID, c.ID)
+	}
 	log.Printf("client registered: id=%s name=%q tenant=%s tags=%v", c.ID, c.Name, c.TenantID, c.Tags)
 	return &RegisterClientOutput{
 		Body: struct {
@@ -321,15 +371,215 @@ func (s *Server) GetClients(_ context.Context, _ *struct{}) (*ClientsResponse, e
 	out := make([]ClientStatus, 0, len(clients))
 	for _, c := range clients {
 		out = append(out, ClientStatus{
-			ID: c.ID, Name: c.Name, Tags: c.Tags, RegisteredAt: c.RegisteredAt,
+			ID: c.ID, Name: c.Name, TenantID: c.TenantID, Tags: c.Tags, Revoked: c.Revoked,
+			RegisteredAt: c.RegisteredAt,
 			LastHeartbeat: c.LastHeartbeat, LastPoll: c.LastPoll,
-			Online: now.Sub(c.LastHeartbeat) <= 15*time.Second,
+			Online: !c.Revoked && now.Sub(c.LastHeartbeat) <= 15*time.Second,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return &ClientsResponse{Body: struct {
 		Clients []ClientStatus `json:"clients"`
 	}{Clients: out}}, nil
+}
+
+type CreateEnrollmentTokenInput struct {
+	Body struct {
+		TenantID       string `json:"tenant_id,omitempty"`
+		Label          string `json:"label,omitempty"`
+		ExpiresInHours *int   `json:"expires_in_hours,omitempty"`
+		MaxUses        *int   `json:"max_uses,omitempty"`
+	}
+}
+
+type EnrollmentTokenView struct {
+	ID        string     `json:"id"`
+	TenantID  string     `json:"tenant_id"`
+	Label     string     `json:"label"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	MaxUses   int        `json:"max_uses"`
+	UseCount  int        `json:"use_count"`
+	Revoked   bool       `json:"revoked"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+type CreateEnrollmentTokenOutput struct {
+	Body struct {
+		EnrollmentTokenView
+		Token string `json:"token"`
+	}
+}
+
+type ListEnrollmentTokensOutput struct {
+	Body struct {
+		Tokens []EnrollmentTokenView `json:"tokens"`
+	}
+}
+
+type RevokeEnrollmentTokenInput struct {
+	ID string `path:"id"`
+}
+
+type RevokeEnrollmentTokenOutput struct {
+	Body struct {
+		Ok bool `json:"ok"`
+	}
+}
+
+type RevokeClientInput struct {
+	ID string `path:"id"`
+}
+
+type RevokeClientOutput struct {
+	Body struct {
+		Ok bool `json:"ok"`
+	}
+}
+
+type AuditEntry struct {
+	ID        string    `json:"id"`
+	Action    string    `json:"action"`
+	TenantID  string    `json:"tenant_id"`
+	Actor     string    `json:"actor"`
+	Target    string    `json:"target"`
+	Detail    string    `json:"detail"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ListAuditInput struct {
+	Limit int `query:"limit"`
+}
+
+type ListAuditOutput struct {
+	Body struct {
+		Entries []AuditEntry `json:"entries"`
+	}
+}
+
+// CreateEnrollmentToken mints a tenant-scoped join token. The plaintext is
+// returned once; only its hash is stored. NOTE: currently unauthenticated —
+// gating by role is part of the RBAC slice (roadmap item 4).
+func (s *Server) CreateEnrollmentToken(_ context.Context, input *CreateEnrollmentTokenInput) (*CreateEnrollmentTokenOutput, error) {
+	tenantID := input.Body.TenantID
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	var expiresAt *time.Time
+	if input.Body.ExpiresInHours != nil {
+		if *input.Body.ExpiresInHours <= 0 {
+			return nil, huma.Error400BadRequest("expires_in_hours must be positive")
+		}
+		t := time.Now().Add(time.Duration(*input.Body.ExpiresInHours) * time.Hour)
+		expiresAt = &t
+	}
+	maxUses := 0
+	if input.Body.MaxUses != nil {
+		if *input.Body.MaxUses < 0 {
+			return nil, huma.Error400BadRequest("max_uses cannot be negative")
+		}
+		maxUses = *input.Body.MaxUses
+	}
+	tok, plaintext, err := s.db.CreateEnrollmentToken(tenantID, input.Body.Label, expiresAt, maxUses)
+	if err != nil {
+		return nil, huma.Error500InternalServerError(err.Error())
+	}
+	_ = s.db.LogAudit("enrollment.create", tenantID, "api", tok.ID, "label="+input.Body.Label)
+	log.Printf("enrollment token created: id=%s tenant=%s max_uses=%d", tok.ID, tok.TenantID, tok.MaxUses)
+	out := &CreateEnrollmentTokenOutput{}
+	out.Body.ID = tok.ID
+	out.Body.TenantID = tok.TenantID
+	out.Body.Label = tok.Label
+	out.Body.ExpiresAt = tok.ExpiresAt
+	out.Body.MaxUses = tok.MaxUses
+	out.Body.UseCount = tok.UseCount
+	out.Body.Revoked = tok.Revoked
+	out.Body.CreatedAt = tok.CreatedAt
+	out.Body.Token = plaintext
+	return out, nil
+}
+
+func (s *Server) ListEnrollmentTokens(_ context.Context, _ *struct{}) (*ListEnrollmentTokensOutput, error) {
+	toks, err := s.db.ListEnrollmentTokens()
+	if err != nil {
+		return nil, huma.Error500InternalServerError(err.Error())
+	}
+	out := &ListEnrollmentTokensOutput{}
+	for _, tok := range toks {
+		out.Body.Tokens = append(out.Body.Tokens, EnrollmentTokenView{
+			ID: tok.ID, TenantID: tok.TenantID, Label: tok.Label,
+			ExpiresAt: tok.ExpiresAt, MaxUses: tok.MaxUses, UseCount: tok.UseCount,
+			Revoked: tok.Revoked, CreatedAt: tok.CreatedAt,
+		})
+	}
+	if out.Body.Tokens == nil {
+		out.Body.Tokens = []EnrollmentTokenView{}
+	}
+	return out, nil
+}
+
+func (s *Server) RevokeEnrollmentToken(_ context.Context, input *RevokeEnrollmentTokenInput) (*RevokeEnrollmentTokenOutput, error) {
+	if input.ID == "" {
+		return nil, huma.Error400BadRequest("id is required")
+	}
+	toks, err := s.db.ListEnrollmentTokens()
+	if err != nil {
+		return nil, huma.Error500InternalServerError(err.Error())
+	}
+	tenantID := "default"
+	for _, tok := range toks {
+		if tok.ID == input.ID {
+			tenantID = tok.TenantID
+		}
+	}
+	if err := s.db.RevokeEnrollmentToken(input.ID); err != nil {
+		return nil, huma.Error404NotFound(err.Error())
+	}
+	_ = s.db.LogAudit("enrollment.revoke", tenantID, "api", input.ID, "revoked via API")
+	log.Printf("enrollment token revoked: id=%s", input.ID)
+	out := &RevokeEnrollmentTokenOutput{}
+	out.Body.Ok = true
+	return out, nil
+}
+
+func (s *Server) RevokeClient(_ context.Context, input *RevokeClientInput) (*RevokeClientOutput, error) {
+	if input.ID == "" {
+		return nil, huma.Error400BadRequest("id is required")
+	}
+	tenantID := "default"
+	if c, ok := s.registry().getClient(input.ID); ok {
+		tenantID = c.TenantID
+	}
+	if err := s.db.RevokeClient(input.ID); err != nil {
+		return nil, huma.Error404NotFound(err.Error())
+	}
+	_ = s.db.LogAudit("client.revoke", tenantID, "api", input.ID, "revoked via API")
+	log.Printf("client revoked: id=%s", input.ID)
+	out := &RevokeClientOutput{}
+	out.Body.Ok = true
+	return out, nil
+}
+
+func (s *Server) ListAudit(_ context.Context, input *ListAuditInput) (*ListAuditOutput, error) {
+	limit := input.Limit
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	logs, err := s.db.ListAuditLogs(limit)
+	if err != nil {
+		return nil, huma.Error500InternalServerError(err.Error())
+	}
+	out := &ListAuditOutput{}
+	for _, l := range logs {
+		out.Body.Entries = append(out.Body.Entries, AuditEntry{
+			ID: l.ID, Action: l.Action, TenantID: l.TenantID,
+			Actor: l.Actor, Target: l.Target, Detail: l.Detail,
+			CreatedAt: l.CreatedAt,
+		})
+	}
+	if out.Body.Entries == nil {
+		out.Body.Entries = []AuditEntry{}
+	}
+	return out, nil
 }
 
 func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostResultOutput, error) {
@@ -501,11 +751,12 @@ func (s *Server) clientsPage(c echo.Context) error {
 	data := &web.ClientsPageData{}
 	for _, client := range s.registry().list() {
 		data.Clients = append(data.Clients, web.ClientView{
-			ID: client.ID, Name: client.Name, Tags: client.Tags,
+			ID: client.ID, Name: client.Name, TenantID: client.TenantID, Tags: client.Tags,
 			RegisteredAt:  client.RegisteredAt.Format("2006-01-02 15:04:05 MST"),
 			LastHeartbeat: client.LastHeartbeat.Format("2006-01-02 15:04:05 MST"),
 			LastPoll:      client.LastPoll.Format("2006-01-02 15:04:05 MST"),
-			Online:        time.Since(client.LastHeartbeat) <= 15*time.Second,
+			Online:        !client.Revoked && time.Since(client.LastHeartbeat) <= 15*time.Second,
+			Revoked:       client.Revoked,
 		})
 	}
 	sort.Slice(data.Clients, func(i, j int) bool { return data.Clients[i].Name < data.Clients[j].Name })

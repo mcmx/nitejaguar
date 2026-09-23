@@ -8,6 +8,40 @@ import (
 )
 
 var (
+	// AuditLogsColumns holds the columns for the "audit_logs" table.
+	AuditLogsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "action", Type: field.TypeString},
+		{Name: "tenant_id", Type: field.TypeString, Default: "default"},
+		{Name: "actor", Type: field.TypeString, Default: ""},
+		{Name: "target", Type: field.TypeString, Default: ""},
+		{Name: "detail", Type: field.TypeString, Default: ""},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// AuditLogsTable holds the schema information for the "audit_logs" table.
+	AuditLogsTable = &schema.Table{
+		Name:       "audit_logs",
+		Columns:    AuditLogsColumns,
+		PrimaryKey: []*schema.Column{AuditLogsColumns[0]},
+	}
+	// EnrollmentTokensColumns holds the columns for the "enrollment_tokens" table.
+	EnrollmentTokensColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "tenant_id", Type: field.TypeString, Default: "default"},
+		{Name: "label", Type: field.TypeString, Default: ""},
+		{Name: "token_hash", Type: field.TypeString, Unique: true},
+		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "max_uses", Type: field.TypeInt, Default: 0},
+		{Name: "use_count", Type: field.TypeInt, Default: 0},
+		{Name: "revoked", Type: field.TypeBool, Default: false},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// EnrollmentTokensTable holds the schema information for the "enrollment_tokens" table.
+	EnrollmentTokensTable = &schema.Table{
+		Name:       "enrollment_tokens",
+		Columns:    EnrollmentTokensColumns,
+		PrimaryKey: []*schema.Column{EnrollmentTokensColumns[0]},
+	}
 	// RemoteClientsColumns holds the columns for the "remote_clients" table.
 	RemoteClientsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
@@ -18,6 +52,8 @@ var (
 		{Name: "registered_at", Type: field.TypeTime},
 		{Name: "last_heartbeat", Type: field.TypeTime},
 		{Name: "last_poll", Type: field.TypeTime},
+		{Name: "revoked", Type: field.TypeBool, Default: false},
+		{Name: "revoked_at", Type: field.TypeTime, Nullable: true},
 	}
 	// RemoteClientsTable holds the schema information for the "remote_clients" table.
 	RemoteClientsTable = &schema.Table{
@@ -43,6 +79,8 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		AuditLogsTable,
+		EnrollmentTokensTable,
 		RemoteClientsTable,
 		WorkflowsTable,
 	}
