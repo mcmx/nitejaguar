@@ -24,3 +24,16 @@ Nitejaguar supports distributed execution where remote **Clients** (runners) reg
 3. **Local Execution**: Assigned nodes (such as file watches or file transformations) execute locally against the client's file system (e.g., expanding `~` paths locally).
 4. **Result Reporting**: Success or error results are transmitted back to the server and logged in `./results/`.
 5. **Resilience**: The client implements exponential backoff on connection/polling failures and stops cleanly on SIGINT / context cancellation.
+
+## Offline Workflow Import / Clone
+
+The client command also offers offline workflow operations that write directly
+to the database (via `DB_URL`) without starting the server or the client runner:
+
+```bash
+./nitejaguar client workflow import <file.json>
+./nitejaguar client workflow clone <file.json>
+```
+
+- `workflow import` saves the JSON verbatim (upsert; ids and name untouched).
+- `workflow clone` saves an independent copy with fresh `workflow_`/`trigger_`/`action_` ids, rewritten edges, and a `"Clone of: "` name prefix.

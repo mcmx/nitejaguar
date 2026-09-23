@@ -9,7 +9,7 @@ Welcome to the official documentation for **Nitejaguar**, a lightweight and powe
 - [Architecture](./architecture.md) — System layering, package organization, and design principles.
 - [Server Mode](./server-mode.md) — Running the server orchestrator, Huma OpenAPI documentation, and Echo web dashboard.
 - [Client Mode](./client-mode.md) — Running remote clients/runners, task polling, and local execution.
-- [Workflows](./workflows.md) — Workflow JSON schemas, triggers, actions, conditions, dependencies, import (`-i`), and clone (`-c`) operations.
+- [Workflows](./workflows.md) — Workflow JSON schemas, triggers, actions, conditions, dependencies, import (`server -i`, `client workflow import`), and clone (`server -c`, `client workflow clone`) operations.
 - [Development Guide](./development.md) — Building, codegen (`templ` & `ent`), testing (`make test`), and linting (`make lint`).
 
 ### Actions & Triggers Reference
