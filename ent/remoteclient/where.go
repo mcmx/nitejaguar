@@ -104,6 +104,11 @@ func RevokedAt(v time.Time) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldEQ(FieldRevokedAt, v))
 }
 
+// DialInfo applies equality check predicate on the "dial_info" field. It's identical to DialInfoEQ.
+func DialInfo(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEQ(FieldDialInfo, v))
+}
+
 // NameEQ applies the EQ predicate on the "name" field.
 func NameEQ(v string) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldEQ(FieldName, v))
@@ -477,6 +482,71 @@ func RevokedAtIsNil() predicate.RemoteClient {
 // RevokedAtNotNil applies the NotNil predicate on the "revoked_at" field.
 func RevokedAtNotNil() predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldNotNull(FieldRevokedAt))
+}
+
+// DialInfoEQ applies the EQ predicate on the "dial_info" field.
+func DialInfoEQ(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEQ(FieldDialInfo, v))
+}
+
+// DialInfoNEQ applies the NEQ predicate on the "dial_info" field.
+func DialInfoNEQ(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldNEQ(FieldDialInfo, v))
+}
+
+// DialInfoIn applies the In predicate on the "dial_info" field.
+func DialInfoIn(vs ...string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldIn(FieldDialInfo, vs...))
+}
+
+// DialInfoNotIn applies the NotIn predicate on the "dial_info" field.
+func DialInfoNotIn(vs ...string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldNotIn(FieldDialInfo, vs...))
+}
+
+// DialInfoGT applies the GT predicate on the "dial_info" field.
+func DialInfoGT(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldGT(FieldDialInfo, v))
+}
+
+// DialInfoGTE applies the GTE predicate on the "dial_info" field.
+func DialInfoGTE(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldGTE(FieldDialInfo, v))
+}
+
+// DialInfoLT applies the LT predicate on the "dial_info" field.
+func DialInfoLT(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldLT(FieldDialInfo, v))
+}
+
+// DialInfoLTE applies the LTE predicate on the "dial_info" field.
+func DialInfoLTE(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldLTE(FieldDialInfo, v))
+}
+
+// DialInfoContains applies the Contains predicate on the "dial_info" field.
+func DialInfoContains(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldContains(FieldDialInfo, v))
+}
+
+// DialInfoHasPrefix applies the HasPrefix predicate on the "dial_info" field.
+func DialInfoHasPrefix(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldHasPrefix(FieldDialInfo, v))
+}
+
+// DialInfoHasSuffix applies the HasSuffix predicate on the "dial_info" field.
+func DialInfoHasSuffix(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldHasSuffix(FieldDialInfo, v))
+}
+
+// DialInfoEqualFold applies the EqualFold predicate on the "dial_info" field.
+func DialInfoEqualFold(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEqualFold(FieldDialInfo, v))
+}
+
+// DialInfoContainsFold applies the ContainsFold predicate on the "dial_info" field.
+func DialInfoContainsFold(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldContainsFold(FieldDialInfo, v))
 }
 
 // And groups predicates with the AND operator between them.

@@ -26,6 +26,12 @@ type Tx struct {
 	NodeAssignment *NodeAssignmentClient
 	// RemoteClient is the client for interacting with the RemoteClient builders.
 	RemoteClient *RemoteClientClient
+	// TransferChunk is the client for interacting with the TransferChunk builders.
+	TransferChunk *TransferChunkClient
+	// TransferSession is the client for interacting with the TransferSession builders.
+	TransferSession *TransferSessionClient
+	// TransferSignal is the client for interacting with the TransferSignal builders.
+	TransferSignal *TransferSignalClient
 	// Workflow is the client for interacting with the Workflow builders.
 	Workflow *WorkflowClient
 
@@ -166,6 +172,9 @@ func (tx *Tx) init() {
 	tx.EnrollmentToken = NewEnrollmentTokenClient(tx.config)
 	tx.NodeAssignment = NewNodeAssignmentClient(tx.config)
 	tx.RemoteClient = NewRemoteClientClient(tx.config)
+	tx.TransferChunk = NewTransferChunkClient(tx.config)
+	tx.TransferSession = NewTransferSessionClient(tx.config)
+	tx.TransferSignal = NewTransferSignalClient(tx.config)
 	tx.Workflow = NewWorkflowClient(tx.config)
 }
 

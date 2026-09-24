@@ -20,6 +20,7 @@ import (
 	"github.com/mcmx/nitejaguar/internal/actions/datetime"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
 	"github.com/mcmx/nitejaguar/internal/actions/filechange"
+	transferaction "github.com/mcmx/nitejaguar/internal/actions/transfer"
 	waitaction "github.com/mcmx/nitejaguar/internal/actions/wait"
 	"github.com/mcmx/nitejaguar/internal/workflow"
 	"go.jetify.com/typeid"
@@ -237,6 +238,8 @@ type runner struct {
 	history         map[string]map[string]any
 	pendingSeen     map[string]bool
 	credCache       map[string]credentialCacheEntry
+	selfID          string
+	transfersSeen   map[string]bool
 }
 
 // managedWorkflow is one installed revision of a workflow.
@@ -250,11 +253,22 @@ type managedWorkflow struct {
 
 // nodeConfig carries the framework-level merge behavior for a node.
 // Actions stay unaware of it; the runner applies the merge before
-// reporting the result.
+// reporting the result. Transfer routing fields let the runner intercept
+// transfer nodes addressed to another client and run the distributed
+// (P2P-first, relay-fallback) sender flow instead of a local copy.
 type nodeConfig struct {
 	mergeInput    bool
 	dependencies  []string
 	credentialRef string
+	actionName    string
+	transferDest  transferTarget
+}
+
+// transferTarget names the receiver of a transfer node. Empty destClient
+// and destTags mean local execution (plain copy on this client).
+type transferTarget struct {
+	destClient string
+	destTags   []string
 }
 
 // credentialCacheEntry is a short-lived in-memory secret. Secrets are never
@@ -352,7 +366,11 @@ func (r *runner) buildManagedWorkflow(w Workflow) *managedWorkflow {
 		meta:       make(map[string]nodeConfig),
 	}
 	for id, n := range w.Nodes {
-		mw.meta[id] = nodeConfig{mergeInput: n.MergeInput, dependencies: n.Dependencies, credentialRef: n.CredentialRef}
+		mw.meta[id] = nodeConfig{
+			mergeInput: n.MergeInput, dependencies: n.Dependencies,
+			credentialRef: n.CredentialRef, actionName: n.ActionName,
+			transferDest: transferTargetFromArgs(n.ActionName, n.Arguments),
+		}
 		switch n.ActionType {
 		case "action":
 			a, err := newClientAction(r.events, common.ActionArgs{Id: n.Id, Name: n.Name, ActionType: n.ActionType, ActionName: n.ActionName, Args: n.Arguments})
@@ -388,7 +406,7 @@ func (r *runner) registerWorkflowIndices(mw *managedWorkflow) {
 }
 
 // newClientAction dispatches action construction by action_name so remote
-// clients can run any server-side action (e.g. file, datetime, wait).
+// clients can run any server-side action (e.g. file, datetime, wait, transfer).
 func newClientAction(events chan common.ResultData, args common.ActionArgs) (common.Action, error) {
 	switch args.ActionName {
 	case "file":
@@ -397,6 +415,8 @@ func newClientAction(events chan common.ResultData, args common.ActionArgs) (com
 		return datetime.New(events, args)
 	case "wait":
 		return waitaction.New(events, args)
+	case "transfer":
+		return transferaction.New(events, args)
 	default:
 		return nil, fmt.Errorf("unknown action_name: %q", args.ActionName)
 	}
@@ -412,12 +432,7 @@ func (r *runner) runResult(ctx context.Context, result common.ResultData) {
 		return
 	}
 	for _, id := range nexts {
-		r.mu.Lock()
-		a := r.nodeAction[id]
-		r.mu.Unlock()
-		if a != nil {
-			go a.Execute(result.ExecutionID, []any{result})
-		}
+		r.executeNode(id, result.ExecutionID, []any{result})
 	}
 }
 
@@ -483,7 +498,7 @@ func (r *runner) drainPending(ctx context.Context, pending []PendingAssignment) 
 			Payload:     p.Payload,
 		}
 		r.log.Info("executing pending assignment", "node_id", p.NodeID, "execution_id", p.ExecutionID)
-		go a.Execute(p.ExecutionID, []any{parent})
+		r.executeNode(p.NodeID, p.ExecutionID, []any{parent})
 	}
 }
 
@@ -620,7 +635,10 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 			backoff = cfg.RetryInitial
 			logger.Info("client registered", "server", cfg.Server, "client_id", id, "name", cfg.Name)
 		}
-		if err := api.Heartbeat(ctx, id); err != nil {
+		r.mu.Lock()
+		r.selfID = id
+		r.mu.Unlock()
+		if err := r.api.HeartbeatWithDial(ctx, id, transferDialInfo); err != nil {
 			logger.Warn("client heartbeat failed; retrying", "client_id", id, "error", err, "after", backoff)
 			id = ""
 			api.Token = ""
@@ -649,6 +667,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		logger.Debug("client assignment poll succeeded", "client_id", id, "workflows", len(assignments.Workflows))
 		r.syncAssignments(assignments.Workflows)
 		r.drainPending(ctx, assignments.Pending)
+		r.drainTransfers(ctx, id)
 		select {
 		case result := <-r.events:
 			r.mu.Lock()

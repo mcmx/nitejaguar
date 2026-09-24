@@ -81,6 +81,19 @@ type Service interface {
 	ResolveCredential(tenantID, ref, userID string, groupIDs []string) (*ent.Credential, error)
 	DecryptCredentialSecret(row *ent.Credential) (string, error)
 
+	// Client-to-client transfer (roadmap slice 6): relay sessions +
+	// WebRTC signaling. Control plane goes through the server; the relay
+	// is the guaranteed path with P2P first.
+	InitTransferSession(tenantID, workflowID, executionID, nodeID, senderClientID, receiverClientID string, receiverTags []string, fileName, destinationFile, permissions string, size int64, sha256hex string) (*ent.TransferSession, error)
+	GetTransferSession(id string) (*ent.TransferSession, error)
+	AppendTransferChunk(transferID string, seq int, data []byte) (int, error)
+	ListTransferChunks(transferID string, fromSeq int) ([]*ent.TransferChunk, error)
+	ListPendingTransfers(clientID string, tags []string, tenantID string) ([]*ent.TransferSession, error)
+	CompleteTransferSession(transferID, sha256hex string, viaP2P bool) (*ent.TransferSession, error)
+	PostTransferSignal(transferID, fromClientID, kind, payload string) (*ent.TransferSignal, error)
+	ListTransferSignals(transferID string, since time.Time) ([]*ent.TransferSignal, error)
+	SetClientDialInfo(id, dialInfo string) error
+
 	// RBAC + web auth (roadmap slice 4): users, roles, login sessions.
 	CreateUser(tenantID, username, password, role string, groups []string) (*ent.AppUser, error)
 	ListUsers(tenantID string) ([]*ent.AppUser, error)

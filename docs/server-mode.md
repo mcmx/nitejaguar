@@ -102,6 +102,13 @@ is ignored).
 - **Handoff fix**: `POST /api/results` returns only caller-owned `nexts`;
   foreign edges are never executed locally — they are routed via pending
   assignments. Audited as `assignment.enqueue` and `assignment.complete`.
+- **Client-to-client transfer**: `transfer` sessions (`transfer_` ids)
+  with chunked relay (`POST/GET /api/transfers/{id}/chunks`) and WebRTC
+  signaling (`POST/GET /api/transfers/{id}/signal`); receivers poll
+  `GET /api/clients/{id}/transfers/pending` and complete with sha
+  verification (`POST /api/transfers/{id}/complete`). Tenant-isolated,
+  audited as `transfer.init/signal/complete`. Heartbeat accepts
+  `dial_info`; `GET /api/clients` shows it next to online status.
 
 ## Credentials model
 

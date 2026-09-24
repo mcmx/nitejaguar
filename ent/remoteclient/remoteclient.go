@@ -31,6 +31,8 @@ const (
 	FieldRevoked = "revoked"
 	// FieldRevokedAt holds the string denoting the revoked_at field in the database.
 	FieldRevokedAt = "revoked_at"
+	// FieldDialInfo holds the string denoting the dial_info field in the database.
+	FieldDialInfo = "dial_info"
 	// Table holds the table name of the remoteclient in the database.
 	Table = "remote_clients"
 )
@@ -47,6 +49,7 @@ var Columns = []string{
 	FieldLastPoll,
 	FieldRevoked,
 	FieldRevokedAt,
+	FieldDialInfo,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -78,6 +81,8 @@ var (
 	UpdateDefaultLastPoll func() time.Time
 	// DefaultRevoked holds the default value on creation for the "revoked" field.
 	DefaultRevoked bool
+	// DefaultDialInfo holds the default value on creation for the "dial_info" field.
+	DefaultDialInfo string
 	// IDValidator is a validator for the "id" field. It is called by the builders before save.
 	IDValidator func(string) error
 )
@@ -128,4 +133,9 @@ func ByRevoked(opts ...sql.OrderTermOption) OrderOption {
 // ByRevokedAt orders the results by the revoked_at field.
 func ByRevokedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRevokedAt, opts...).ToFunc()
+}
+
+// ByDialInfo orders the results by the dial_info field.
+func ByDialInfo(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDialInfo, opts...).ToFunc()
 }

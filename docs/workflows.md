@@ -4,7 +4,7 @@ Workflows in Nitejaguar are defined as JSON structures containing metadata and a
 
 ## Node naming
 
-The `action_name` field uses one concise, lowercase, category-free identifier for each node implementation. For example, use `file`, `datetime`, and `wait` for actions and `filechange` for a trigger. Do not append `Action` or `Trigger`; the `action_type` field already distinguishes those categories. New implementations must use the same canonical identifier in server dispatch, client dispatch, examples, tests, and their dedicated reference document.
+The `action_name` field uses one concise, lowercase, category-free identifier for each node implementation. For example, use `file`, `datetime`, `wait`, and `transfer` for actions and `filechange` for a trigger. Do not append `Action` or `Trigger`; the `action_type` field already distinguishes those categories. New implementations must use the same canonical identifier in server dispatch, client dispatch, examples, tests, and their dedicated reference document.
 
 ## Workflow JSON Structure
 

@@ -6,7 +6,7 @@ import (
 
 func TestRequiredCredentialTypesFromCollections(t *testing.T) {
 	// Core collection and unknown actions need no credential.
-	for _, action := range []string{"file", "datetime", "wait", "filechange", "unknown"} {
+	for _, action := range []string{"file", "datetime", "wait", "transfer", "filechange", "unknown"} {
 		if got := RequiredCredentialTypes(action); len(got) != 0 {
 			t.Fatalf("RequiredCredentialTypes(%q) = %v, want empty", action, got)
 		}

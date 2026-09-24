@@ -35,7 +35,9 @@ type RemoteClient struct {
 	// Revoked holds the value of the "revoked" field.
 	Revoked bool `json:"revoked,omitempty"`
 	// RevokedAt holds the value of the "revoked_at" field.
-	RevokedAt    *time.Time `json:"revoked_at,omitempty"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+	// client-advertised dial info for P2P signaling (JSON, server never dials it)
+	DialInfo     string `json:"dial_info,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -48,7 +50,7 @@ func (*RemoteClient) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case remoteclient.FieldRevoked:
 			values[i] = new(sql.NullBool)
-		case remoteclient.FieldID, remoteclient.FieldName, remoteclient.FieldTenantID, remoteclient.FieldTokenHash:
+		case remoteclient.FieldID, remoteclient.FieldName, remoteclient.FieldTenantID, remoteclient.FieldTokenHash, remoteclient.FieldDialInfo:
 			values[i] = new(sql.NullString)
 		case remoteclient.FieldRegisteredAt, remoteclient.FieldLastHeartbeat, remoteclient.FieldLastPoll, remoteclient.FieldRevokedAt:
 			values[i] = new(sql.NullTime)
@@ -130,6 +132,12 @@ func (_m *RemoteClient) assignValues(columns []string, values []any) error {
 				_m.RevokedAt = new(time.Time)
 				*_m.RevokedAt = value.Time
 			}
+		case remoteclient.FieldDialInfo:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field dial_info", values[i])
+			} else if value.Valid {
+				_m.DialInfo = value.String
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -194,6 +202,9 @@ func (_m *RemoteClient) String() string {
 		builder.WriteString("revoked_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("dial_info=")
+	builder.WriteString(_m.DialInfo)
 	builder.WriteByte(')')
 	return builder.String()
 }

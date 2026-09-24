@@ -93,6 +93,42 @@ func (f RemoteClientFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.RemoteClientMutation", m)
 }
 
+// The TransferChunkFunc type is an adapter to allow the use of ordinary
+// function as TransferChunk mutator.
+type TransferChunkFunc func(context.Context, *ent.TransferChunkMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TransferChunkFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TransferChunkMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TransferChunkMutation", m)
+}
+
+// The TransferSessionFunc type is an adapter to allow the use of ordinary
+// function as TransferSession mutator.
+type TransferSessionFunc func(context.Context, *ent.TransferSessionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TransferSessionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TransferSessionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TransferSessionMutation", m)
+}
+
+// The TransferSignalFunc type is an adapter to allow the use of ordinary
+// function as TransferSignal mutator.
+type TransferSignalFunc func(context.Context, *ent.TransferSignalMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TransferSignalFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TransferSignalMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TransferSignalMutation", m)
+}
+
 // The WorkflowFunc type is an adapter to allow the use of ordinary
 // function as Workflow mutator.
 type WorkflowFunc func(context.Context, *ent.WorkflowMutation) (ent.Value, error)

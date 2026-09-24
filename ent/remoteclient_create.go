@@ -122,6 +122,20 @@ func (_c *RemoteClientCreate) SetNillableRevokedAt(v *time.Time) *RemoteClientCr
 	return _c
 }
 
+// SetDialInfo sets the "dial_info" field.
+func (_c *RemoteClientCreate) SetDialInfo(v string) *RemoteClientCreate {
+	_c.mutation.SetDialInfo(v)
+	return _c
+}
+
+// SetNillableDialInfo sets the "dial_info" field if the given value is not nil.
+func (_c *RemoteClientCreate) SetNillableDialInfo(v *string) *RemoteClientCreate {
+	if v != nil {
+		_c.SetDialInfo(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *RemoteClientCreate) SetID(v string) *RemoteClientCreate {
 	_c.mutation.SetID(v)
@@ -183,6 +197,10 @@ func (_c *RemoteClientCreate) defaults() {
 		v := remoteclient.DefaultRevoked
 		_c.mutation.SetRevoked(v)
 	}
+	if _, ok := _c.mutation.DialInfo(); !ok {
+		v := remoteclient.DefaultDialInfo
+		_c.mutation.SetDialInfo(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -220,6 +238,9 @@ func (_c *RemoteClientCreate) check() error {
 	}
 	if _, ok := _c.mutation.Revoked(); !ok {
 		return &ValidationError{Name: "revoked", err: errors.New(`ent: missing required field "RemoteClient.revoked"`)}
+	}
+	if _, ok := _c.mutation.DialInfo(); !ok {
+		return &ValidationError{Name: "dial_info", err: errors.New(`ent: missing required field "RemoteClient.dial_info"`)}
 	}
 	if v, ok := _c.mutation.ID(); ok {
 		if err := remoteclient.IDValidator(v); err != nil {
@@ -296,6 +317,10 @@ func (_c *RemoteClientCreate) createSpec() (*RemoteClient, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.RevokedAt(); ok {
 		_spec.SetField(remoteclient.FieldRevokedAt, field.TypeTime, value)
 		_node.RevokedAt = &value
+	}
+	if value, ok := _c.mutation.DialInfo(); ok {
+		_spec.SetField(remoteclient.FieldDialInfo, field.TypeString, value)
+		_node.DialInfo = value
 	}
 	return _node, _spec
 }
