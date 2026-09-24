@@ -70,7 +70,16 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
+	// Enforce login for browser pages once users exist. API routes stay
+	// under Huma auth (per-endpoint roles); static assets and /login stay
+	// open so users can sign in.
+	e.Use(s.requireWebLogin)
 	e.Static("/assets", "cmd/web/assets")
+
+	e.GET("/login", s.loginPage)
+	e.POST("/login", s.loginSubmit)
+	e.POST("/logout", s.logoutWeb)
+	e.GET("/logout", s.logoutWeb)
 
 	e.GET("/", s.workflowsPage)
 	e.GET("/workflows/:id", s.workflowPage)
@@ -79,6 +88,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 	e.POST("/designer/save", s.designerSaveWorkflow)
 	e.GET("/results", s.resultsPage)
 	e.GET("/clients", s.clientsPage)
+	e.GET("/audit", s.auditPage)
+	e.GET("/users", s.usersPage)
 	e.POST("/workflows/:id/enabled", s.setWorkflowEnabled)
 	e.POST("/triggers/stop", s.TriggerWebHandler)
 
@@ -143,49 +154,49 @@ func addApiRoutes(api huma.API, s *Server) {
 		OperationID: "create-enrollment-token",
 		Method:      http.MethodPost,
 		Path:        "/enrollment/tokens",
-		Summary:     "Create a tenant-scoped enrollment token (RBAC-gated in a later slice)",
+		Summary:     "Create a tenant-scoped enrollment token (operator+)",
 	}, s.CreateEnrollmentToken)
 	huma.Register(apiGrp, huma.Operation{
 		OperationID: "list-enrollment-tokens",
 		Method:      http.MethodGet,
 		Path:        "/enrollment/tokens",
-		Summary:     "List enrollment tokens (hashes never exposed)",
+		Summary:     "List enrollment tokens (hashes never exposed, operator+)",
 	}, s.ListEnrollmentTokens)
 	huma.Register(apiGrp, huma.Operation{
 		OperationID: "revoke-enrollment-token",
 		Method:      http.MethodPost,
 		Path:        "/enrollment/tokens/{id}/revoke",
-		Summary:     "Revoke an enrollment token to block new joins",
+		Summary:     "Revoke an enrollment token to block new joins (operator+)",
 	}, s.RevokeEnrollmentToken)
 	huma.Register(apiGrp, huma.Operation{
 		OperationID: "revoke-client",
 		Method:      http.MethodPost,
 		Path:        "/clients/{id}/revoke",
-		Summary:     "Revoke a client; its token stops authenticating",
+		Summary:     "Revoke a client; its token stops authenticating (operator+)",
 	}, s.RevokeClient)
 	huma.Register(apiGrp, huma.Operation{
 		OperationID: "list-audit",
 		Method:      http.MethodGet,
 		Path:        "/audit",
-		Summary:     "Audit trail for enrollment use and lifecycle ops",
+		Summary:     "Audit trail for auth, enrollment, lifecycle, workflow and credential ops (viewer+)",
 	}, s.ListAudit)
 	huma.Register(apiGrp, huma.Operation{
 		OperationID: "import-workflow",
 		Method:      http.MethodPost,
 		Path:        "/workflows/import",
-		Summary:     "Import a workflow definition verbatim (upsert)",
+		Summary:     "Import a workflow definition verbatim, upsert (operator+, audited)",
 	}, s.ImportWorkflow)
 	huma.Register(apiGrp, huma.Operation{
 		OperationID: "clone-workflow",
 		Method:      http.MethodPost,
 		Path:        "/workflows/clone",
-		Summary:     "Clone a workflow definition with fresh ids",
+		Summary:     "Clone a workflow definition with fresh ids (operator+, audited)",
 	}, s.CloneWorkflow)
 	huma.Register(apiGrp, huma.Operation{
 		OperationID: "create-credential",
 		Method:      http.MethodPost,
 		Path:        "/credentials",
-		Summary:     "Store a credential secret encrypted at rest (RBAC-gated in a later slice)",
+		Summary:     "Store a credential secret encrypted at rest (operator+)",
 	}, s.CreateCredential)
 	huma.Register(apiGrp, huma.Operation{
 		OperationID: "list-credentials",
@@ -203,7 +214,7 @@ func addApiRoutes(api huma.API, s *Server) {
 		OperationID: "delete-credential",
 		Method:      http.MethodDelete,
 		Path:        "/credentials/{id}",
-		Summary:     "Delete a stored credential (RBAC-gated in a later slice)",
+		Summary:     "Delete a stored credential (operator+)",
 	}, s.DeleteCredential)
 	huma.Register(apiGrp, huma.Operation{
 		OperationID: "fetch-credential",
@@ -211,6 +222,42 @@ func addApiRoutes(api huma.API, s *Server) {
 		Path:        "/credentials/{ref}/fetch",
 		Summary:     "Just-in-time secret fetch for the executing client (audited, short TTL)",
 	}, s.FetchCredential)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "login",
+		Method:      http.MethodPost,
+		Path:        "/auth/login",
+		Summary:     "Login with username/password and mint a session token",
+	}, s.Login)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "logout",
+		Method:      http.MethodPost,
+		Path:        "/auth/logout",
+		Summary:     "Revoke the current session token",
+	}, s.Logout)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "me",
+		Method:      http.MethodGet,
+		Path:        "/auth/me",
+		Summary:     "Current user profile for a session token",
+	}, s.Me)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "create-user",
+		Method:      http.MethodPost,
+		Path:        "/users",
+		Summary:     "Create a user (admin only; open for the very first admin)",
+	}, s.CreateUser)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "list-users",
+		Method:      http.MethodGet,
+		Path:        "/users",
+		Summary:     "List users (operator+; non-admins see their own tenant)",
+	}, s.ListUsers)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "revoke-user",
+		Method:      http.MethodPost,
+		Path:        "/users/{id}/revoke",
+		Summary:     "Revoke a user and its sessions (admin only)",
+	}, s.RevokeUser)
 }
 
 type RegisterClientInput struct {
@@ -475,7 +522,9 @@ func (s *Server) GetClients(_ context.Context, _ *struct{}) (*ClientsResponse, e
 }
 
 type CreateEnrollmentTokenInput struct {
-	Body struct {
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+	Body          struct {
 		TenantID       string `json:"tenant_id,omitempty"`
 		Label          string `json:"label,omitempty"`
 		ExpiresInHours *int   `json:"expires_in_hours,omitempty"`
@@ -501,6 +550,11 @@ type CreateEnrollmentTokenOutput struct {
 	}
 }
 
+type ListEnrollmentTokensInput struct {
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+}
+
 type ListEnrollmentTokensOutput struct {
 	Body struct {
 		Tokens []EnrollmentTokenView `json:"tokens"`
@@ -508,7 +562,9 @@ type ListEnrollmentTokensOutput struct {
 }
 
 type RevokeEnrollmentTokenInput struct {
-	ID string `path:"id"`
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+	ID            string `path:"id"`
 }
 
 type RevokeEnrollmentTokenOutput struct {
@@ -518,7 +574,9 @@ type RevokeEnrollmentTokenOutput struct {
 }
 
 type RevokeClientInput struct {
-	ID string `path:"id"`
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+	ID            string `path:"id"`
 }
 
 type RevokeClientOutput struct {
@@ -538,7 +596,9 @@ type AuditEntry struct {
 }
 
 type ListAuditInput struct {
-	Limit int `query:"limit"`
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+	Limit         int    `query:"limit"`
 }
 
 type ListAuditOutput struct {
@@ -548,12 +608,16 @@ type ListAuditOutput struct {
 }
 
 // CreateEnrollmentToken mints a tenant-scoped join token. The plaintext is
-// returned once; only its hash is stored. NOTE: currently unauthenticated —
-// gating by role is part of the RBAC slice (roadmap item 4).
+// returned once; only its hash is stored. Requires operator+ (open-bootstrap
+// mode allows issuance until the first user exists).
 func (s *Server) CreateEnrollmentToken(_ context.Context, input *CreateEnrollmentTokenInput) (*CreateEnrollmentTokenOutput, error) {
-	tenantID := input.Body.TenantID
-	if tenantID == "" {
-		tenantID = "default"
+	caller, actor, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleOperator)
+	if err != nil {
+		return nil, err
+	}
+	tenantID, err := scopedTenant(caller, input.Body.TenantID)
+	if err != nil {
+		return nil, err
 	}
 	var expiresAt *time.Time
 	if input.Body.ExpiresInHours != nil {
@@ -574,7 +638,7 @@ func (s *Server) CreateEnrollmentToken(_ context.Context, input *CreateEnrollmen
 	if err != nil {
 		return nil, huma.Error500InternalServerError(err.Error())
 	}
-	_ = s.db.LogAudit("enrollment.create", tenantID, "api", tok.ID, "label="+input.Body.Label)
+	_ = s.db.LogAudit("enrollment.create", tenantID, actor, tok.ID, "label="+input.Body.Label)
 	log.Printf("enrollment token created: id=%s tenant=%s max_uses=%d", tok.ID, tok.TenantID, tok.MaxUses)
 	out := &CreateEnrollmentTokenOutput{}
 	out.Body.ID = tok.ID
@@ -589,13 +653,20 @@ func (s *Server) CreateEnrollmentToken(_ context.Context, input *CreateEnrollmen
 	return out, nil
 }
 
-func (s *Server) ListEnrollmentTokens(_ context.Context, _ *struct{}) (*ListEnrollmentTokensOutput, error) {
+func (s *Server) ListEnrollmentTokens(_ context.Context, input *ListEnrollmentTokensInput) (*ListEnrollmentTokensOutput, error) {
+	caller, _, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleOperator)
+	if err != nil {
+		return nil, err
+	}
 	toks, err := s.db.ListEnrollmentTokens()
 	if err != nil {
 		return nil, huma.Error500InternalServerError(err.Error())
 	}
 	out := &ListEnrollmentTokensOutput{}
 	for _, tok := range toks {
+		if caller != nil && caller.Role != database.RoleAdmin && tok.TenantID != caller.TenantID {
+			continue
+		}
 		out.Body.Tokens = append(out.Body.Tokens, EnrollmentTokenView{
 			ID: tok.ID, TenantID: tok.TenantID, Label: tok.Label,
 			ExpiresAt: tok.ExpiresAt, MaxUses: tok.MaxUses, UseCount: tok.UseCount,
@@ -609,6 +680,10 @@ func (s *Server) ListEnrollmentTokens(_ context.Context, _ *struct{}) (*ListEnro
 }
 
 func (s *Server) RevokeEnrollmentToken(_ context.Context, input *RevokeEnrollmentTokenInput) (*RevokeEnrollmentTokenOutput, error) {
+	caller, actor, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleOperator)
+	if err != nil {
+		return nil, err
+	}
 	if input.ID == "" {
 		return nil, huma.Error400BadRequest("id is required")
 	}
@@ -622,10 +697,13 @@ func (s *Server) RevokeEnrollmentToken(_ context.Context, input *RevokeEnrollmen
 			tenantID = tok.TenantID
 		}
 	}
+	if caller != nil && caller.Role != database.RoleAdmin && tenantID != caller.TenantID {
+		return nil, huma.Error403Forbidden("cross-tenant operation requires admin")
+	}
 	if err := s.db.RevokeEnrollmentToken(input.ID); err != nil {
 		return nil, huma.Error404NotFound(err.Error())
 	}
-	_ = s.db.LogAudit("enrollment.revoke", tenantID, "api", input.ID, "revoked via API")
+	_ = s.db.LogAudit("enrollment.revoke", tenantID, actor, input.ID, "revoked via API")
 	log.Printf("enrollment token revoked: id=%s", input.ID)
 	out := &RevokeEnrollmentTokenOutput{}
 	out.Body.Ok = true
@@ -633,6 +711,10 @@ func (s *Server) RevokeEnrollmentToken(_ context.Context, input *RevokeEnrollmen
 }
 
 func (s *Server) RevokeClient(_ context.Context, input *RevokeClientInput) (*RevokeClientOutput, error) {
+	caller, actor, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleOperator)
+	if err != nil {
+		return nil, err
+	}
 	if input.ID == "" {
 		return nil, huma.Error400BadRequest("id is required")
 	}
@@ -640,10 +722,13 @@ func (s *Server) RevokeClient(_ context.Context, input *RevokeClientInput) (*Rev
 	if c, ok := s.registry().getClient(input.ID); ok {
 		tenantID = c.TenantID
 	}
+	if caller != nil && caller.Role != database.RoleAdmin && tenantID != caller.TenantID {
+		return nil, huma.Error403Forbidden("cross-tenant operation requires admin")
+	}
 	if err := s.db.RevokeClient(input.ID); err != nil {
 		return nil, huma.Error404NotFound(err.Error())
 	}
-	_ = s.db.LogAudit("client.revoke", tenantID, "api", input.ID, "revoked via API")
+	_ = s.db.LogAudit("client.revoke", tenantID, actor, input.ID, "revoked via API")
 	log.Printf("client revoked: id=%s", input.ID)
 	out := &RevokeClientOutput{}
 	out.Body.Ok = true
@@ -651,6 +736,10 @@ func (s *Server) RevokeClient(_ context.Context, input *RevokeClientInput) (*Rev
 }
 
 func (s *Server) ListAudit(_ context.Context, input *ListAuditInput) (*ListAuditOutput, error) {
+	caller, _, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleViewer)
+	if err != nil {
+		return nil, err
+	}
 	limit := input.Limit
 	if limit <= 0 || limit > 500 {
 		limit = 100
@@ -661,6 +750,9 @@ func (s *Server) ListAudit(_ context.Context, input *ListAuditInput) (*ListAudit
 	}
 	out := &ListAuditOutput{}
 	for _, l := range logs {
+		if caller != nil && caller.Role != database.RoleAdmin && l.TenantID != caller.TenantID {
+			continue
+		}
 		out.Body.Entries = append(out.Body.Entries, AuditEntry{
 			ID: l.ID, Action: l.Action, TenantID: l.TenantID,
 			Actor: l.Actor, Target: l.Target, Detail: l.Detail,
@@ -790,7 +882,9 @@ type WorkflowUpsertBody struct {
 // UpsertWorkflowInput carries a full workflow definition for the
 // import/clone endpoints.
 type UpsertWorkflowInput struct {
-	Body WorkflowUpsertBody
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+	Body          WorkflowUpsertBody
 }
 
 type UpsertWorkflowOutput struct {
@@ -801,12 +895,20 @@ type UpsertWorkflowOutput struct {
 }
 
 // ImportWorkflow saves a workflow definition verbatim (upsert),
-// keeping the ids and name from the JSON.
+// keeping the ids and name from the JSON. Requires operator+.
 func (s *Server) ImportWorkflow(_ context.Context, input *UpsertWorkflowInput) (*UpsertWorkflowOutput, error) {
+	caller, actor, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleOperator)
+	if err != nil {
+		return nil, err
+	}
+	tenantID, err := scopedTenant(caller, input.Body.TenantID)
+	if err != nil {
+		return nil, err
+	}
 	raw, err := json.Marshal(workflow.Workflow{
 		Id:                input.Body.ID,
 		Name:              input.Body.Name,
-		TenantID:          input.Body.TenantID,
+		TenantID:          tenantID,
 		DefaultClient:     input.Body.DefaultClient,
 		DefaultClientTags: input.Body.DefaultClientTags,
 		Nodes:             input.Body.Nodes,
@@ -818,6 +920,8 @@ func (s *Server) ImportWorkflow(_ context.Context, input *UpsertWorkflowInput) (
 	if err != nil {
 		return nil, huma.Error400BadRequest(err.Error())
 	}
+	_ = s.db.LogAudit("workflow.import", tenantID, actor, id, "name="+input.Body.Name)
+	log.Printf("workflow imported: id=%s tenant=%s actor=%s", id, tenantID, actor)
 	out := &UpsertWorkflowOutput{}
 	out.Body.Ok = true
 	out.Body.WorkflowID = id
@@ -826,11 +930,20 @@ func (s *Server) ImportWorkflow(_ context.Context, input *UpsertWorkflowInput) (
 
 // CloneWorkflow saves an independent copy of a workflow definition with
 // fresh ids, rewritten edges, and a "Clone of: " name prefix.
+// Requires operator+.
 func (s *Server) CloneWorkflow(_ context.Context, input *UpsertWorkflowInput) (*UpsertWorkflowOutput, error) {
+	caller, actor, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleOperator)
+	if err != nil {
+		return nil, err
+	}
+	tenantID, err := scopedTenant(caller, input.Body.TenantID)
+	if err != nil {
+		return nil, err
+	}
 	raw, err := json.Marshal(workflow.Workflow{
 		Id:                input.Body.ID,
 		Name:              input.Body.Name,
-		TenantID:          input.Body.TenantID,
+		TenantID:          tenantID,
 		DefaultClient:     input.Body.DefaultClient,
 		DefaultClientTags: input.Body.DefaultClientTags,
 		Nodes:             input.Body.Nodes,
@@ -842,6 +955,8 @@ func (s *Server) CloneWorkflow(_ context.Context, input *UpsertWorkflowInput) (*
 	if err != nil {
 		return nil, huma.Error400BadRequest(err.Error())
 	}
+	_ = s.db.LogAudit("workflow.clone", tenantID, actor, id, "name="+input.Body.Name)
+	log.Printf("workflow cloned: id=%s tenant=%s actor=%s", id, tenantID, actor)
 	out := &UpsertWorkflowOutput{}
 	out.Body.Ok = true
 	out.Body.WorkflowID = id
@@ -916,10 +1031,30 @@ func (s *Server) clientsPage(c echo.Context) error {
 }
 
 func (s *Server) setWorkflowEnabled(c echo.Context) error {
+	if _, _, err := s.webActor(c, database.RoleOperator); err != nil {
+		if he, ok := err.(*echo.HTTPError); ok && he.Code == http.StatusUnauthorized {
+			return c.Redirect(http.StatusSeeOther, "/login")
+		}
+		return err
+	}
 	enabled := c.FormValue("enabled") == "true"
 	if err := s.db.SetWorkflowEnabled(c.Param("id"), enabled); err != nil {
 		return c.String(http.StatusNotFound, "workflow not found")
 	}
+	actor := "api"
+	if user, open := s.webCurrentUser(c); !open && user != nil {
+		actor = user.ID
+	}
+	tenantID := "default"
+	if row, err := s.db.GetWorkflow(c.Param("id")); err == nil {
+		var def workflow.Workflow
+		if json.Unmarshal([]byte(row.JSONDefinition), &def) == nil && def.TenantID != "" {
+			tenantID = def.TenantID
+		} else if row.TenantID != "" {
+			tenantID = row.TenantID
+		}
+	}
+	_ = s.db.LogAudit("workflow.enable", tenantID, actor, c.Param("id"), fmt.Sprintf("enabled=%t via web", enabled))
 	return c.Redirect(http.StatusSeeOther, "/workflows/"+c.Param("id"))
 }
 
@@ -1081,6 +1216,12 @@ func (s *Server) renderDesigner(c echo.Context, workflowID string) error {
 }
 
 func (s *Server) designerSaveWorkflow(c echo.Context) error {
+	if _, _, err := s.webActor(c, database.RoleOperator); err != nil {
+		if he, ok := err.(*echo.HTTPError); ok && he.Code == http.StatusUnauthorized {
+			return c.Redirect(http.StatusSeeOther, "/login")
+		}
+		return err
+	}
 	jsonDef := c.FormValue("workflow_json")
 	if jsonDef == "" {
 		return c.String(http.StatusBadRequest, "workflow_json is required")
@@ -1089,8 +1230,19 @@ func (s *Server) designerSaveWorkflow(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "Failed to import workflow: "+err.Error())
 	}
 	var wf workflow.Workflow
-	if err := json.Unmarshal([]byte(jsonDef), &wf); err == nil && wf.Id != "" {
-		return c.Redirect(http.StatusSeeOther, "/workflows/"+wf.Id)
+	actor := "api"
+	if user, open := s.webCurrentUser(c); !open && user != nil {
+		actor = user.ID
+	}
+	tenantID := "default"
+	if err := json.Unmarshal([]byte(jsonDef), &wf); err == nil {
+		if wf.TenantID != "" {
+			tenantID = wf.TenantID
+		}
+		_ = s.db.LogAudit("workflow.import", tenantID, actor, wf.Id, "name="+wf.Name+" via designer")
+		if wf.Id != "" {
+			return c.Redirect(http.StatusSeeOther, "/workflows/"+wf.Id)
+		}
 	}
 	return c.Redirect(http.StatusSeeOther, "/")
 }

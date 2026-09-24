@@ -9,6 +9,18 @@ import (
 	"github.com/mcmx/nitejaguar/ent"
 )
 
+// The AppUserFunc type is an adapter to allow the use of ordinary
+// function as AppUser mutator.
+type AppUserFunc func(context.Context, *ent.AppUserMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AppUserFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AppUserMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AppUserMutation", m)
+}
+
 // The AuditLogFunc type is an adapter to allow the use of ordinary
 // function as AuditLog mutator.
 type AuditLogFunc func(context.Context, *ent.AuditLogMutation) (ent.Value, error)
@@ -19,6 +31,18 @@ func (f AuditLogFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, er
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AuditLogMutation", m)
+}
+
+// The AuthSessionFunc type is an adapter to allow the use of ordinary
+// function as AuthSession mutator.
+type AuthSessionFunc func(context.Context, *ent.AuthSessionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AuthSessionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AuthSessionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AuthSessionMutation", m)
 }
 
 // The CredentialFunc type is an adapter to allow the use of ordinary

@@ -8,6 +8,24 @@ import (
 )
 
 var (
+	// AppUsersColumns holds the columns for the "app_users" table.
+	AppUsersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "tenant_id", Type: field.TypeString, Default: "default"},
+		{Name: "username", Type: field.TypeString},
+		{Name: "password_hash", Type: field.TypeString},
+		{Name: "role", Type: field.TypeString, Default: "viewer"},
+		{Name: "groups", Type: field.TypeJSON, Nullable: true},
+		{Name: "revoked", Type: field.TypeBool, Default: false},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// AppUsersTable holds the schema information for the "app_users" table.
+	AppUsersTable = &schema.Table{
+		Name:       "app_users",
+		Columns:    AppUsersColumns,
+		PrimaryKey: []*schema.Column{AppUsersColumns[0]},
+	}
 	// AuditLogsColumns holds the columns for the "audit_logs" table.
 	AuditLogsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
@@ -23,6 +41,22 @@ var (
 		Name:       "audit_logs",
 		Columns:    AuditLogsColumns,
 		PrimaryKey: []*schema.Column{AuditLogsColumns[0]},
+	}
+	// AuthSessionsColumns holds the columns for the "auth_sessions" table.
+	AuthSessionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "user_id", Type: field.TypeString},
+		{Name: "tenant_id", Type: field.TypeString, Default: "default"},
+		{Name: "token_hash", Type: field.TypeString, Unique: true},
+		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "revoked", Type: field.TypeBool, Default: false},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// AuthSessionsTable holds the schema information for the "auth_sessions" table.
+	AuthSessionsTable = &schema.Table{
+		Name:       "auth_sessions",
+		Columns:    AuthSessionsColumns,
+		PrimaryKey: []*schema.Column{AuthSessionsColumns[0]},
 	}
 	// CredentialsColumns holds the columns for the "credentials" table.
 	CredentialsColumns = []*schema.Column{
@@ -117,7 +151,9 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		AppUsersTable,
 		AuditLogsTable,
+		AuthSessionsTable,
 		CredentialsTable,
 		EnrollmentTokensTable,
 		NodeAssignmentsTable,

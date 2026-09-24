@@ -363,7 +363,11 @@ func TestWorkflowImportCloneAPI(t *testing.T) {
 		t.Fatalf("unmarshal seed workflow: %v", err)
 	}
 
-	resp := api.Post("/api/workflows/import", def)
+	// Workflow import/clone are operator-gated (open-bootstrap until the
+	// first user exists); mint an admin session for the calls below.
+	adminAuth := ensureAdminToken(t, db)
+
+	resp := api.Post("/api/workflows/import", adminAuth, def)
 	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
 		t.Fatalf("import status = %v, body = %s", resp.Code, resp.Body.String())
 	}
@@ -379,7 +383,7 @@ func TestWorkflowImportCloneAPI(t *testing.T) {
 		t.Fatalf("imported workflow not in db: %v", err)
 	}
 
-	resp = api.Post("/api/workflows/clone", def)
+	resp = api.Post("/api/workflows/clone", adminAuth, def)
 	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
 		t.Fatalf("clone status = %v, body = %s", resp.Code, resp.Body.String())
 	}
@@ -403,7 +407,7 @@ func TestWorkflowImportCloneAPI(t *testing.T) {
 		t.Fatalf("cloned name missing prefix: %q", clonedDef.Name)
 	}
 
-	resp = api.Post("/api/workflows/import", map[string]any{})
+	resp = api.Post("/api/workflows/import", adminAuth, map[string]any{})
 	if resp.Code != http.StatusUnprocessableEntity && resp.Code != http.StatusBadRequest {
 		t.Fatalf("invalid import status = %v, want 400 or 422", resp.Code)
 	}
@@ -420,6 +424,10 @@ func TestTenantEnrollmentLifecycle(t *testing.T) {
 	_, api := humatest.New(t)
 	addApiRoutes(api, s)
 
+	// Token issuance and lifecycle ops are operator-gated (open-bootstrap
+	// until the first user exists).
+	adminAuth := ensureAdminToken(t, db)
+
 	// Open registration is closed: no token -> 401.
 	resp := api.Post("/api/clients/register", map[string]any{"name": "no-token"})
 	if resp.Code != http.StatusUnauthorized {
@@ -433,7 +441,7 @@ func TestTenantEnrollmentLifecycle(t *testing.T) {
 	}
 
 	// Mint a token via the API for tenant acme.
-	resp = api.Post("/api/enrollment/tokens", map[string]any{"tenant_id": "acme", "label": "test"})
+	resp = api.Post("/api/enrollment/tokens", adminAuth, map[string]any{"tenant_id": "acme", "label": "test"})
 	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
 		t.Fatalf("create enrollment token status = %v, body = %s", resp.Code, resp.Body.String())
 	}
@@ -481,7 +489,7 @@ func TestTenantEnrollmentLifecycle(t *testing.T) {
 	}
 
 	// One-time token: second use is exhausted -> 401.
-	resp = api.Post("/api/enrollment/tokens", map[string]any{"tenant_id": "acme", "max_uses": 1})
+	resp = api.Post("/api/enrollment/tokens", adminAuth, map[string]any{"tenant_id": "acme", "max_uses": 1})
 	var oneTime struct {
 		ID    string `json:"id"`
 		Token string `json:"token"`
@@ -497,13 +505,13 @@ func TestTenantEnrollmentLifecycle(t *testing.T) {
 	}
 
 	// Revoking a token blocks new joins.
-	resp = api.Post("/api/enrollment/tokens", map[string]any{"tenant_id": "acme"})
+	resp = api.Post("/api/enrollment/tokens", adminAuth, map[string]any{"tenant_id": "acme"})
 	var revokable struct {
 		ID    string `json:"id"`
 		Token string `json:"token"`
 	}
 	decodeBody(t, strings.NewReader(resp.Body.String()), &revokable)
-	resp = api.Post("/api/enrollment/tokens/" + revokable.ID + "/revoke", map[string]any{})
+	resp = api.Post("/api/enrollment/tokens/"+revokable.ID+"/revoke", adminAuth, map[string]any{})
 	if resp.Code != http.StatusOK {
 		t.Fatalf("revoke token status = %v, body = %s", resp.Code, resp.Body.String())
 	}
@@ -513,7 +521,7 @@ func TestTenantEnrollmentLifecycle(t *testing.T) {
 	}
 
 	// Revoking a client stops its token from authenticating.
-	resp = api.Post("/api/clients/"+registered.ClientID+"/revoke", map[string]any{})
+	resp = api.Post("/api/clients/"+registered.ClientID+"/revoke", adminAuth, map[string]any{})
 	if resp.Code != http.StatusOK {
 		t.Fatalf("revoke client status = %v, body = %s", resp.Code, resp.Body.String())
 	}
@@ -529,7 +537,7 @@ func TestTenantEnrollmentLifecycle(t *testing.T) {
 	}
 
 	// Every enrollment use is audited.
-	resp = api.Get("/api/audit?limit=500")
+	resp = api.Get("/api/audit?limit=500", adminAuth)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("audit status = %v", resp.Code)
 	}

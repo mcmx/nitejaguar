@@ -53,13 +53,24 @@ Token issuance is not yet role-gated — that arrives with the RBAC slice.
 - Audit every enrollment use. Closes today's open-registration hole
   (`POST /api/clients/register` accepts arbitrary tenant).
 
-## 3. RBAC + website auth & management
+## 3. RBAC + website auth & management — DONE
 
-- Login for the website; users, tenants, groups, roles/permissions.
-- Manage from the UI/API: clients, workflows, executions, logs, audits.
-- Enrollment-token and client-revoke actions gated by role.
-- Full audit trail (who did what, when): logins, token ops, client
-  revoke, workflow import/clone/enable, credential fetch.
+Status: implemented. `AppUser` rows (bcrypt passwords, roles
+`admin > operator > viewer`, optional `groups` for credential
+resolution) and `AuthSession` tokens (24h TTL, `Authorization: Bearer`
+/ `X-Auth-Token`, `HttpOnly` cookie on web). First server run
+bootstraps a `default` admin (one-time password printed once;
+`ADMIN_PASSWORD` pins it). Enrollment-token issuance/listing/revocation,
+client revoke, credential create/delete, and workflow import/clone/enable
+require operator+ (cross-tenant requires admin); user create/revoke is
+admin-only; audit read is viewer+ (non-admins see their own tenant).
+Before the first user the server runs in open-bootstrap mode. Website:
+`/login`, `/logout`, `/audit`, `/users` pages; anonymous browsers
+redirect to `/login` once users exist. Full audit trail (actor = session
+user): `auth.login/logout`, `user.create/revoke`, `workflow.import/clone/
+enable`, plus the existing enrollment, client, credential, and assignment
+actions (`/api/audit`). Groups are lightweight membership strings for
+now; a dedicated group API is a later slice.
 
 ## 4. Credentials model — DONE
 
@@ -112,7 +123,7 @@ slice.
 1. Tenant enrollment & client lifecycle ✅ done
 2. Client targeting + cross-client handoff fix ✅ done
 3. Credentials model (reference + JIT fetch + resolution) ✅ done
-4. RBAC + web auth + management pages + audit
+4. RBAC + web auth + management pages + audit ✅ done
 5. Provider actions (AWS EC2, generic S3, …)
 6. Client-to-client transfer (P2P + relay fallback)
 

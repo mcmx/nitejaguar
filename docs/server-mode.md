@@ -9,6 +9,7 @@ Server configuration relies on environment variables (loaded via `godotenv` from
 - `PORT` — HTTP server port (defaults to `8080`).
 - `DB_URL` — Database connection string (e.g., `file:./test.db?_fk=1&cache=shared`). If unset, falls back to in-memory SQLite.
 - `CREDENTIALS_KEY` — AES-256 key for credential secrets at rest (64-char hex, base64 32-byte key, or any passphrase hashed with SHA-256). If unset, an ephemeral process-local key is generated (stored secrets do not survive restarts).
+- `ADMIN_PASSWORD` — Pins the bootstrap `admin` password (min 8 chars). If unset, a random one is generated and printed once to stdout on first run.
 
 ## Starting the Server
 
@@ -26,12 +27,34 @@ Server configuration relies on environment variables (loaded via `godotenv` from
 - **Web Dashboard**: Built with Go `templ`, HTMX, and Tailwind CSS (`cmd/web/`). Accessible at `http://localhost:8080`.
 - **OpenAPI Docs**: Built on Huma v2. Interactive Swagger / Redoc documentation available at `http://localhost:8080/docs`.
 - **WebSocket**: Real-time event streaming at `/websocket`.
-- **Workflow upsert API** (used by `client workflow import/clone`):
-  - `POST /api/workflows/import` — Save a workflow definition verbatim (upsert); returns `{ok, workflow_id}`.
-  - `POST /api/workflows/clone` — Save an independent copy with fresh IDs and a `"Clone of: "` name prefix; returns `{ok, workflow_id}`.
+- **Workflow upsert API** (operator+, used by `client workflow import/clone`):
+  - `POST /api/workflows/import` — Save a workflow definition verbatim (upsert); returns `{ok, workflow_id}`; audited as `workflow.import`.
+  - `POST /api/workflows/clone` — Save an independent copy with fresh IDs and a `"Clone of: "` name prefix; returns `{ok, workflow_id}`; audited as `workflow.clone`.
 - **Artifacts**:
   - Logs: `./log/server.log`
   - Results: `./results/`
+
+## RBAC + website auth & management
+
+Users, roles (`admin > operator > viewer`), and login sessions gate
+every management endpoint. See [RBAC & Auth](./rbac.md) for the full
+reference.
+
+- **Bootstrap**: first server run prints a one-time `admin` password to
+  stdout (or set `ADMIN_PASSWORD`). Use it to log in at `/login` or
+  `POST /api/auth/login`.
+- **Website**: `/login`, `/logout`, `/audit` (audit trail), `/users`
+  (roster). Anonymous browsers redirect to `/login` once users exist.
+- **Gated API** (operator+ unless noted): enrollment tokens
+  (`POST/GET /api/enrollment/tokens`, revoke), client revoke,
+  credential create/delete, workflow import/clone; user management is
+  admin-only (`POST/GET /api/users`, revoke); audit read is viewer+.
+  Sessions go in `Authorization: Bearer` / `X-Auth-Token` (cookie on
+  web).
+- **Audit**: `auth.login/logout`, `user.create/revoke`,
+  `workflow.import/clone/enable`, plus the existing enrollment, client,
+  credential, and assignment actions; `GET /api/audit` is tenant-scoped
+  for non-admins.
 
 ## Tenant Enrollment & Client Lifecycle
 
@@ -47,20 +70,21 @@ is ignored).
 - **Register**: `POST /api/clients/register` requires
   `enrollment_token` (alias `join_token`); missing/invalid/expired/
   revoked/exhausted tokens return `401`.
-- **Token management** (currently unauthenticated; role-gating arrives
-  with the RBAC slice):
+- **Token management** (operator+; cross-tenant requires admin):
   - `POST /api/enrollment/tokens` — mint a token
     (`{tenant_id, label, expires_in_hours, max_uses}`; `max_uses: 0`
     means unlimited). Returns the plaintext `token` once.
-  - `GET /api/enrollment/tokens` — list tokens (hashes never exposed).
+  - `GET /api/enrollment/tokens` — list tokens (hashes never exposed;
+    non-admins see their own tenant).
   - `POST /api/enrollment/tokens/{id}/revoke` — revoke a token to
     block new joins.
-- **Client revoke**: `POST /api/clients/{id}/revoke` — the client's
+- **Client revoke** (operator+): `POST /api/clients/{id}/revoke` — the client's
   token stops authenticating (heartbeat, assignments, results all
   return `401`); revoked clients show as `revoked`/stale in
   `GET /api/clients` and on the `/clients` page.
 - **Audit**: every enrollment use, token op, and client revoke is
-  recorded; `GET /api/audit?limit=100` returns the trail
+  recorded; `GET /api/audit?limit=100` (viewer+, tenant-scoped for
+  non-admins) returns the trail
   (`enrollment.use`, `enrollment.create`, `enrollment.revoke`,
   `client.revoke`).
 
@@ -84,8 +108,7 @@ is ignored).
 Nodes hold a `credential_ref` (credential id or name) — never the
 secret. See [Credentials](./credentials.md) for the full reference.
 
-- **Management** (currently unauthenticated; role-gating arrives with
-  the RBAC slice): `POST /api/credentials` (store encrypted at rest),
+- **Management** (operator+; cross-tenant requires admin): `POST /api/credentials` (store encrypted at rest),
   `GET /api/credentials`, `GET /api/credentials/{id}`,
   `DELETE /api/credentials/{id}` — secrets are never exposed here.
 - **Just-in-time fetch**: `GET /api/credentials/{ref}/fetch`
