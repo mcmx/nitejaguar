@@ -45,6 +45,9 @@ func (RemoteClient) Fields() []ent.Field {
 		field.Time("revoked_at").
 			Optional().
 			Nillable(),
+		field.Text("dial_info").
+			Default("").
+			Comment("client-advertised dial info for P2P signaling (JSON, server never dials it)"),
 	}
 }
 

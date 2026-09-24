@@ -129,6 +129,20 @@ func (_u *RemoteClientUpdate) ClearRevokedAt() *RemoteClientUpdate {
 	return _u
 }
 
+// SetDialInfo sets the "dial_info" field.
+func (_u *RemoteClientUpdate) SetDialInfo(v string) *RemoteClientUpdate {
+	_u.mutation.SetDialInfo(v)
+	return _u
+}
+
+// SetNillableDialInfo sets the "dial_info" field if the given value is not nil.
+func (_u *RemoteClientUpdate) SetNillableDialInfo(v *string) *RemoteClientUpdate {
+	if v != nil {
+		_u.SetDialInfo(*v)
+	}
+	return _u
+}
+
 // Mutation returns the RemoteClientMutation object of the builder.
 func (_u *RemoteClientUpdate) Mutation() *RemoteClientMutation {
 	return _u.mutation
@@ -232,6 +246,9 @@ func (_u *RemoteClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if _u.mutation.RevokedAtCleared() {
 		_spec.ClearField(remoteclient.FieldRevokedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.DialInfo(); ok {
+		_spec.SetField(remoteclient.FieldDialInfo, field.TypeString, value)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -350,6 +367,20 @@ func (_u *RemoteClientUpdateOne) SetNillableRevokedAt(v *time.Time) *RemoteClien
 // ClearRevokedAt clears the value of the "revoked_at" field.
 func (_u *RemoteClientUpdateOne) ClearRevokedAt() *RemoteClientUpdateOne {
 	_u.mutation.ClearRevokedAt()
+	return _u
+}
+
+// SetDialInfo sets the "dial_info" field.
+func (_u *RemoteClientUpdateOne) SetDialInfo(v string) *RemoteClientUpdateOne {
+	_u.mutation.SetDialInfo(v)
+	return _u
+}
+
+// SetNillableDialInfo sets the "dial_info" field if the given value is not nil.
+func (_u *RemoteClientUpdateOne) SetNillableDialInfo(v *string) *RemoteClientUpdateOne {
+	if v != nil {
+		_u.SetDialInfo(*v)
+	}
 	return _u
 }
 
@@ -486,6 +517,9 @@ func (_u *RemoteClientUpdateOne) sqlSave(ctx context.Context) (_node *RemoteClie
 	}
 	if _u.mutation.RevokedAtCleared() {
 		_spec.ClearField(remoteclient.FieldRevokedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.DialInfo(); ok {
+		_spec.SetField(remoteclient.FieldDialInfo, field.TypeString, value)
 	}
 	_node = &RemoteClient{config: _u.config}
 	_spec.Assign = _node.assignValues

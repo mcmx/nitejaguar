@@ -126,7 +126,25 @@ action executables (no EC2/S3 implementations yet).
 - Documented in `docs/providers.md` + `docs/credentials.md`
   (type enforcement); `docs/workflows.md` shows the AWS shape.
 
-## 6. Client-to-client communication
+## 6. Client-to-client communication — DONE
+
+Status: implemented. `transfer` nodes addressed to another client deliver
+WebRTC P2P first with server relay fallback. `TransferSession`
+(`transfer_` ids) carries size+sha256 + receiver routing; `TransferChunk`
+rows move ≤64KiB ordered relay chunks (32MiB cap); `TransferSignal` rows
+store-and-forward SDP/ICE (`offer`/`answer`/`ice`/`bye`). Endpoints
+(`POST /api/transfers/init`, `/chunks`, `/chunks` fetch, `/complete`,
+`/signal`, `GET /api/clients/{id}/transfers/pending`) are client-token
+authed and tenant-isolated (sender-only upload, receiver-only complete,
+sha-verified, audited as `transfer.init/signal/complete`). Clients
+advertise P2P capability via heartbeat `dial_info` (shown in
+`GET /api/clients` next to online status); the server stays the
+signaling/control plane and never dials. Sender runners intercept remote
+transfer nodes (P2P attempt, then relay upload) and advance the workflow;
+receivers poll the inbox, take P2P offers first, otherwise download the
+relay, write with the transfer safety rules, and complete. Transport:
+WebRTC (host candidates; no external STUN) — relay is the guaranteed
+path for unreachable peers.
 
 - Example: copy a file from one client to another.
 - Clients advertise dial info + online status (heartbeat); server is the
@@ -148,10 +166,10 @@ action executables (no EC2/S3 implementations yet).
 3. Credentials model (reference + JIT fetch + resolution) ✅ done
 4. RBAC + web auth + management pages + audit ✅ done
 5. Provider collections foundation (registry + shared credential type + enforcement; no new actions) ✅ done
-6. Client-to-client transfer (P2P + relay fallback)
+6. Client-to-client transfer (P2P + relay fallback) ✅ done
 
 ## Open questions (for later slices)
 
 - Web auth method: local users first, OIDC later?
 - Secret encryption backend: DB-column encryption vs external KMS/vault?
-- P2P transport choice (QUIC/WebRTC/raw TLS) and NAT traversal scope.
+- P2P NAT scope: host candidates + relay fallback today; STUN/TURN for wider NAT traversal later?

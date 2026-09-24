@@ -10,6 +10,7 @@ import (
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions/datetime"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
+	"github.com/mcmx/nitejaguar/internal/actions/transfer"
 	"github.com/mcmx/nitejaguar/internal/actions/wait"
 	"go.jetify.com/typeid"
 )
@@ -35,6 +36,7 @@ func RequiredCredentialTypes(actionName string) []string {
 	}
 	return []string{ctype}
 }
+
 // ActionManager manages a collection of actions
 type ActionManager struct {
 	actions       map[string]common.Action
@@ -71,6 +73,8 @@ func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, strin
 		action, err = datetime.New(am.events, data)
 	case "wait":
 		action, err = wait.New(am.events, data)
+	case "transfer":
+		action, err = transfer.New(am.events, data)
 	default:
 		return nil, "", fmt.Errorf("unknown action_name: %q", data.ActionName)
 	}

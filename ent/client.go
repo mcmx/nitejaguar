@@ -21,6 +21,9 @@ import (
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
 	"github.com/mcmx/nitejaguar/ent/nodeassignment"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
+	"github.com/mcmx/nitejaguar/ent/transferchunk"
+	"github.com/mcmx/nitejaguar/ent/transfersession"
+	"github.com/mcmx/nitejaguar/ent/transfersignal"
 	"github.com/mcmx/nitejaguar/ent/workflow"
 )
 
@@ -43,6 +46,12 @@ type Client struct {
 	NodeAssignment *NodeAssignmentClient
 	// RemoteClient is the client for interacting with the RemoteClient builders.
 	RemoteClient *RemoteClientClient
+	// TransferChunk is the client for interacting with the TransferChunk builders.
+	TransferChunk *TransferChunkClient
+	// TransferSession is the client for interacting with the TransferSession builders.
+	TransferSession *TransferSessionClient
+	// TransferSignal is the client for interacting with the TransferSignal builders.
+	TransferSignal *TransferSignalClient
 	// Workflow is the client for interacting with the Workflow builders.
 	Workflow *WorkflowClient
 }
@@ -63,6 +72,9 @@ func (c *Client) init() {
 	c.EnrollmentToken = NewEnrollmentTokenClient(c.config)
 	c.NodeAssignment = NewNodeAssignmentClient(c.config)
 	c.RemoteClient = NewRemoteClientClient(c.config)
+	c.TransferChunk = NewTransferChunkClient(c.config)
+	c.TransferSession = NewTransferSessionClient(c.config)
+	c.TransferSignal = NewTransferSignalClient(c.config)
 	c.Workflow = NewWorkflowClient(c.config)
 }
 
@@ -163,6 +175,9 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		EnrollmentToken: NewEnrollmentTokenClient(cfg),
 		NodeAssignment:  NewNodeAssignmentClient(cfg),
 		RemoteClient:    NewRemoteClientClient(cfg),
+		TransferChunk:   NewTransferChunkClient(cfg),
+		TransferSession: NewTransferSessionClient(cfg),
+		TransferSignal:  NewTransferSignalClient(cfg),
 		Workflow:        NewWorkflowClient(cfg),
 	}, nil
 }
@@ -190,6 +205,9 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		EnrollmentToken: NewEnrollmentTokenClient(cfg),
 		NodeAssignment:  NewNodeAssignmentClient(cfg),
 		RemoteClient:    NewRemoteClientClient(cfg),
+		TransferChunk:   NewTransferChunkClient(cfg),
+		TransferSession: NewTransferSessionClient(cfg),
+		TransferSignal:  NewTransferSignalClient(cfg),
 		Workflow:        NewWorkflowClient(cfg),
 	}, nil
 }
@@ -221,7 +239,8 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AppUser, c.AuditLog, c.AuthSession, c.Credential, c.EnrollmentToken,
-		c.NodeAssignment, c.RemoteClient, c.Workflow,
+		c.NodeAssignment, c.RemoteClient, c.TransferChunk, c.TransferSession,
+		c.TransferSignal, c.Workflow,
 	} {
 		n.Use(hooks...)
 	}
@@ -232,7 +251,8 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AppUser, c.AuditLog, c.AuthSession, c.Credential, c.EnrollmentToken,
-		c.NodeAssignment, c.RemoteClient, c.Workflow,
+		c.NodeAssignment, c.RemoteClient, c.TransferChunk, c.TransferSession,
+		c.TransferSignal, c.Workflow,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -255,6 +275,12 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.NodeAssignment.mutate(ctx, m)
 	case *RemoteClientMutation:
 		return c.RemoteClient.mutate(ctx, m)
+	case *TransferChunkMutation:
+		return c.TransferChunk.mutate(ctx, m)
+	case *TransferSessionMutation:
+		return c.TransferSession.mutate(ctx, m)
+	case *TransferSignalMutation:
+		return c.TransferSignal.mutate(ctx, m)
 	case *WorkflowMutation:
 		return c.Workflow.mutate(ctx, m)
 	default:
@@ -1193,6 +1219,405 @@ func (c *RemoteClientClient) mutate(ctx context.Context, m *RemoteClientMutation
 	}
 }
 
+// TransferChunkClient is a client for the TransferChunk schema.
+type TransferChunkClient struct {
+	config
+}
+
+// NewTransferChunkClient returns a client for the TransferChunk from the given config.
+func NewTransferChunkClient(c config) *TransferChunkClient {
+	return &TransferChunkClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `transferchunk.Hooks(f(g(h())))`.
+func (c *TransferChunkClient) Use(hooks ...Hook) {
+	c.hooks.TransferChunk = append(c.hooks.TransferChunk, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `transferchunk.Intercept(f(g(h())))`.
+func (c *TransferChunkClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TransferChunk = append(c.inters.TransferChunk, interceptors...)
+}
+
+// Create returns a builder for creating a TransferChunk entity.
+func (c *TransferChunkClient) Create() *TransferChunkCreate {
+	mutation := newTransferChunkMutation(c.config, OpCreate)
+	return &TransferChunkCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TransferChunk entities.
+func (c *TransferChunkClient) CreateBulk(builders ...*TransferChunkCreate) *TransferChunkCreateBulk {
+	return &TransferChunkCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TransferChunkClient) MapCreateBulk(slice any, setFunc func(*TransferChunkCreate, int)) *TransferChunkCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TransferChunkCreateBulk{err: fmt.Errorf("calling to TransferChunkClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TransferChunkCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TransferChunkCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TransferChunk.
+func (c *TransferChunkClient) Update() *TransferChunkUpdate {
+	mutation := newTransferChunkMutation(c.config, OpUpdate)
+	return &TransferChunkUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TransferChunkClient) UpdateOne(_m *TransferChunk) *TransferChunkUpdateOne {
+	mutation := newTransferChunkMutation(c.config, OpUpdateOne, withTransferChunk(_m))
+	return &TransferChunkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TransferChunkClient) UpdateOneID(id string) *TransferChunkUpdateOne {
+	mutation := newTransferChunkMutation(c.config, OpUpdateOne, withTransferChunkID(id))
+	return &TransferChunkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TransferChunk.
+func (c *TransferChunkClient) Delete() *TransferChunkDelete {
+	mutation := newTransferChunkMutation(c.config, OpDelete)
+	return &TransferChunkDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TransferChunkClient) DeleteOne(_m *TransferChunk) *TransferChunkDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TransferChunkClient) DeleteOneID(id string) *TransferChunkDeleteOne {
+	builder := c.Delete().Where(transferchunk.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TransferChunkDeleteOne{builder}
+}
+
+// Query returns a query builder for TransferChunk.
+func (c *TransferChunkClient) Query() *TransferChunkQuery {
+	return &TransferChunkQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTransferChunk},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TransferChunk entity by its id.
+func (c *TransferChunkClient) Get(ctx context.Context, id string) (*TransferChunk, error) {
+	return c.Query().Where(transferchunk.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TransferChunkClient) GetX(ctx context.Context, id string) *TransferChunk {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *TransferChunkClient) Hooks() []Hook {
+	return c.hooks.TransferChunk
+}
+
+// Interceptors returns the client interceptors.
+func (c *TransferChunkClient) Interceptors() []Interceptor {
+	return c.inters.TransferChunk
+}
+
+func (c *TransferChunkClient) mutate(ctx context.Context, m *TransferChunkMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TransferChunkCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TransferChunkUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TransferChunkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TransferChunkDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TransferChunk mutation op: %q", m.Op())
+	}
+}
+
+// TransferSessionClient is a client for the TransferSession schema.
+type TransferSessionClient struct {
+	config
+}
+
+// NewTransferSessionClient returns a client for the TransferSession from the given config.
+func NewTransferSessionClient(c config) *TransferSessionClient {
+	return &TransferSessionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `transfersession.Hooks(f(g(h())))`.
+func (c *TransferSessionClient) Use(hooks ...Hook) {
+	c.hooks.TransferSession = append(c.hooks.TransferSession, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `transfersession.Intercept(f(g(h())))`.
+func (c *TransferSessionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TransferSession = append(c.inters.TransferSession, interceptors...)
+}
+
+// Create returns a builder for creating a TransferSession entity.
+func (c *TransferSessionClient) Create() *TransferSessionCreate {
+	mutation := newTransferSessionMutation(c.config, OpCreate)
+	return &TransferSessionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TransferSession entities.
+func (c *TransferSessionClient) CreateBulk(builders ...*TransferSessionCreate) *TransferSessionCreateBulk {
+	return &TransferSessionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TransferSessionClient) MapCreateBulk(slice any, setFunc func(*TransferSessionCreate, int)) *TransferSessionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TransferSessionCreateBulk{err: fmt.Errorf("calling to TransferSessionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TransferSessionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TransferSessionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TransferSession.
+func (c *TransferSessionClient) Update() *TransferSessionUpdate {
+	mutation := newTransferSessionMutation(c.config, OpUpdate)
+	return &TransferSessionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TransferSessionClient) UpdateOne(_m *TransferSession) *TransferSessionUpdateOne {
+	mutation := newTransferSessionMutation(c.config, OpUpdateOne, withTransferSession(_m))
+	return &TransferSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TransferSessionClient) UpdateOneID(id string) *TransferSessionUpdateOne {
+	mutation := newTransferSessionMutation(c.config, OpUpdateOne, withTransferSessionID(id))
+	return &TransferSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TransferSession.
+func (c *TransferSessionClient) Delete() *TransferSessionDelete {
+	mutation := newTransferSessionMutation(c.config, OpDelete)
+	return &TransferSessionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TransferSessionClient) DeleteOne(_m *TransferSession) *TransferSessionDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TransferSessionClient) DeleteOneID(id string) *TransferSessionDeleteOne {
+	builder := c.Delete().Where(transfersession.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TransferSessionDeleteOne{builder}
+}
+
+// Query returns a query builder for TransferSession.
+func (c *TransferSessionClient) Query() *TransferSessionQuery {
+	return &TransferSessionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTransferSession},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TransferSession entity by its id.
+func (c *TransferSessionClient) Get(ctx context.Context, id string) (*TransferSession, error) {
+	return c.Query().Where(transfersession.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TransferSessionClient) GetX(ctx context.Context, id string) *TransferSession {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *TransferSessionClient) Hooks() []Hook {
+	return c.hooks.TransferSession
+}
+
+// Interceptors returns the client interceptors.
+func (c *TransferSessionClient) Interceptors() []Interceptor {
+	return c.inters.TransferSession
+}
+
+func (c *TransferSessionClient) mutate(ctx context.Context, m *TransferSessionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TransferSessionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TransferSessionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TransferSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TransferSessionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TransferSession mutation op: %q", m.Op())
+	}
+}
+
+// TransferSignalClient is a client for the TransferSignal schema.
+type TransferSignalClient struct {
+	config
+}
+
+// NewTransferSignalClient returns a client for the TransferSignal from the given config.
+func NewTransferSignalClient(c config) *TransferSignalClient {
+	return &TransferSignalClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `transfersignal.Hooks(f(g(h())))`.
+func (c *TransferSignalClient) Use(hooks ...Hook) {
+	c.hooks.TransferSignal = append(c.hooks.TransferSignal, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `transfersignal.Intercept(f(g(h())))`.
+func (c *TransferSignalClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TransferSignal = append(c.inters.TransferSignal, interceptors...)
+}
+
+// Create returns a builder for creating a TransferSignal entity.
+func (c *TransferSignalClient) Create() *TransferSignalCreate {
+	mutation := newTransferSignalMutation(c.config, OpCreate)
+	return &TransferSignalCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TransferSignal entities.
+func (c *TransferSignalClient) CreateBulk(builders ...*TransferSignalCreate) *TransferSignalCreateBulk {
+	return &TransferSignalCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TransferSignalClient) MapCreateBulk(slice any, setFunc func(*TransferSignalCreate, int)) *TransferSignalCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TransferSignalCreateBulk{err: fmt.Errorf("calling to TransferSignalClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TransferSignalCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TransferSignalCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TransferSignal.
+func (c *TransferSignalClient) Update() *TransferSignalUpdate {
+	mutation := newTransferSignalMutation(c.config, OpUpdate)
+	return &TransferSignalUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TransferSignalClient) UpdateOne(_m *TransferSignal) *TransferSignalUpdateOne {
+	mutation := newTransferSignalMutation(c.config, OpUpdateOne, withTransferSignal(_m))
+	return &TransferSignalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TransferSignalClient) UpdateOneID(id string) *TransferSignalUpdateOne {
+	mutation := newTransferSignalMutation(c.config, OpUpdateOne, withTransferSignalID(id))
+	return &TransferSignalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TransferSignal.
+func (c *TransferSignalClient) Delete() *TransferSignalDelete {
+	mutation := newTransferSignalMutation(c.config, OpDelete)
+	return &TransferSignalDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TransferSignalClient) DeleteOne(_m *TransferSignal) *TransferSignalDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TransferSignalClient) DeleteOneID(id string) *TransferSignalDeleteOne {
+	builder := c.Delete().Where(transfersignal.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TransferSignalDeleteOne{builder}
+}
+
+// Query returns a query builder for TransferSignal.
+func (c *TransferSignalClient) Query() *TransferSignalQuery {
+	return &TransferSignalQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTransferSignal},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TransferSignal entity by its id.
+func (c *TransferSignalClient) Get(ctx context.Context, id string) (*TransferSignal, error) {
+	return c.Query().Where(transfersignal.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TransferSignalClient) GetX(ctx context.Context, id string) *TransferSignal {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *TransferSignalClient) Hooks() []Hook {
+	return c.hooks.TransferSignal
+}
+
+// Interceptors returns the client interceptors.
+func (c *TransferSignalClient) Interceptors() []Interceptor {
+	return c.inters.TransferSignal
+}
+
+func (c *TransferSignalClient) mutate(ctx context.Context, m *TransferSignalMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TransferSignalCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TransferSignalUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TransferSignalUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TransferSignalDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TransferSignal mutation op: %q", m.Op())
+	}
+}
+
 // WorkflowClient is a client for the Workflow schema.
 type WorkflowClient struct {
 	config
@@ -1330,10 +1755,12 @@ func (c *WorkflowClient) mutate(ctx context.Context, m *WorkflowMutation) (Value
 type (
 	hooks struct {
 		AppUser, AuditLog, AuthSession, Credential, EnrollmentToken, NodeAssignment,
-		RemoteClient, Workflow []ent.Hook
+		RemoteClient, TransferChunk, TransferSession, TransferSignal,
+		Workflow []ent.Hook
 	}
 	inters struct {
 		AppUser, AuditLog, AuthSession, Credential, EnrollmentToken, NodeAssignment,
-		RemoteClient, Workflow []ent.Interceptor
+		RemoteClient, TransferChunk, TransferSession, TransferSignal,
+		Workflow []ent.Interceptor
 	}
 )

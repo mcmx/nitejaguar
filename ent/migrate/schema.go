@@ -126,12 +126,94 @@ var (
 		{Name: "last_poll", Type: field.TypeTime},
 		{Name: "revoked", Type: field.TypeBool, Default: false},
 		{Name: "revoked_at", Type: field.TypeTime, Nullable: true},
+		{Name: "dial_info", Type: field.TypeString, Size: 2147483647, Default: ""},
 	}
 	// RemoteClientsTable holds the schema information for the "remote_clients" table.
 	RemoteClientsTable = &schema.Table{
 		Name:       "remote_clients",
 		Columns:    RemoteClientsColumns,
 		PrimaryKey: []*schema.Column{RemoteClientsColumns[0]},
+	}
+	// TransferChunksColumns holds the columns for the "transfer_chunks" table.
+	TransferChunksColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "transfer_id", Type: field.TypeString},
+		{Name: "seq", Type: field.TypeInt},
+		{Name: "data", Type: field.TypeBytes, Size: 131072},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// TransferChunksTable holds the schema information for the "transfer_chunks" table.
+	TransferChunksTable = &schema.Table{
+		Name:       "transfer_chunks",
+		Columns:    TransferChunksColumns,
+		PrimaryKey: []*schema.Column{TransferChunksColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "transferchunk_transfer_id_seq",
+				Unique:  true,
+				Columns: []*schema.Column{TransferChunksColumns[1], TransferChunksColumns[2]},
+			},
+		},
+	}
+	// TransferSessionsColumns holds the columns for the "transfer_sessions" table.
+	TransferSessionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "tenant_id", Type: field.TypeString, Default: "default"},
+		{Name: "workflow_id", Type: field.TypeString, Default: ""},
+		{Name: "execution_id", Type: field.TypeString, Default: ""},
+		{Name: "node_id", Type: field.TypeString, Default: ""},
+		{Name: "sender_client_id", Type: field.TypeString},
+		{Name: "receiver_client_id", Type: field.TypeString, Default: ""},
+		{Name: "receiver_tags", Type: field.TypeJSON, Nullable: true},
+		{Name: "file_name", Type: field.TypeString, Default: ""},
+		{Name: "destination_file", Type: field.TypeString},
+		{Name: "permissions", Type: field.TypeString, Default: ""},
+		{Name: "size", Type: field.TypeInt64, Default: 0},
+		{Name: "sha256", Type: field.TypeString, Default: ""},
+		{Name: "status", Type: field.TypeString, Default: "offered"},
+		{Name: "via_p2p", Type: field.TypeBool, Default: false},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// TransferSessionsTable holds the schema information for the "transfer_sessions" table.
+	TransferSessionsTable = &schema.Table{
+		Name:       "transfer_sessions",
+		Columns:    TransferSessionsColumns,
+		PrimaryKey: []*schema.Column{TransferSessionsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "transfersession_tenant_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{TransferSessionsColumns[1], TransferSessionsColumns[13]},
+			},
+			{
+				Name:    "transfersession_receiver_client_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{TransferSessionsColumns[6], TransferSessionsColumns[13]},
+			},
+		},
+	}
+	// TransferSignalsColumns holds the columns for the "transfer_signals" table.
+	TransferSignalsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "transfer_id", Type: field.TypeString},
+		{Name: "from_client_id", Type: field.TypeString},
+		{Name: "kind", Type: field.TypeString},
+		{Name: "payload", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// TransferSignalsTable holds the schema information for the "transfer_signals" table.
+	TransferSignalsTable = &schema.Table{
+		Name:       "transfer_signals",
+		Columns:    TransferSignalsColumns,
+		PrimaryKey: []*schema.Column{TransferSignalsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "transfersignal_transfer_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{TransferSignalsColumns[1], TransferSignalsColumns[5]},
+			},
+		},
 	}
 	// WorkflowsColumns holds the columns for the "workflows" table.
 	WorkflowsColumns = []*schema.Column{
@@ -158,6 +240,9 @@ var (
 		EnrollmentTokensTable,
 		NodeAssignmentsTable,
 		RemoteClientsTable,
+		TransferChunksTable,
+		TransferSessionsTable,
+		TransferSignalsTable,
 		WorkflowsTable,
 	}
 )

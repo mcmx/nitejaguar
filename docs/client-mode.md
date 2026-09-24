@@ -24,7 +24,8 @@ Nitejaguar supports distributed execution where remote **Clients** (runners) reg
 2. **Polling**: The client periodically polls the server for assigned workflow nodes (`workflows`) plus owned pending cross-client handoffs (`pending`). Node filtering applies per-node overrides over workflow defaults; untargeted nodes broadcast.
 3. **Local Execution**: Assigned nodes (such as file watches or file transformations) execute locally against the client's file system (e.g., expanding `~` paths locally). Pending handoffs execute at most once per process with the parent payload as `$input` (seeded for `merge_input`); completion is confirmed when the node's result is posted.
 4. **Result Reporting**: Success or error results are transmitted back to the server and logged in `./results/`. The server returns only caller-owned `nexts`; foreign nexts arrive later as `pending` for their owners.
-5. **Resilience**: The client implements exponential backoff on connection/polling failures and stops cleanly on SIGINT / context cancellation.
+5. **Transfer inbox**: each tick also polls inbound file deliveries. `transfer` nodes addressed elsewhere are sent WebRTC-P2P-first (server-signaled) with relay fallback; inbound sessions are received, written with the transfer safety rules, and completed (no workflow result posted by the receiver). See [Transfer Action](./actions/transfer-action.md).
+6. **Resilience**: The client implements exponential backoff on connection/polling failures and stops cleanly on SIGINT / context cancellation.
 
 ## Workflow Import / Clone via the Server
 

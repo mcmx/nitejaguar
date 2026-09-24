@@ -27,5 +27,14 @@ type NodeAssignment func(*sql.Selector)
 // RemoteClient is the predicate function for remoteclient builders.
 type RemoteClient func(*sql.Selector)
 
+// TransferChunk is the predicate function for transferchunk builders.
+type TransferChunk func(*sql.Selector)
+
+// TransferSession is the predicate function for transfersession builders.
+type TransferSession func(*sql.Selector)
+
+// TransferSignal is the predicate function for transfersignal builders.
+type TransferSignal func(*sql.Selector)
+
 // Workflow is the predicate function for workflow builders.
 type Workflow func(*sql.Selector)

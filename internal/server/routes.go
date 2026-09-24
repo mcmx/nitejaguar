@@ -49,6 +49,7 @@ type ClientStatus struct {
 	LastHeartbeat time.Time `json:"last_heartbeat"`
 	LastPoll      time.Time `json:"last_poll"`
 	Online        bool      `json:"online"`
+	DialInfo      string    `json:"dial_info,omitempty"`
 }
 
 type ClientsResponse struct {
@@ -258,6 +259,48 @@ func addApiRoutes(api huma.API, s *Server) {
 		Path:        "/users/{id}/revoke",
 		Summary:     "Revoke a user and its sessions (admin only)",
 	}, s.RevokeUser)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "init-transfer",
+		Method:      http.MethodPost,
+		Path:        "/transfers/init",
+		Summary:     "Open a client-to-client transfer session (sender)",
+	}, s.InitTransfer)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "upload-chunk",
+		Method:      http.MethodPost,
+		Path:        "/transfers/{id}/chunks",
+		Summary:     "Append one relay chunk (sender only)",
+	}, s.UploadChunk)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "fetch-chunks",
+		Method:      http.MethodGet,
+		Path:        "/transfers/{id}/chunks",
+		Summary:     "Fetch relay chunks from an offset (participants)",
+	}, s.FetchChunks)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "complete-transfer",
+		Method:      http.MethodPost,
+		Path:        "/transfers/{id}/complete",
+		Summary:     "Verify sha and mark a transfer done (receiver)",
+	}, s.CompleteTransfer)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "pending-transfers",
+		Method:      http.MethodGet,
+		Path:        "/clients/{id}/transfers/pending",
+		Summary:     "Inbound transfer sessions for a client",
+	}, s.PendingTransfers)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "post-signal",
+		Method:      http.MethodPost,
+		Path:        "/transfers/{id}/signal",
+		Summary:     "Post one WebRTC signaling message (participants)",
+	}, s.PostSignal)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "list-signals",
+		Method:      http.MethodGet,
+		Path:        "/transfers/{id}/signal",
+		Summary:     "Poll WebRTC signaling messages (participants)",
+	}, s.ListSignals)
 }
 
 type RegisterClientInput struct {
@@ -282,6 +325,10 @@ type HeartbeatInput struct {
 	Token         string `header:"X-Client-Token"`
 	Body          struct {
 		ClientID string `json:"client_id"`
+		// DialInfo is optional client-advertised P2P dial info (JSON blob
+		// the server stores and shows to signaling peers; never dialed
+		// by the server itself). Empty leaves the stored value unchanged.
+		DialInfo string `json:"dial_info,omitempty"`
 	}
 }
 
@@ -306,12 +353,12 @@ type WorkflowDefinition struct {
 // PendingAssignment is a server-persisted downstream node ready for its
 // owner to execute. Payload carries the parent result as $input.
 type PendingAssignment struct {
-	ID             string `json:"id"`
-	WorkflowID     string `json:"workflow_id"`
-	ExecutionID    string `json:"execution_id"`
-	NodeID         string `json:"node_id"`
-	ParentActionID string `json:"parent_action_id,omitempty"`
-	Payload        any    `json:"payload,omitempty"`
+	ID             string    `json:"id"`
+	WorkflowID     string    `json:"workflow_id"`
+	ExecutionID    string    `json:"execution_id"`
+	NodeID         string    `json:"node_id"`
+	ParentActionID string    `json:"parent_action_id,omitempty"`
+	Payload        any       `json:"payload,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 }
 
@@ -399,6 +446,11 @@ func (s *Server) ClientHeartbeat(_ context.Context, input *HeartbeatInput) (*Hea
 	c, ok := s.registry().heartbeat(input.Body.ClientID)
 	if !ok {
 		return nil, huma.Error404NotFound("client not found")
+	}
+	if input.Body.DialInfo != "" {
+		if err := s.db.SetClientDialInfo(input.Body.ClientID, input.Body.DialInfo); err != nil {
+			return nil, huma.Error400BadRequest(err.Error())
+		}
 	}
 	log.Printf("client heartbeat: id=%s name=%q", c.ID, c.Name)
 	return &HeartbeatOutput{
@@ -510,9 +562,10 @@ func (s *Server) GetClients(_ context.Context, _ *struct{}) (*ClientsResponse, e
 	for _, c := range clients {
 		out = append(out, ClientStatus{
 			ID: c.ID, Name: c.Name, TenantID: c.TenantID, Tags: c.Tags, Revoked: c.Revoked,
-			RegisteredAt: c.RegisteredAt,
+			RegisteredAt:  c.RegisteredAt,
 			LastHeartbeat: c.LastHeartbeat, LastPoll: c.LastPoll,
-			Online: !c.Revoked && now.Sub(c.LastHeartbeat) <= 15*time.Second,
+			Online:   !c.Revoked && now.Sub(c.LastHeartbeat) <= 15*time.Second,
+			DialInfo: c.DialInfo,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })

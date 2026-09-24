@@ -13,6 +13,9 @@ import (
 	"github.com/mcmx/nitejaguar/ent/nodeassignment"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
 	"github.com/mcmx/nitejaguar/ent/schema"
+	"github.com/mcmx/nitejaguar/ent/transferchunk"
+	"github.com/mcmx/nitejaguar/ent/transfersession"
+	"github.com/mcmx/nitejaguar/ent/transfersignal"
 	"github.com/mcmx/nitejaguar/ent/workflow"
 )
 
@@ -268,10 +271,130 @@ func init() {
 	remoteclientDescRevoked := remoteclientFields[8].Descriptor()
 	// remoteclient.DefaultRevoked holds the default value on creation for the revoked field.
 	remoteclient.DefaultRevoked = remoteclientDescRevoked.Default.(bool)
+	// remoteclientDescDialInfo is the schema descriptor for dial_info field.
+	remoteclientDescDialInfo := remoteclientFields[10].Descriptor()
+	// remoteclient.DefaultDialInfo holds the default value on creation for the dial_info field.
+	remoteclient.DefaultDialInfo = remoteclientDescDialInfo.Default.(string)
 	// remoteclientDescID is the schema descriptor for id field.
 	remoteclientDescID := remoteclientFields[0].Descriptor()
 	// remoteclient.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	remoteclient.IDValidator = remoteclientDescID.Validators[0].(func(string) error)
+	transferchunkFields := schema.TransferChunk{}.Fields()
+	_ = transferchunkFields
+	// transferchunkDescTransferID is the schema descriptor for transfer_id field.
+	transferchunkDescTransferID := transferchunkFields[1].Descriptor()
+	// transferchunk.TransferIDValidator is a validator for the "transfer_id" field. It is called by the builders before save.
+	transferchunk.TransferIDValidator = transferchunkDescTransferID.Validators[0].(func(string) error)
+	// transferchunkDescSeq is the schema descriptor for seq field.
+	transferchunkDescSeq := transferchunkFields[2].Descriptor()
+	// transferchunk.SeqValidator is a validator for the "seq" field. It is called by the builders before save.
+	transferchunk.SeqValidator = transferchunkDescSeq.Validators[0].(func(int) error)
+	// transferchunkDescData is the schema descriptor for data field.
+	transferchunkDescData := transferchunkFields[3].Descriptor()
+	// transferchunk.DataValidator is a validator for the "data" field. It is called by the builders before save.
+	transferchunk.DataValidator = transferchunkDescData.Validators[0].(func([]byte) error)
+	// transferchunkDescCreatedAt is the schema descriptor for created_at field.
+	transferchunkDescCreatedAt := transferchunkFields[4].Descriptor()
+	// transferchunk.DefaultCreatedAt holds the default value on creation for the created_at field.
+	transferchunk.DefaultCreatedAt = transferchunkDescCreatedAt.Default.(func() time.Time)
+	// transferchunkDescID is the schema descriptor for id field.
+	transferchunkDescID := transferchunkFields[0].Descriptor()
+	// transferchunk.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	transferchunk.IDValidator = transferchunkDescID.Validators[0].(func(string) error)
+	transfersessionFields := schema.TransferSession{}.Fields()
+	_ = transfersessionFields
+	// transfersessionDescTenantID is the schema descriptor for tenant_id field.
+	transfersessionDescTenantID := transfersessionFields[1].Descriptor()
+	// transfersession.DefaultTenantID holds the default value on creation for the tenant_id field.
+	transfersession.DefaultTenantID = transfersessionDescTenantID.Default.(string)
+	// transfersessionDescWorkflowID is the schema descriptor for workflow_id field.
+	transfersessionDescWorkflowID := transfersessionFields[2].Descriptor()
+	// transfersession.DefaultWorkflowID holds the default value on creation for the workflow_id field.
+	transfersession.DefaultWorkflowID = transfersessionDescWorkflowID.Default.(string)
+	// transfersessionDescExecutionID is the schema descriptor for execution_id field.
+	transfersessionDescExecutionID := transfersessionFields[3].Descriptor()
+	// transfersession.DefaultExecutionID holds the default value on creation for the execution_id field.
+	transfersession.DefaultExecutionID = transfersessionDescExecutionID.Default.(string)
+	// transfersessionDescNodeID is the schema descriptor for node_id field.
+	transfersessionDescNodeID := transfersessionFields[4].Descriptor()
+	// transfersession.DefaultNodeID holds the default value on creation for the node_id field.
+	transfersession.DefaultNodeID = transfersessionDescNodeID.Default.(string)
+	// transfersessionDescSenderClientID is the schema descriptor for sender_client_id field.
+	transfersessionDescSenderClientID := transfersessionFields[5].Descriptor()
+	// transfersession.SenderClientIDValidator is a validator for the "sender_client_id" field. It is called by the builders before save.
+	transfersession.SenderClientIDValidator = transfersessionDescSenderClientID.Validators[0].(func(string) error)
+	// transfersessionDescReceiverClientID is the schema descriptor for receiver_client_id field.
+	transfersessionDescReceiverClientID := transfersessionFields[6].Descriptor()
+	// transfersession.DefaultReceiverClientID holds the default value on creation for the receiver_client_id field.
+	transfersession.DefaultReceiverClientID = transfersessionDescReceiverClientID.Default.(string)
+	// transfersessionDescFileName is the schema descriptor for file_name field.
+	transfersessionDescFileName := transfersessionFields[8].Descriptor()
+	// transfersession.DefaultFileName holds the default value on creation for the file_name field.
+	transfersession.DefaultFileName = transfersessionDescFileName.Default.(string)
+	// transfersessionDescDestinationFile is the schema descriptor for destination_file field.
+	transfersessionDescDestinationFile := transfersessionFields[9].Descriptor()
+	// transfersession.DestinationFileValidator is a validator for the "destination_file" field. It is called by the builders before save.
+	transfersession.DestinationFileValidator = transfersessionDescDestinationFile.Validators[0].(func(string) error)
+	// transfersessionDescPermissions is the schema descriptor for permissions field.
+	transfersessionDescPermissions := transfersessionFields[10].Descriptor()
+	// transfersession.DefaultPermissions holds the default value on creation for the permissions field.
+	transfersession.DefaultPermissions = transfersessionDescPermissions.Default.(string)
+	// transfersessionDescSize is the schema descriptor for size field.
+	transfersessionDescSize := transfersessionFields[11].Descriptor()
+	// transfersession.DefaultSize holds the default value on creation for the size field.
+	transfersession.DefaultSize = transfersessionDescSize.Default.(int64)
+	// transfersessionDescSha256 is the schema descriptor for sha256 field.
+	transfersessionDescSha256 := transfersessionFields[12].Descriptor()
+	// transfersession.DefaultSha256 holds the default value on creation for the sha256 field.
+	transfersession.DefaultSha256 = transfersessionDescSha256.Default.(string)
+	// transfersessionDescStatus is the schema descriptor for status field.
+	transfersessionDescStatus := transfersessionFields[13].Descriptor()
+	// transfersession.DefaultStatus holds the default value on creation for the status field.
+	transfersession.DefaultStatus = transfersessionDescStatus.Default.(string)
+	// transfersessionDescViaP2p is the schema descriptor for via_p2p field.
+	transfersessionDescViaP2p := transfersessionFields[14].Descriptor()
+	// transfersession.DefaultViaP2p holds the default value on creation for the via_p2p field.
+	transfersession.DefaultViaP2p = transfersessionDescViaP2p.Default.(bool)
+	// transfersessionDescCreatedAt is the schema descriptor for created_at field.
+	transfersessionDescCreatedAt := transfersessionFields[15].Descriptor()
+	// transfersession.DefaultCreatedAt holds the default value on creation for the created_at field.
+	transfersession.DefaultCreatedAt = transfersessionDescCreatedAt.Default.(func() time.Time)
+	// transfersessionDescUpdatedAt is the schema descriptor for updated_at field.
+	transfersessionDescUpdatedAt := transfersessionFields[16].Descriptor()
+	// transfersession.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	transfersession.DefaultUpdatedAt = transfersessionDescUpdatedAt.Default.(func() time.Time)
+	// transfersession.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	transfersession.UpdateDefaultUpdatedAt = transfersessionDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// transfersessionDescID is the schema descriptor for id field.
+	transfersessionDescID := transfersessionFields[0].Descriptor()
+	// transfersession.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	transfersession.IDValidator = transfersessionDescID.Validators[0].(func(string) error)
+	transfersignalFields := schema.TransferSignal{}.Fields()
+	_ = transfersignalFields
+	// transfersignalDescTransferID is the schema descriptor for transfer_id field.
+	transfersignalDescTransferID := transfersignalFields[1].Descriptor()
+	// transfersignal.TransferIDValidator is a validator for the "transfer_id" field. It is called by the builders before save.
+	transfersignal.TransferIDValidator = transfersignalDescTransferID.Validators[0].(func(string) error)
+	// transfersignalDescFromClientID is the schema descriptor for from_client_id field.
+	transfersignalDescFromClientID := transfersignalFields[2].Descriptor()
+	// transfersignal.FromClientIDValidator is a validator for the "from_client_id" field. It is called by the builders before save.
+	transfersignal.FromClientIDValidator = transfersignalDescFromClientID.Validators[0].(func(string) error)
+	// transfersignalDescKind is the schema descriptor for kind field.
+	transfersignalDescKind := transfersignalFields[3].Descriptor()
+	// transfersignal.KindValidator is a validator for the "kind" field. It is called by the builders before save.
+	transfersignal.KindValidator = transfersignalDescKind.Validators[0].(func(string) error)
+	// transfersignalDescPayload is the schema descriptor for payload field.
+	transfersignalDescPayload := transfersignalFields[4].Descriptor()
+	// transfersignal.DefaultPayload holds the default value on creation for the payload field.
+	transfersignal.DefaultPayload = transfersignalDescPayload.Default.(string)
+	// transfersignalDescCreatedAt is the schema descriptor for created_at field.
+	transfersignalDescCreatedAt := transfersignalFields[5].Descriptor()
+	// transfersignal.DefaultCreatedAt holds the default value on creation for the created_at field.
+	transfersignal.DefaultCreatedAt = transfersignalDescCreatedAt.Default.(func() time.Time)
+	// transfersignalDescID is the schema descriptor for id field.
+	transfersignalDescID := transfersignalFields[0].Descriptor()
+	// transfersignal.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	transfersignal.IDValidator = transfersignalDescID.Validators[0].(func(string) error)
 	workflowFields := schema.Workflow{}.Fields()
 	_ = workflowFields
 	// workflowDescEnabled is the schema descriptor for enabled field.
