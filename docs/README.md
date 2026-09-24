@@ -12,6 +12,7 @@ Welcome to the official documentation for **Nitejaguar**, a lightweight and powe
 - [Workflows](./workflows.md) — Workflow JSON schemas, triggers, actions, conditions, dependencies, import (`server -i`, `client workflow import`), and clone (`server -c`, `client workflow clone`) operations.
 - [Development Guide](./development.md) — Building, codegen (`templ` & `ent`), testing (`make test`), and linting (`make lint`).
 - [Credentials](./credentials.md) — Credential storage (encrypted at rest), scopes & resolution (`user > group > tenant`), just-in-time fetch, and `credential_ref` workflow usage.
+- [Providers](./providers.md) — Provider collections, the shared-credential-type rule, and the registry.
 - [RBAC & Auth](./rbac.md) — Users, roles (`admin > operator > viewer`), login sessions, gated management endpoints, website login, and the audit trail.
 
 ### Actions & Triggers Reference

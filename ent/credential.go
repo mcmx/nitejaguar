@@ -21,7 +21,7 @@ type Credential struct {
 	TenantID string `json:"tenant_id,omitempty"`
 	// human reference name; resolved with user > group > tenant priority
 	Name string `json:"name,omitempty"`
-	// credential type declared by actions/providers: generic, token, username_password, aws, s3, ssh_key
+	// credential type from the provider-collection registry (common/providers.go): generic families plus each collection's declared type; legacy s3 rejected, S3 uses aws
 	Type string `json:"type,omitempty"`
 	// tenant, group, or user
 	Scope string `json:"scope,omitempty"`
