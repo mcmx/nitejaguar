@@ -1,0 +1,114 @@
+package web
+
+templ LoginPage(data *LoginPageData) {
+	@Base() {
+		<main class="container mx-auto max-w-md px-4 py-8">
+			<div class="mb-8 flex flex-col gap-3">
+				<div>
+					<p class="text-sm font-medium text-red-500">Nite Jaguar</p>
+					<h1 class="text-3xl font-bold tracking-tight">Login</h1>
+				</div>
+			</div>
+			<p class="mb-6 text-sm text-muted-foreground">Sign in with your tenant username and password. First server run prints a one-time <code>admin</code> password to stdout (or set <code>ADMIN_PASSWORD</code>).</p>
+			if data.Error != "" {
+				<p class="mb-6 rounded-lg border border-red-500/50 p-4 text-red-500">{ data.Error }</p>
+			}
+			<form method="post" action="/login" class="space-y-4 rounded-lg border border-border p-5">
+				<div>
+					<label class="mb-1 block text-xs font-medium">Tenant ID</label>
+					if data.TenantID != "" {
+						<input type="text" name="tenant_id" value={ data.TenantID } class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+					} else {
+						<input type="text" name="tenant_id" value="default" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+					}
+				</div>
+				<div>
+					<label class="mb-1 block text-xs font-medium">Username</label>
+					<input type="text" name="username" autocomplete="username" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+				</div>
+				<div>
+					<label class="mb-1 block text-xs font-medium">Password</label>
+					<input type="password" name="password" autocomplete="current-password" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+				</div>
+				<button type="submit" class="w-full rounded bg-red-500 px-4 py-3 font-semibold text-white hover:bg-red-600">Sign in</button>
+			</form>
+		</main>
+	}
+}
+
+templ AuditPage(data *AuditPageData) {
+	@Base() {
+		<main class="container mx-auto max-w-6xl px-4 py-8">
+			<div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+				<div>
+					<p class="text-sm font-medium text-red-500">Nite Jaguar</p>
+					<h1 class="text-3xl font-bold tracking-tight">Audit trail</h1>
+				</div>
+			</div>
+			<p class="mb-6 text-sm text-muted-foreground">Who did what, when: logins, token ops, client revoke, workflow import/clone/enable, credential fetch. Non-admins see their own tenant only.</p>
+			if data.Error != "" {
+				<p class="rounded-lg border border-red-500/50 p-6 text-red-500">{ data.Error }</p>
+			} else if len(data.Entries) == 0 {
+				<p class="rounded-lg border border-border p-6">No audit entries yet.</p>
+			} else {
+				<div class="space-y-3">
+					for _, e := range data.Entries {
+						<article class="rounded-lg border border-border p-4">
+							<div class="flex flex-wrap justify-between gap-2"><span class="font-mono text-sm font-semibold">{ e.Action }</span><span class="font-mono text-xs text-muted-foreground">{ e.CreatedAt }</span></div>
+							<p class="mt-3 break-all font-mono text-xs">tenant: { e.TenantID }<br/>actor: { e.Actor }<br/>target: { e.Target }<br/>detail: { e.Detail }</p>
+						</article>
+					}
+				</div>
+			}
+		</main>
+	}
+}
+
+templ UsersPage(data *UsersPageData) {
+	@Base() {
+		<main class="container mx-auto max-w-6xl px-4 py-8">
+			<div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+				<div>
+					<p class="text-sm font-medium text-red-500">Nite Jaguar</p>
+					<h1 class="text-3xl font-bold tracking-tight">Users</h1>
+				</div>
+			</div>
+			<p class="mb-6 text-sm text-muted-foreground">Roles: <code>admin</code> manages users and everything; <code>operator</code> manages tokens, clients, credentials, and workflows; <code>viewer</code> reads. Manage users via the API (<code>POST /api/users</code>, revoke via API); login at <code>POST /api/auth/login</code>.</p>
+			if data.Error != "" {
+				<p class="rounded-lg border border-red-500/50 p-6 text-red-500">{ data.Error }</p>
+			} else if len(data.Users) == 0 {
+				<p class="rounded-lg border border-border p-6">No users yet. Create the first admin via <code>POST /api/users</code> (open until the first user exists).</p>
+			} else {
+				<div class="grid gap-4 md:grid-cols-2">
+					for _, u := range data.Users {
+						<article class="rounded-lg border border-border p-5">
+							<div class="flex items-start justify-between gap-4">
+								<div><h2 class="font-semibold">{ u.Username }</h2><p class="mt-1 break-all font-mono text-xs text-muted-foreground">{ u.ID }</p></div>
+								if u.Revoked {
+									<span class="rounded-full bg-red-500/15 px-2 py-1 text-xs text-red-600">revoked</span>
+								} else {
+									<span class="rounded-full bg-green-500/15 px-2 py-1 text-xs text-green-600">{ u.Role }</span>
+								}
+							</div>
+							<div class="mt-4 grid gap-2 text-sm text-muted-foreground"><p><strong class="text-foreground">Tenant:</strong> { u.TenantID }</p><p><strong class="text-foreground">Groups:</strong> { sprintStrings(u.Groups) }</p><p><strong class="text-foreground">Created:</strong> { u.CreatedAt }</p></div>
+						</article>
+					}
+				</div>
+			}
+		</main>
+	}
+}
+
+func sprintStrings(vs []string) string {
+	if len(vs) == 0 {
+		return "—"
+	}
+	out := ""
+	for i, v := range vs {
+		if i > 0 {
+			out += ", "
+		}
+		out += v
+	}
+	return out
+}

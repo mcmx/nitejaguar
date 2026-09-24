@@ -6,8 +6,14 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// AppUser is the predicate function for appuser builders.
+type AppUser func(*sql.Selector)
+
 // AuditLog is the predicate function for auditlog builders.
 type AuditLog func(*sql.Selector)
+
+// AuthSession is the predicate function for authsession builders.
+type AuthSession func(*sql.Selector)
 
 // Credential is the predicate function for credential builders.
 type Credential func(*sql.Selector)

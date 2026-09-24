@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -51,11 +52,27 @@ func TestDesignerEditShowsRequestedWorkflow(t *testing.T) {
 	s := &Server{db: db, wm: wm}
 	h := s.RegisterRoutes()
 
+	// The server bootstraps a default admin on New(), so browser pages
+	// require a session cookie. Mint a unique test admin session.
+	designerAdmin, err := db.CreateUser("default", "designer-test-admin", "password-12345", "admin", nil)
+	if err != nil {
+		// Shared-DB runs may already hold this username; use a unique one.
+		designerAdmin, err = db.CreateUser("default", fmt.Sprintf("designer-test-admin-%d", testAdminSeq.Add(1)), "password-12345", "admin", nil)
+		if err != nil {
+			t.Fatalf("create designer test admin: %v", err)
+		}
+	}
+	_, sessionPlain, err := db.CreateSession(designerAdmin.ID, 0)
+	if err != nil {
+		t.Fatalf("create designer test session: %v", err)
+	}
+
 	for _, target := range []string{
 		"/designer/workflow_01kassignmentsync1test0001",
 		"/designer?workflow_id=workflow_01kassignmentsync1test0001",
 	} {
 		req := httptest.NewRequest(http.MethodGet, target, nil)
+		req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: sessionPlain})
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {

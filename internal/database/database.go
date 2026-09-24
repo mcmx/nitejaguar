@@ -80,6 +80,18 @@ type Service interface {
 	DeleteCredential(id string) error
 	ResolveCredential(tenantID, ref, userID string, groupIDs []string) (*ent.Credential, error)
 	DecryptCredentialSecret(row *ent.Credential) (string, error)
+
+	// RBAC + web auth (roadmap slice 4): users, roles, login sessions.
+	CreateUser(tenantID, username, password, role string, groups []string) (*ent.AppUser, error)
+	ListUsers(tenantID string) ([]*ent.AppUser, error)
+	GetUser(id string) (*ent.AppUser, error)
+	CountUsers() (int, error)
+	RevokeUser(id string) error
+	VerifyUser(tenantID, username, password string) (*ent.AppUser, error)
+	CreateSession(userID string, ttl time.Duration) (*ent.AuthSession, string, error)
+	AuthenticateSession(token string) (*ent.AppUser, *ent.AuthSession, error)
+	RevokeSession(token string) error
+	EnsureDefaultAdmin() (username, plaintext string, created bool, err error)
 }
 
 type service struct {
@@ -141,6 +153,7 @@ func New() (Service, error) {
 		fmt.Printf("BOOTSTRAP enrollment token (tenant=default, one-time): %s\n", plaintext)
 		log.Printf("BOOTSTRAP enrollment token created for tenant=default (one-time, see stdout)")
 	}
+	dbInstance.ensureDefaultAdminLogged()
 	return dbInstance, nil
 }
 

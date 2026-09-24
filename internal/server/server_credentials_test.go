@@ -28,9 +28,10 @@ func TestCredentialsLifecycle(t *testing.T) {
 	s := &Server{db: db, wm: wm}
 	_, api := humatest.New(t)
 	addApiRoutes(api, s)
+	adminAuth := ensureAdminToken(t, db)
 
 	// Create a tenant-scoped credential for tenant acme.
-	resp := api.Post("/api/credentials", map[string]any{
+	resp := api.Post("/api/credentials", adminAuth, map[string]any{
 		"tenant_id": "credacme", "name": "api-token", "type": "token", "secret": "s3cr3t-acme",
 	})
 	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
@@ -56,7 +57,7 @@ func TestCredentialsLifecycle(t *testing.T) {
 	}
 
 	// Duplicate name in the same tenant/scope/owner is rejected.
-	resp = api.Post("/api/credentials", map[string]any{
+	resp = api.Post("/api/credentials", adminAuth, map[string]any{
 		"tenant_id": "credacme", "name": "api-token", "secret": "other",
 	})
 	if resp.Code != http.StatusBadRequest && resp.Code != http.StatusUnprocessableEntity {
@@ -64,7 +65,7 @@ func TestCredentialsLifecycle(t *testing.T) {
 	}
 
 	// Unknown credential types are rejected.
-	resp = api.Post("/api/credentials", map[string]any{
+	resp = api.Post("/api/credentials", adminAuth, map[string]any{
 		"tenant_id": "credacme", "name": "bad-type", "type": "nonsense", "secret": "x",
 	})
 	if resp.Code != http.StatusBadRequest && resp.Code != http.StatusUnprocessableEntity {
@@ -72,7 +73,7 @@ func TestCredentialsLifecycle(t *testing.T) {
 	}
 
 	// Group scope without an owner is rejected.
-	resp = api.Post("/api/credentials", map[string]any{
+	resp = api.Post("/api/credentials", adminAuth, map[string]any{
 		"tenant_id": "credacme", "name": "ownerless", "scope": "group", "secret": "x",
 	})
 	if resp.Code != http.StatusBadRequest && resp.Code != http.StatusUnprocessableEntity {
@@ -149,7 +150,7 @@ func TestCredentialsLifecycle(t *testing.T) {
 	}
 
 	// Every fetch is audited.
-	resp = api.Get("/api/audit?limit=500")
+	resp = api.Get("/api/audit?limit=500", adminAuth)
 	var audit struct {
 		Entries []struct {
 			Action string `json:"action"`
@@ -188,7 +189,7 @@ func TestCredentialsLifecycle(t *testing.T) {
 	}
 
 	// Delete removes the credential; fetching it afterwards 404s.
-	resp = api.Do(http.MethodDelete, "/api/credentials/"+created.ID)
+	resp = api.Do(http.MethodDelete, "/api/credentials/"+created.ID, adminAuth)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("delete status = %v, body = %s", resp.Code, resp.Body.String())
 	}
@@ -209,6 +210,7 @@ func TestCredentialScopeResolution(t *testing.T) {
 	s := &Server{db: db, wm: wm}
 	_, api := humatest.New(t)
 	addApiRoutes(api, s)
+	scopeAuth := ensureAdminToken(t, db)
 
 	// Same name in all three scopes.
 	for _, c := range []map[string]any{
@@ -216,7 +218,7 @@ func TestCredentialScopeResolution(t *testing.T) {
 		{"tenant_id": "scopeacme", "name": "db-pass", "type": "username_password", "scope": "group", "owner_id": "ops", "secret": "group-secret"},
 		{"tenant_id": "scopeacme", "name": "db-pass", "type": "username_password", "scope": "user", "owner_id": "alice", "secret": "user-secret"},
 	} {
-		resp := api.Post("/api/credentials", c)
+		resp := api.Post("/api/credentials", scopeAuth, c)
 		if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
 			t.Fatalf("create %v status = %v, body = %s", c, resp.Code, resp.Body.String())
 		}

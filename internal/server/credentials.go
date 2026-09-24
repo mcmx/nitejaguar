@@ -32,7 +32,9 @@ func toCredentialView(id, tenantID, name, credType, scope, ownerID, description,
 }
 
 type CreateCredentialInput struct {
-	Body struct {
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+	Body          struct {
 		TenantID    string `json:"tenant_id,omitempty"`
 		Name        string `json:"name"`
 		Type        string `json:"type,omitempty"`
@@ -70,7 +72,9 @@ type GetCredentialOutput struct {
 }
 
 type DeleteCredentialInput struct {
-	ID string `path:"id"`
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+	ID            string `path:"id"`
 }
 
 type DeleteCredentialOutput struct {
@@ -101,18 +105,22 @@ type FetchCredentialOutput struct {
 
 // CreateCredential stores a secret encrypted at rest. The plaintext is
 // accepted once and never returned; only metadata is exposed.
-// NOTE: currently unauthenticated — role-gating arrives with the RBAC slice
-// (same staging as enrollment-token issuance).
+// Requires operator+ (open-bootstrap mode allows creation until the first
+// user exists).
 func (s *Server) CreateCredential(_ context.Context, input *CreateCredentialInput) (*CreateCredentialOutput, error) {
+	caller, actor, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleOperator)
+	if err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(input.Body.Name) == "" {
 		return nil, huma.Error400BadRequest("name is required")
 	}
 	if input.Body.Secret == "" {
 		return nil, huma.Error400BadRequest("secret is required")
 	}
-	tenantID := input.Body.TenantID
-	if tenantID == "" {
-		tenantID = "default"
+	tenantID, err := scopedTenant(caller, input.Body.TenantID)
+	if err != nil {
+		return nil, err
 	}
 	row, err := s.db.CreateCredential(tenantID, input.Body.Name, input.Body.Type, input.Body.Scope, input.Body.OwnerID, input.Body.Secret, input.Body.Description)
 	if err != nil {
@@ -123,7 +131,7 @@ func (s *Server) CreateCredential(_ context.Context, input *CreateCredentialInpu
 		}
 		return nil, huma.Error400BadRequest(err.Error())
 	}
-	_ = s.db.LogAudit("credential.create", row.TenantID, "api", row.ID, "name="+row.Name+" scope="+row.Scope+" type="+row.Type)
+	_ = s.db.LogAudit("credential.create", row.TenantID, actor, row.ID, "name="+row.Name+" scope="+row.Scope+" type="+row.Type)
 	log.Printf("credential created: id=%s tenant=%s name=%q scope=%s", row.ID, row.TenantID, row.Name, row.Scope)
 	out := &CreateCredentialOutput{}
 	out.Body.CredentialView = toCredentialView(row.ID, row.TenantID, row.Name, row.Type, row.Scope, row.OwnerID, row.Description, row.CreatedAt.String(), row.UpdatedAt.String())
@@ -160,9 +168,12 @@ func (s *Server) GetCredential(_ context.Context, input *GetCredentialInput) (*G
 	return out, nil
 }
 
-// DeleteCredential removes a stored secret.
-// NOTE: currently unauthenticated — role-gating arrives with the RBAC slice.
+// DeleteCredential removes a stored secret. Requires operator+.
 func (s *Server) DeleteCredential(_ context.Context, input *DeleteCredentialInput) (*DeleteCredentialOutput, error) {
+	caller, actor, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleOperator)
+	if err != nil {
+		return nil, err
+	}
 	if input.ID == "" {
 		return nil, huma.Error400BadRequest("id is required")
 	}
@@ -170,10 +181,13 @@ func (s *Server) DeleteCredential(_ context.Context, input *DeleteCredentialInpu
 	if err != nil {
 		return nil, huma.Error404NotFound(err.Error())
 	}
+	if caller != nil && caller.Role != database.RoleAdmin && row.TenantID != caller.TenantID {
+		return nil, huma.Error403Forbidden("cross-tenant operation requires admin")
+	}
 	if err := s.db.DeleteCredential(input.ID); err != nil {
 		return nil, huma.Error404NotFound(err.Error())
 	}
-	_ = s.db.LogAudit("credential.delete", row.TenantID, "api", input.ID, "name="+row.Name)
+	_ = s.db.LogAudit("credential.delete", row.TenantID, actor, input.ID, "name="+row.Name)
 	log.Printf("credential deleted: id=%s tenant=%s", input.ID, row.TenantID)
 	out := &DeleteCredentialOutput{}
 	out.Body.Ok = true

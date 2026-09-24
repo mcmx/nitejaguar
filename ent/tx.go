@@ -12,8 +12,12 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// AppUser is the client for interacting with the AppUser builders.
+	AppUser *AppUserClient
 	// AuditLog is the client for interacting with the AuditLog builders.
 	AuditLog *AuditLogClient
+	// AuthSession is the client for interacting with the AuthSession builders.
+	AuthSession *AuthSessionClient
 	// Credential is the client for interacting with the Credential builders.
 	Credential *CredentialClient
 	// EnrollmentToken is the client for interacting with the EnrollmentToken builders.
@@ -155,7 +159,9 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.AppUser = NewAppUserClient(tx.config)
 	tx.AuditLog = NewAuditLogClient(tx.config)
+	tx.AuthSession = NewAuthSessionClient(tx.config)
 	tx.Credential = NewCredentialClient(tx.config)
 	tx.EnrollmentToken = NewEnrollmentTokenClient(tx.config)
 	tx.NodeAssignment = NewNodeAssignmentClient(tx.config)
@@ -170,7 +176,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: AuditLog.QueryXXX(), the query will be executed
+// applies a query, for example: AppUser.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

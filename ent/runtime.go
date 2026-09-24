@@ -5,7 +5,9 @@ package ent
 import (
 	"time"
 
+	"github.com/mcmx/nitejaguar/ent/appuser"
 	"github.com/mcmx/nitejaguar/ent/auditlog"
+	"github.com/mcmx/nitejaguar/ent/authsession"
 	"github.com/mcmx/nitejaguar/ent/credential"
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
 	"github.com/mcmx/nitejaguar/ent/nodeassignment"
@@ -18,6 +20,42 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	appuserFields := schema.AppUser{}.Fields()
+	_ = appuserFields
+	// appuserDescTenantID is the schema descriptor for tenant_id field.
+	appuserDescTenantID := appuserFields[1].Descriptor()
+	// appuser.DefaultTenantID holds the default value on creation for the tenant_id field.
+	appuser.DefaultTenantID = appuserDescTenantID.Default.(string)
+	// appuserDescUsername is the schema descriptor for username field.
+	appuserDescUsername := appuserFields[2].Descriptor()
+	// appuser.UsernameValidator is a validator for the "username" field. It is called by the builders before save.
+	appuser.UsernameValidator = appuserDescUsername.Validators[0].(func(string) error)
+	// appuserDescPasswordHash is the schema descriptor for password_hash field.
+	appuserDescPasswordHash := appuserFields[3].Descriptor()
+	// appuser.PasswordHashValidator is a validator for the "password_hash" field. It is called by the builders before save.
+	appuser.PasswordHashValidator = appuserDescPasswordHash.Validators[0].(func(string) error)
+	// appuserDescRole is the schema descriptor for role field.
+	appuserDescRole := appuserFields[4].Descriptor()
+	// appuser.DefaultRole holds the default value on creation for the role field.
+	appuser.DefaultRole = appuserDescRole.Default.(string)
+	// appuserDescRevoked is the schema descriptor for revoked field.
+	appuserDescRevoked := appuserFields[6].Descriptor()
+	// appuser.DefaultRevoked holds the default value on creation for the revoked field.
+	appuser.DefaultRevoked = appuserDescRevoked.Default.(bool)
+	// appuserDescCreatedAt is the schema descriptor for created_at field.
+	appuserDescCreatedAt := appuserFields[7].Descriptor()
+	// appuser.DefaultCreatedAt holds the default value on creation for the created_at field.
+	appuser.DefaultCreatedAt = appuserDescCreatedAt.Default.(func() time.Time)
+	// appuserDescUpdatedAt is the schema descriptor for updated_at field.
+	appuserDescUpdatedAt := appuserFields[8].Descriptor()
+	// appuser.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	appuser.DefaultUpdatedAt = appuserDescUpdatedAt.Default.(func() time.Time)
+	// appuser.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	appuser.UpdateDefaultUpdatedAt = appuserDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// appuserDescID is the schema descriptor for id field.
+	appuserDescID := appuserFields[0].Descriptor()
+	// appuser.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	appuser.IDValidator = appuserDescID.Validators[0].(func(string) error)
 	auditlogFields := schema.AuditLog{}.Fields()
 	_ = auditlogFields
 	// auditlogDescAction is the schema descriptor for action field.
@@ -48,6 +86,32 @@ func init() {
 	auditlogDescID := auditlogFields[0].Descriptor()
 	// auditlog.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	auditlog.IDValidator = auditlogDescID.Validators[0].(func(string) error)
+	authsessionFields := schema.AuthSession{}.Fields()
+	_ = authsessionFields
+	// authsessionDescUserID is the schema descriptor for user_id field.
+	authsessionDescUserID := authsessionFields[1].Descriptor()
+	// authsession.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	authsession.UserIDValidator = authsessionDescUserID.Validators[0].(func(string) error)
+	// authsessionDescTenantID is the schema descriptor for tenant_id field.
+	authsessionDescTenantID := authsessionFields[2].Descriptor()
+	// authsession.DefaultTenantID holds the default value on creation for the tenant_id field.
+	authsession.DefaultTenantID = authsessionDescTenantID.Default.(string)
+	// authsessionDescTokenHash is the schema descriptor for token_hash field.
+	authsessionDescTokenHash := authsessionFields[3].Descriptor()
+	// authsession.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
+	authsession.TokenHashValidator = authsessionDescTokenHash.Validators[0].(func(string) error)
+	// authsessionDescRevoked is the schema descriptor for revoked field.
+	authsessionDescRevoked := authsessionFields[5].Descriptor()
+	// authsession.DefaultRevoked holds the default value on creation for the revoked field.
+	authsession.DefaultRevoked = authsessionDescRevoked.Default.(bool)
+	// authsessionDescCreatedAt is the schema descriptor for created_at field.
+	authsessionDescCreatedAt := authsessionFields[6].Descriptor()
+	// authsession.DefaultCreatedAt holds the default value on creation for the created_at field.
+	authsession.DefaultCreatedAt = authsessionDescCreatedAt.Default.(func() time.Time)
+	// authsessionDescID is the schema descriptor for id field.
+	authsessionDescID := authsessionFields[0].Descriptor()
+	// authsession.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	authsession.IDValidator = authsessionDescID.Validators[0].(func(string) error)
 	credentialFields := schema.Credential{}.Fields()
 	_ = credentialFields
 	// credentialDescTenantID is the schema descriptor for tenant_id field.
