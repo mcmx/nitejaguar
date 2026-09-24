@@ -16,12 +16,34 @@ assignment payloads.
   resolves directly (tenant-isolated). Group/user identities arrive with
   the RBAC slice; until then fetch callers may pass `user_id`/`groups`
   and the server resolves against them.
-- **Credential types** are declared by actions/providers:
-  `generic`, `token`, `username_password`, `aws`, `s3`, `ssh_key`.
-  The built-in local actions (`file`, `datetime`, `wait`, `filechange`
-  trigger) need no credentials. Provider actions (e.g. AWS EC2, generic
-  S3) declare what they need — see `RequiredCredentialTypes` in
-  `internal/actions/actions.go`.
+- **Credential types** are declared by provider **collections** (strict
+  **one-type-per-collection**: every action in a collection shares
+  exactly the collection's type, no per-action overrides). Known types:
+  `generic`, `token`, `username_password`, `aws`, `ssh_key`.
+  The legacy `s3` type is rejected at creation — S3 lives inside the
+  AWS collection and uses the `aws` type. The built-ins (`file`,
+  `datetime`, `wait`, `filechange` trigger) form the `core` collection
+  and need no credential. The collection registry
+  (`Provider{Name, CredentialType, Actions[]}` in `common/providers.go`;
+  `SupportedCredentialTypes` / `RequiredCredentialTypes` in
+  `internal/actions/actions.go` delegate to it) is the source of truth.
+  No new executables (EC2/S3) ship with the foundation — the AWS actions
+  are registry placeholders for now.
+
+## Type enforcement
+
+- **Create**: the credential `type` must be a known type (generic
+  families plus each collection's declared type); anything else
+  (e.g. `s3`) is rejected with `400`.
+- **Fetch**: when the request carries `workflow_id` + `node_id` resolving
+  to a collection-typed node (e.g. an AWS `s3` node expects `aws`),
+  the resolved credential's type must match, otherwise the fetch fails
+  closed with `403` **before the secret is opened** (denials are logged
+  server-side, never audited with secret material — successful fetches
+  are audited as `credential.fetch`).
+- **Fail open**: typeless (`core`) nodes, unknown workflows/nodes/actions,
+  and fetches without node context impose no type constraint — dangling
+  references stay allowed and older clients keep working.
 
 ## Encryption at rest
 
@@ -59,8 +81,8 @@ is retried on the next poll).
 
 ## Management API
 
-Credential issuance is not yet role-gated — that arrives with the RBAC
-slice (same staging as enrollment-token issuance).
+Credential create/delete requires operator+ (own tenant; admin for
+cross-tenant). See [RBAC](./rbac.md).
 
 - `POST /api/credentials` — store a secret encrypted at rest
   (`{tenant_id?, name, type?, scope?, owner_id?, secret, description?}`;
@@ -73,17 +95,23 @@ slice (same staging as enrollment-token issuance).
 
 ## Workflow usage
 
+AWS-collection shape (the registry and enforcement exist; the EC2/S3
+executables ship later — `ec2`/`s3` are registry placeholders today):
+
 ```json
 {
   "id": "action_01h...",
   "action_type": "action",
-  "action_name": "s3",
-  "credential_ref": "prod-s3-backup",
-  "arguments": {"bucket": "backups", "key": "db.sql"},
+  "action_name": "ec2",
+  "credential_ref": "prod-aws",
+  "arguments": {"region": "eu-west-1"},
   "conditions": {"entries": {}},
   "dependencies": ["trigger_01h..."]
 }
 ```
+
+An S3 node likewise lives in the AWS collection and references an
+`aws`-type credential (there is no separate generic S3 collection).
 
 - Import (`server -i`, `POST /api/workflows/import`) and clone
   (`server -c`, `POST /api/workflows/clone`) preserve `credential_ref`.

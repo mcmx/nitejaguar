@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/ent"
 	"github.com/mcmx/nitejaguar/ent/credential"
 	"go.jetify.com/typeid"
@@ -29,16 +30,11 @@ const (
 	CredentialFetchTTLSeconds = 60
 )
 
-// SupportedCredentialTypes are the credential types actions/providers may
-// declare (roadmap: AWS keys, S3, generic username/password, token, SSH key).
-var SupportedCredentialTypes = []string{
-	"generic",
-	"token",
-	"username_password",
-	"aws",
-	"s3",
-	"ssh_key",
-}
+// SupportedCredentialTypes are the credential types accepted at creation.
+// The provider-collection registry in common/ is the source of truth:
+// generic families plus each collection's declared type. The legacy `s3`
+// type is rejected — S3 lives in the AWS collection and uses `aws`.
+var SupportedCredentialTypes = common.KnownCredentialTypes()
 
 func validCredentialType(t string) bool {
 	for _, known := range SupportedCredentialTypes {

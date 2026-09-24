@@ -119,9 +119,14 @@ secret just-in-time via `GET /api/credentials/{ref}/fetch`. See
   "id": "action_01h...",
   "action_type": "action",
   "action_name": "s3",
-  "credential_ref": "prod-s3-backup",
+  "credential_ref": "prod-aws",
   "arguments": {"bucket": "backups"},
   "conditions": {"entries": {}},
   "dependencies": ["trigger_01h..."]
 }
 ```
+
+`s3` is an AWS-collection action, so its credential must have type
+`aws` — fetches for it are strictly enforced (see
+[Credentials](./credentials.md); `ec2`/`s3` executables ship in a later
+slice, the registry entries exist today).

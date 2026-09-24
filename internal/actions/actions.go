@@ -14,25 +14,26 @@ import (
 	"go.jetify.com/typeid"
 )
 
-// SupportedCredentialTypes lists the credential types actions/providers may
-// declare (roadmap: AWS keys, S3, generic username/password, token, SSH
-// key). The built-in local actions need no credentials and declare none;
-// provider actions (e.g. AWS EC2, generic S3) will declare what they need.
+// SupportedCredentialTypes lists the credential types accepted at
+// creation. The provider-collection registry in common/ is the source of
+// truth (provider-declared types, not a hardcoded list); this wrapper
+// stays for callers that import this package.
 func SupportedCredentialTypes() []string {
-	return []string{"generic", "token", "username_password", "aws", "s3", "ssh_key"}
+	return common.KnownCredentialTypes()
 }
 
-// RequiredCredentialTypes declares which credential type(s) an action needs
-// by action_name. An empty slice means the action runs without a credential.
-// Nodes that set credential_ref fetch the secret just-in-time regardless;
-// this registry documents intent for providers and the designer.
+// RequiredCredentialTypes declares which credential type(s) an action
+// needs by action_name, derived from its collection's single shared
+// type. An empty slice means the action runs without a credential
+// (the `core` collection, or an unknown action). Nodes that set
+// credential_ref fetch the secret just-in-time regardless; fetches for
+// collection-typed nodes are strictly enforced server-side.
 func RequiredCredentialTypes(actionName string) []string {
-	switch actionName {
-	case "file", "datetime", "wait", "filechange":
-		return nil
-	default:
+	ctype, known := common.CredentialTypeForAction(actionName)
+	if !known || ctype == "" {
 		return nil
 	}
+	return []string{ctype}
 }
 // ActionManager manages a collection of actions
 type ActionManager struct {

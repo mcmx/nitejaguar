@@ -94,14 +94,37 @@ exposes metadata only. Every create/delete/fetch is audit-logged
 Credential issuance is not yet role-gated — that arrives with the RBAC
 slice.
 
-## 5. Providers (= Ansible collections) & actions
+## 5. Providers (= Ansible collections) — foundation only — DONE
 
-- A **provider is a collection** (Ansible-collection analog): e.g. an AWS
-  collection ships multiple actions (EC2, S3, …). **S3 stays generic**
-  since many providers speak the S3 API.
+Status: implemented. The collection foundation ships WITHOUT new
+action executables (no EC2/S3 implementations yet).
+
+- A **provider is a collection** (Ansible-collection analog) with a
+  **strict one-credential-type-per-collection** rule: every action in
+  the collection shares exactly the collection's credential type, no
+  per-action overrides.
+- Code registry: `Provider{Name, CredentialType, Actions[]}` in
+  `common/providers.go` (`core` = `file`/`datetime`/`wait`/`filechange`
+  with no credential; `aws` = `ec2`/`s3` placeholders with type `aws`);
+  `SupportedCredentialTypes` / `RequiredCredentialTypes` in
+  `internal/actions/actions.go` and the create-time type check in
+  `internal/database/credentials.go` delegate to it. Types are
+  provider-declared, not a static list.
+- Built-ins (`file`, `datetime`, `wait`, `filechange` trigger) are the
+  `core` collection with no credential.
+- S3 lives **inside the AWS collection** and uses the `aws` credential
+  type; the legacy `s3` credential type is rejected at creation.
+- **Full enforcement**: `GET /api/credentials/{ref}/fetch` with
+  `workflow_id` + `node_id` resolving to a collection-typed node
+  requires the credential type to match (fails closed with `403`
+  before the secret is opened). Typeless (`core`) nodes,
+  unknown workflows/nodes/actions, and context-free fetches impose no
+  constraint (dangling references stay allowed). Generic families
+  (`generic`, `token`, `username_password`, `ssh_key`) remain usable
+  anywhere.
 - One canonical `action_name` per action (category-free, per AGENTS.md).
-- Credential types are declared by the collection and/or its actions;
-  each action declares which credential type(s) it needs.
+- Documented in `docs/providers.md` + `docs/credentials.md`
+  (type enforcement); `docs/workflows.md` shows the AWS shape.
 
 ## 6. Client-to-client communication
 
@@ -124,7 +147,7 @@ slice.
 2. Client targeting + cross-client handoff fix ✅ done
 3. Credentials model (reference + JIT fetch + resolution) ✅ done
 4. RBAC + web auth + management pages + audit ✅ done
-5. Provider actions (AWS EC2, generic S3, …)
+5. Provider collections foundation (registry + shared credential type + enforcement; no new actions) ✅ done
 6. Client-to-client transfer (P2P + relay fallback)
 
 ## Open questions (for later slices)

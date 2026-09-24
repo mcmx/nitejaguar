@@ -2,11 +2,15 @@ package server
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/database"
+	"github.com/mcmx/nitejaguar/internal/workflow"
 )
 
 // CredentialView is credential metadata. The secret (plaintext or encrypted)
@@ -222,6 +226,45 @@ func (s *Server) FetchCredential(_ context.Context, input *FetchCredentialInput)
 	row, err := s.db.ResolveCredential(client.TenantID, input.Ref, input.UserID, groups)
 	if err != nil {
 		return nil, huma.Error404NotFound(err.Error())
+	}
+	// Collection-type enforcement (providers foundation): when the fetch
+	// carries workflow/node context for a collection-typed node, the
+	// resolved credential must match the node's collection-declared type;
+	// otherwise fail closed before the secret is even opened. Unknown
+	// workflows/nodes/actions and typeless (`core`) nodes impose no
+	// constraint (fail open): dangling references are allowed and older
+	// clients fetch without node context.
+	if input.WorkflowID != "" && input.NodeID != "" {
+		if wfRow, werr := s.db.GetWorkflow(input.WorkflowID); werr == nil {
+			var def workflow.Workflow
+			if jerr := json.Unmarshal([]byte(wfRow.JSONDefinition), &def); jerr == nil {
+				var node *workflow.Node
+				if n, ok := def.Nodes[input.NodeID]; ok {
+					nn := n
+					node = &nn
+				} else {
+					for _, n := range def.Nodes {
+						if n.Id == input.NodeID {
+							nn := n
+							node = &nn
+							break
+						}
+					}
+				}
+				if node != nil {
+					if expected, known := common.CredentialTypeForAction(node.ActionName); known && expected != "" && row.Type != expected {
+						collection := ""
+						if p, ok := common.ProviderForAction(node.ActionName); ok {
+							collection = p.Name
+						}
+						log.Printf("credential fetch denied: type mismatch id=%s tenant=%s client=%s workflow=%s node=%s action=%q collection=%q expected=%q got=%q",
+							row.ID, row.TenantID, clientID, input.WorkflowID, input.NodeID, node.ActionName, collection, expected, row.Type)
+						return nil, huma.Error403Forbidden(fmt.Sprintf("credential type %q does not match action %q (collection %q requires type %q)",
+							row.Type, node.ActionName, collection, expected))
+					}
+				}
+			}
+		}
 	}
 	secret, err := s.db.DecryptCredentialSecret(row)
 	if err != nil {

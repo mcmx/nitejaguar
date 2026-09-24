@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -257,5 +258,104 @@ func TestCredentialScopeResolution(t *testing.T) {
 	}
 	if got := fetch("?user_id=bob&groups=ops"); got != "group-secret" {
 		t.Fatalf("unmatched user falls back to group = %q, want group-secret", got)
+	}
+}
+
+func TestCredentialFetchEnforcesCollectionType(t *testing.T) {
+	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
+	t.Setenv("CREDENTIALS_KEY", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
+	wm := workflow.NewWorkflowManager(false, db)
+	s := &Server{db: db, wm: wm}
+	_, api := humatest.New(t)
+	addApiRoutes(api, s)
+	typeAuth := ensureAdminToken(t, db)
+
+	const tenant = "typeten"
+	// One AWS-collection node (action s3) and one core node (action file).
+	wfDef := workflow.Workflow{
+		Id:       "workflow_01htypeenforce00000001",
+		Name:     "type enforcement",
+		TenantID: tenant,
+		Nodes: map[string]workflow.Node{
+			"action_01htypeenforce00000001": {
+				Id: "action_01htypeenforce00000001", Name: "backup",
+				ActionType: "action", ActionName: "s3", CredentialRef: "prod-aws",
+			},
+			"action_01htypeenforce00000002": {
+				Id: "action_01htypeenforce00000002", Name: "local",
+				ActionType: "action", ActionName: "file", CredentialRef: "api-token",
+			},
+		},
+	}
+	raw, err := json.Marshal(wfDef)
+	if err != nil {
+		t.Fatalf("marshal workflow: %v", err)
+	}
+	if err := db.SaveWorkflow(wfDef.Id, string(raw), tenant); err != nil {
+		t.Fatalf("save workflow: %v", err)
+	}
+
+	for _, c := range []map[string]any{
+		{"tenant_id": tenant, "name": "prod-aws", "type": "aws", "secret": "aws-secret"},
+		{"tenant_id": tenant, "name": "api-token", "type": "token", "secret": "token-secret"},
+	} {
+		resp := api.Post("/api/credentials", typeAuth, c)
+		if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+			t.Fatalf("create %v status = %v, body = %s", c, resp.Code, resp.Body.String())
+		}
+	}
+
+	// The legacy s3 type is rejected at creation: S3 uses the aws type.
+	resp := api.Post("/api/credentials", typeAuth, map[string]any{
+		"tenant_id": tenant, "name": "legacy-s3", "type": "s3", "secret": "x",
+	})
+	if resp.Code != http.StatusBadRequest && resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("legacy s3 create status = %v, want 400/422", resp.Code)
+	}
+
+	joinToken := mintEnrollmentToken(t, db, tenant, 0)
+	resp = api.Post("/api/clients/register", map[string]any{"name": "type-worker", "enrollment_token": joinToken})
+	var registered struct {
+		ClientID string `json:"client_id"`
+		Token    string `json:"token"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &registered)
+	auth := "Authorization: Bearer " + registered.Token
+	nodeCtx := "?workflow_id=" + wfDef.Id + "&node_id=action_01htypeenforce00000001"
+	coreCtx := "?workflow_id=" + wfDef.Id + "&node_id=action_01htypeenforce00000002"
+
+	// Matching type for the AWS node fetches fine.
+	resp = api.Get("/api/credentials/prod-aws/fetch"+nodeCtx, auth)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("matching fetch status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+
+	// Mismatched type for the AWS node fails closed.
+	resp = api.Get("/api/credentials/api-token/fetch"+nodeCtx, auth)
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("mismatched fetch status = %v, want 403, body = %s", resp.Code, resp.Body.String())
+	}
+	if strings.Contains(resp.Body.String(), "token-secret") {
+		t.Fatalf("denied fetch leaks the secret: %s", resp.Body.String())
+	}
+
+	// Core nodes declare no type: any credential type is allowed.
+	resp = api.Get("/api/credentials/api-token/fetch"+coreCtx, auth)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("core-node fetch status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+
+	// Unknown nodes and missing node context fail open (dangling refs).
+	resp = api.Get("/api/credentials/api-token/fetch?workflow_id="+wfDef.Id+"&node_id=action_01hnope000000000000", auth)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unknown-node fetch status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	resp = api.Get("/api/credentials/api-token/fetch", auth)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("context-free fetch status = %v, body = %s", resp.Code, resp.Body.String())
 	}
 }
