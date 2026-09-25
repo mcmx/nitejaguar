@@ -89,9 +89,21 @@ func (s *Server) RegisterRoutes() http.Handler {
 	e.POST("/designer/save", s.designerSaveWorkflow)
 	e.GET("/results", s.resultsPage)
 	e.GET("/clients", s.clientsPage)
+	e.GET("/credentials", s.credentialsPage)
 	e.GET("/audit", s.auditPage)
 	e.GET("/users", s.usersPage)
+	e.GET("/profile", s.profilePage)
 	e.POST("/workflows/:id/enabled", s.setWorkflowEnabled)
+	e.POST("/workflows/:id/delete", s.deleteWorkflowWeb)
+	e.POST("/workflows/:id/clone", s.cloneWorkflowWeb)
+	e.POST("/clients/:id/revoke", s.revokeClientWeb)
+	e.POST("/enrollment/tokens", s.createEnrollmentTokenWeb)
+	e.POST("/enrollment/tokens/:id/revoke", s.revokeEnrollmentTokenWeb)
+	e.POST("/credentials", s.createCredentialWeb)
+	e.POST("/credentials/:id/delete", s.deleteCredentialWeb)
+	e.POST("/users", s.createUserWeb)
+	e.POST("/users/:id/revoke", s.revokeUserWeb)
+	e.POST("/profile/password", s.changePasswordWeb)
 	e.POST("/triggers/stop", s.TriggerWebHandler)
 
 	e.GET("/websocket", s.websocketHandler)
@@ -115,6 +127,12 @@ func addApiRoutes(api huma.API, s *Server) {
 		Path:        "/workflows/{id}",
 		Summary:     "Workflow by id",
 	}, s.GetWorkflow)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "delete-workflow",
+		Method:      http.MethodDelete,
+		Path:        "/workflows/{id}",
+		Summary:     "Delete a workflow definition (operator+, audited)",
+	}, s.DeleteWorkflow)
 	huma.Register(apiGrp, huma.Operation{
 		OperationID: "post-event",
 		Method:      http.MethodPost,
@@ -259,6 +277,12 @@ func addApiRoutes(api huma.API, s *Server) {
 		Path:        "/users/{id}/revoke",
 		Summary:     "Revoke a user and its sessions (admin only)",
 	}, s.RevokeUser)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "change-password",
+		Method:      http.MethodPost,
+		Path:        "/auth/password",
+		Summary:     "Change your own password (admins may reset others via user_id)",
+	}, s.ChangePassword)
 	huma.Register(apiGrp, huma.Operation{
 		OperationID: "init-transfer",
 		Method:      http.MethodPost,
@@ -1016,11 +1040,62 @@ func (s *Server) CloneWorkflow(_ context.Context, input *UpsertWorkflowInput) (*
 	return out, nil
 }
 
+type DeleteWorkflowInput struct {
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+	ID            string `path:"id"`
+}
+
+type DeleteWorkflowOutput struct {
+	Body struct {
+		Ok bool `json:"ok"`
+	}
+}
+
+// DeleteWorkflow removes a workflow definition. Requires operator+
+// (cross-tenant requires admin); audited as workflow.delete.
+func (s *Server) DeleteWorkflow(_ context.Context, input *DeleteWorkflowInput) (*DeleteWorkflowOutput, error) {
+	caller, actor, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleOperator)
+	if err != nil {
+		return nil, err
+	}
+	if input.ID == "" {
+		return nil, huma.Error400BadRequest("id is required")
+	}
+	row, err := s.db.GetWorkflow(input.ID)
+	if err != nil {
+		return nil, huma.Error404NotFound("workflow not found")
+	}
+	tenantID := row.TenantID
+	var def workflow.Workflow
+	if jerr := json.Unmarshal([]byte(row.JSONDefinition), &def); jerr == nil && def.TenantID != "" {
+		tenantID = def.TenantID
+	}
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	if caller != nil && caller.Role != database.RoleAdmin && tenantID != caller.TenantID {
+		return nil, huma.Error403Forbidden("cross-tenant operation requires admin")
+	}
+	if err := s.db.DeleteWorkflow(input.ID); err != nil {
+		return nil, huma.Error404NotFound(err.Error())
+	}
+	_ = s.db.LogAudit("workflow.delete", tenantID, actor, input.ID, "deleted via API")
+	log.Printf("workflow deleted: id=%s tenant=%s actor=%s", input.ID, tenantID, actor)
+	out := &DeleteWorkflowOutput{}
+	out.Body.Ok = true
+	return out, nil
+}
+
 func (s *Server) workflowsPage(c echo.Context) error {
 	workflows, err := s.db.GetWorkflows(true, true)
-	data := &web.WorkflowPageData{Workflows: workflows}
+	data := &web.WorkflowPageData{CurrentUser: s.navUser(c), Workflows: workflows}
 	if err != nil {
 		data.Error = "Unable to load workflows"
+	} else if c.QueryParam("deleted") != "" {
+		data.Success = "Workflow deleted."
+	} else if c.QueryParam("cloned") != "" {
+		data.Success = "Workflow cloned: " + c.QueryParam("cloned")
 	}
 	templ.Handler(web.WorkflowsPage(data, "")).ServeHTTP(c.Response(), c.Request())
 	return nil
@@ -1028,7 +1103,7 @@ func (s *Server) workflowsPage(c echo.Context) error {
 
 func (s *Server) workflowPage(c echo.Context) error {
 	row, err := s.db.GetWorkflow(c.Param("id"))
-	data := &web.WorkflowDetailData{Workflow: row}
+	data := &web.WorkflowDetailData{CurrentUser: s.navUser(c), Workflow: row}
 	if err != nil {
 		data.Error = "Workflow not found"
 	} else if err := json.Unmarshal([]byte(row.JSONDefinition), &data.Definition); err != nil {
@@ -1039,7 +1114,7 @@ func (s *Server) workflowPage(c echo.Context) error {
 }
 
 func (s *Server) resultsPage(c echo.Context) error {
-	data := &web.ResultsPageData{}
+	data := &web.ResultsPageData{CurrentUser: s.navUser(c)}
 	entries, err := os.ReadDir("./results")
 	if err != nil && !os.IsNotExist(err) {
 		data.Error = "Unable to read results"
@@ -1067,20 +1142,7 @@ func (s *Server) resultsPage(c echo.Context) error {
 }
 
 func (s *Server) clientsPage(c echo.Context) error {
-	data := &web.ClientsPageData{}
-	for _, client := range s.registry().list() {
-		data.Clients = append(data.Clients, web.ClientView{
-			ID: client.ID, Name: client.Name, TenantID: client.TenantID, Tags: client.Tags,
-			RegisteredAt:  client.RegisteredAt.Format("2006-01-02 15:04:05 MST"),
-			LastHeartbeat: client.LastHeartbeat.Format("2006-01-02 15:04:05 MST"),
-			LastPoll:      client.LastPoll.Format("2006-01-02 15:04:05 MST"),
-			Online:        !client.Revoked && time.Since(client.LastHeartbeat) <= 15*time.Second,
-			Revoked:       client.Revoked,
-		})
-	}
-	sort.Slice(data.Clients, func(i, j int) bool { return data.Clients[i].Name < data.Clients[j].Name })
-	templ.Handler(web.ClientsPage(data)).ServeHTTP(c.Response(), c.Request())
-	return nil
+	return s.renderClients(c, s.clientsPageData(c))
 }
 
 func (s *Server) setWorkflowEnabled(c echo.Context) error {
@@ -1241,7 +1303,7 @@ func (s *Server) designerEditPage(c echo.Context) error {
 }
 
 func (s *Server) renderDesigner(c echo.Context, workflowID string) error {
-	data := &web.DesignerPageData{}
+	data := &web.DesignerPageData{CurrentUser: s.navUser(c)}
 	if workflowID == "" {
 		workflowID = c.QueryParam("id")
 	}

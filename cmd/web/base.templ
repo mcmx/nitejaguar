@@ -28,7 +28,7 @@ templ ThemeSwitcherScript() {
 	}
 }
 
-templ Base() {
+templ Base(user *modules.NavUser) {
 	<!DOCTYPE html>
 	<html lang="en" class="h-full dark">
 		<head>
@@ -43,7 +43,7 @@ templ Base() {
 			@ThemeSwitcherScript()
 		</head>
 		<body x-data="themeHandler" x-bind:class="themeClasses">
-			@modules.Navbar()
+			@modules.Navbar(user)
 			{ children... }
 		</body>
 	</html>

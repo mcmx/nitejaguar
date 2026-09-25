@@ -15,6 +15,9 @@ group memberships used by [credential resolution](./credentials.md)
 | Revoke clients | ❌ | ✅ (own tenant) | ✅ (any tenant) |
 | Create / delete credentials | ❌ | ✅ (own tenant) | ✅ (any tenant) |
 | Import / clone / enable workflows | ❌ | ✅ | ✅ |
+| Delete workflows | ❌ | ✅ (own tenant) | ✅ (any tenant) |
+| Change own password | ✅ | ✅ | ✅ |
+| Reset another user's password | ❌ | ❌ | ✅ |
 | Create / revoke users | ❌ | ❌ | ✅ |
 | List users | ❌ | ✅ (own tenant) | ✅ (all) |
 
@@ -63,6 +66,10 @@ same token.
 - `GET /api/users` — operator+: non-admins see their own tenant only.
 - `POST /api/users/{id}/revoke` — admin only; revokes the user and all
   its sessions. Audited as `user.revoke`. Self-revoke is rejected.
+- `POST /api/auth/password` — any role: `{current_password,
+  new_password (≥8)}` changes your own password (current required).
+  Admins may pass `{user_id}` to reset another user's password without
+  knowing it. Audited as `user.password_change` (failures too).
 
 Passwords are bcrypt hashes; user responses never include them.
 
@@ -99,13 +106,28 @@ curl -s localhost:8080/api/enrollment/tokens -H "$AUTH" \
 - `GET /audit` — audit trail (newest 200; non-admins see their own
   tenant). Navbar: **Audit**.
 - `GET /users` — user roster (operator+; non-admins see their own
-  tenant). Navbar: **Users**.
+  tenant). Navbar: **Users**. Admins get a create-user form (username,
+  password ≥8, role, groups, tenant) and per-user revoke buttons
+  (self-revoke refused, mirroring the API).
+- `GET /profile` — your own profile plus a change-password form
+  (current + new + confirm). Navbar shows your username linking here.
+- `POST /profile/password` — form password change; wrong current
+  password and mismatched confirmation are reported inline.
+
+The navbar hides every app link for anonymous visitors — only
+**Login** (plus the theme switcher) is shown. Once logged in, the menu
+shows Workflows, Designer, Clients, Credentials, Results, Audit, Users,
+your username (→ `/profile`), and Logout. On a fresh install with no
+users yet (open-bootstrap mode) the full menu stays visible so the
+first admin can be created from the **Users** page; afterwards login
+is required.
 
 Once any user exists, anonymous browsers are redirected to `/login`
 for every HTML page except `/login` itself. API, assets, health, docs,
 and websocket stay open under their own auth. Web form posts enforce
-roles too: designer save and workflow enable require operator+;
-anonymous posts redirect to `/login`.
+roles too: designer save, workflow enable/clone/delete, client revoke,
+token mint/revoke, and credential store/delete require operator+;
+user create/revoke require admin; anonymous posts redirect to `/login`.
 
 ## Audit trail
 
@@ -113,8 +135,9 @@ anonymous posts redirect to `/login`.
 non-admins see their own tenant only. New actions in this slice:
 
 - `auth.login`, `auth.logout`
-- `user.create`, `user.revoke`
-- `workflow.import`, `workflow.clone`, `workflow.enable`
+- `user.create`, `user.revoke`, `user.password_change`
+- `workflow.import`, `workflow.clone`, `workflow.enable`,
+  `workflow.delete`
 
 Existing actions keep their actor attribution, now set to the session
 user id instead of `"api"`: `enrollment.create`, `enrollment.revoke`,

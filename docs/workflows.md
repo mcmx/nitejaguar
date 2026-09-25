@@ -53,6 +53,18 @@ The `action_name` field uses one concise, lowercase, category-free identifier fo
   - Rewrites all dependency edges (`conditions.nexts` and `dependencies`) through the old-to-new ID map.
   - Prefixes the workflow name with `"Clone of: "`.
   - `server -c` clones at server startup; `client workflow clone` POSTs the file to `POST /api/workflows/clone` on a running server and prints the new workflow id.
+- **Delete (`DELETE /api/workflows/{id}`, operator+, audited as
+  `workflow.delete`)**: removes a workflow definition. Cross-tenant
+  requires admin.
+
+## Website management
+
+The workflow list (`/`) shows **View**, **Edit** (designer), **Clone**,
+and **Delete** (confirm-guarded) per workflow; the detail page
+(`/workflows/:id`) adds enable/disable plus the same clone/delete
+actions. Clone lands on the new workflow; delete returns to the list
+with a confirmation notice. Mutating buttons require operator+ and
+are hidden otherwise.
 
 ## Client targeting & distributed execution
 

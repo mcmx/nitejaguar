@@ -1,5 +1,9 @@
 package web
 
+import (
+	"github.com/mcmx/nitejaguar/cmd/web/modules"
+)
+
 type LoginPageData struct {
 	Error    string
 	TenantID string
@@ -16,8 +20,9 @@ type AuditView struct {
 }
 
 type AuditPageData struct {
-	Entries []AuditView
-	Error   string
+	CurrentUser *modules.NavUser
+	Entries     []AuditView
+	Error       string
 }
 
 type UserView struct {
@@ -31,6 +36,55 @@ type UserView struct {
 }
 
 type UsersPageData struct {
-	Users []UserView
-	Error string
+	CurrentUser *modules.NavUser
+	Users       []UserView
+	Error       string
+	Success     string
+}
+
+type EnrollmentTokenView struct {
+	ID        string
+	TenantID  string
+	Label     string
+	ExpiresAt string
+	MaxUses   int
+	UseCount  int
+	Revoked   bool
+	CreatedAt string
+}
+
+// EnrollResult carries a freshly minted enrollment token plaintext plus the
+// ready-to-run client enrollment command (plaintext is shown once only).
+type EnrollResult struct {
+	ClientName string
+	TokenID    string
+	Label      string
+	Token      string
+	Command    string
+}
+
+type CredentialView struct {
+	ID          string
+	TenantID    string
+	Name        string
+	Type        string
+	Scope       string
+	OwnerID     string
+	Description string
+	CreatedAt   string
+}
+
+type CredentialsPageData struct {
+	CurrentUser *modules.NavUser
+	Credentials []CredentialView
+	Types       []string
+	Error       string
+	Success     string
+}
+
+type ProfilePageData struct {
+	CurrentUser *modules.NavUser
+	User        UserView
+	Error       string
+	Success     string
 }

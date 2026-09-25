@@ -168,6 +168,53 @@ func (s *service) RevokeUser(id string) error {
 	return nil
 }
 
+// UpdatePassword sets a new password for a user (admin reset path; the
+// caller is responsible for authorization). Passwords need 8+ chars.
+func (s *service) UpdatePassword(userID, newPassword string) error {
+	if len(newPassword) < 8 {
+		return fmt.Errorf("password must be at least 8 characters")
+	}
+	ctx := context.Background()
+	if _, err := s.client.AppUser.Get(ctx, userID); err != nil {
+		return fmt.Errorf("user not found: %w", err)
+	}
+	hash, err := hashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+	if err := s.client.AppUser.UpdateOneID(userID).SetPasswordHash(hash).Exec(ctx); err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+	return nil
+}
+
+// ChangePassword verifies the current password before setting a new one
+// (self-service path). Revoked users cannot change passwords.
+func (s *service) ChangePassword(userID, currentPassword, newPassword string) error {
+	if len(newPassword) < 8 {
+		return fmt.Errorf("password must be at least 8 characters")
+	}
+	ctx := context.Background()
+	row, err := s.client.AppUser.Get(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("user not found: %w", err)
+	}
+	if row.Revoked {
+		return fmt.Errorf("invalid credentials")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(row.PasswordHash), []byte(currentPassword)); err != nil {
+		return fmt.Errorf("invalid credentials")
+	}
+	hash, err := hashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+	if err := s.client.AppUser.UpdateOneID(userID).SetPasswordHash(hash).Exec(ctx); err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+	return nil
+}
+
 // VerifyUser checks a username/password within a tenant. It returns the user
 // row on success; revoked users never authenticate.
 func (s *service) VerifyUser(tenantID, username, password string) (*ent.AppUser, error) {

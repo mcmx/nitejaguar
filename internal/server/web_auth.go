@@ -8,6 +8,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/labstack/echo/v4"
 	"github.com/mcmx/nitejaguar/cmd/web"
+	"github.com/mcmx/nitejaguar/cmd/web/modules"
 	"github.com/mcmx/nitejaguar/ent"
 	"github.com/mcmx/nitejaguar/internal/database"
 )
@@ -54,6 +55,21 @@ func (s *Server) requireWebLogin(next echo.HandlerFunc) echo.HandlerFunc {
 		// Users exist and the browser holds no valid session.
 		return c.Redirect(http.StatusSeeOther, "/login")
 	}
+}
+
+// navUser builds the navbar identity for a browser request. It returns nil
+// for anonymous callers (menu hidden); in open-bootstrap mode (no users
+// yet) it returns a synthetic admin so the menu stays usable until the
+// first admin is created.
+func (s *Server) navUser(c echo.Context) *modules.NavUser {
+	user, open := s.webCurrentUser(c)
+	if open {
+		return &modules.NavUser{Username: "bootstrap", TenantID: "default", Role: database.RoleAdmin, LoggedIn: true}
+	}
+	if user == nil {
+		return nil
+	}
+	return &modules.NavUser{ID: user.ID, Username: user.Username, TenantID: user.TenantID, Role: user.Role, LoggedIn: true}
 }
 
 // webActor returns the audit actor for web form posts.
@@ -130,7 +146,7 @@ func (s *Server) auditPage(c echo.Context) error {
 	if !open && user == nil {
 		return c.Redirect(http.StatusSeeOther, "/login")
 	}
-	data := &web.AuditPageData{}
+	data := &web.AuditPageData{CurrentUser: s.navUser(c)}
 	logs, err := s.db.ListAuditLogs(200)
 	if err != nil {
 		data.Error = "Unable to load audit trail"
@@ -160,22 +176,6 @@ func (s *Server) usersPage(c echo.Context) error {
 			return c.String(http.StatusForbidden, "operator role required")
 		}
 	}
-	data := &web.UsersPageData{}
-	rows, err := s.db.ListUsers("")
-	if err != nil {
-		data.Error = "Unable to load users"
-	} else {
-		for _, row := range rows {
-			if !open && user != nil && user.Role != database.RoleAdmin && row.TenantID != user.TenantID {
-				continue
-			}
-			data.Users = append(data.Users, web.UserView{
-				ID: row.ID, TenantID: row.TenantID, Username: row.Username,
-				Role: row.Role, Groups: append([]string(nil), row.Groups...),
-				Revoked: row.Revoked, CreatedAt: row.CreatedAt.Format("2006-01-02 15:04:05 MST"),
-			})
-		}
-	}
-	templ.Handler(web.UsersPage(data)).ServeHTTP(c.Response(), c.Request())
+	templ.Handler(web.UsersPage(s.usersPageData(c))).ServeHTTP(c.Response(), c.Request())
 	return nil
 }

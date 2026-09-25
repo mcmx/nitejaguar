@@ -93,6 +93,15 @@ cross-tenant). See [RBAC](./rbac.md).
 - `GET /api/credentials/{id}` — single metadata (secrets never exposed).
 - `DELETE /api/credentials/{id}` — delete a stored secret.
 
+## Website
+
+`GET /credentials` (navbar: **Credentials**) lists metadata with a
+store form (name, type, scope, owner for group/user scope, secret,
+description) and per-credential delete buttons — operator+ (own
+tenant; cross-tenant via the API as admin). Secrets are never
+displayed; the form password field is accepted once and only metadata
+returns.
+
 ## Workflow usage
 
 AWS-collection shape (the registry and enforcement exist; the EC2/S3

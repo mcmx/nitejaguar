@@ -1,10 +1,15 @@
 package modules
 
-templ Navbar() {
+templ Navbar(user *NavUser) {
 	<nav class="border-b py-3">
 		<div class="container mx-auto px-4 flex items-center justify-between">
-			<div class="flex gap-4 text-sm"><a href="/" class="hover:text-red-500">Workflows</a><a href="/designer" class="hover:text-red-500">Designer</a><a href="/clients" class="hover:text-red-500">Clients</a><a href="/results" class="hover:text-red-500">Results</a><a href="/audit" class="hover:text-red-500">Audit</a><a href="/users" class="hover:text-red-500">Users</a></div>
-			<div class="flex items-center gap-4"><a href="/login" class="text-sm hover:text-red-500">Login</a><form method="post" action="/logout" class="m-0"><button type="submit" class="text-sm hover:text-red-500">Logout</button></form>@ThemeSwitcher()</div>
+			if user != nil && user.LoggedIn {
+				<div class="flex gap-4 text-sm"><a href="/" class="hover:text-red-500">Workflows</a><a href="/designer" class="hover:text-red-500">Designer</a><a href="/clients" class="hover:text-red-500">Clients</a><a href="/credentials" class="hover:text-red-500">Credentials</a><a href="/results" class="hover:text-red-500">Results</a><a href="/audit" class="hover:text-red-500">Audit</a><a href="/users" class="hover:text-red-500">Users</a></div>
+				<div class="flex items-center gap-4"><a href="/profile" class="text-sm text-muted-foreground hover:text-red-500" title={ user.Role + " @ " + user.TenantID }>{ user.Username }</a><form method="post" action="/logout" class="m-0"><button type="submit" class="text-sm hover:text-red-500">Logout</button></form>@ThemeSwitcher()</div>
+			} else {
+				<div class="flex gap-4 text-sm"><span class="font-medium">Nite Jaguar</span></div>
+				<div class="flex items-center gap-4"><a href="/login" class="text-sm hover:text-red-500">Login</a>@ThemeSwitcher()</div>
+			}
 		</div>
 	</nav>
 }
