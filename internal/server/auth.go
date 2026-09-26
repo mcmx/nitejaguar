@@ -114,6 +114,24 @@ type RevokeUserOutput struct {
 	}
 }
 
+type ChangePasswordInput struct {
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+	Body          struct {
+		CurrentPassword string `json:"current_password,omitempty"`
+		NewPassword     string `json:"new_password"`
+		// UserID optionally targets another user (admin-only reset; the
+		// current password is not required in that case). Empty means self.
+		UserID string `json:"user_id,omitempty"`
+	}
+}
+
+type ChangePasswordOutput struct {
+	Body struct {
+		Ok bool `json:"ok"`
+	}
+}
+
 // sessionToken extracts a user session token from Authorization Bearer or
 // X-Auth-Token. Client tokens (client_ sessions) are not accepted here;
 // user sessions are minted via /api/auth/login.
@@ -336,6 +354,63 @@ func (s *Server) RevokeUser(_ context.Context, input *RevokeUserInput) (*RevokeU
 	_ = s.db.LogAudit("user.revoke", row.TenantID, actor, input.ID, "username="+row.Username)
 	log.Printf("user revoked: id=%s tenant=%s", input.ID, row.TenantID)
 	out := &RevokeUserOutput{}
+	out.Body.Ok = true
+	return out, nil
+}
+
+// ChangePassword lets a user change their own password (current password
+// required) or lets an admin reset another user's password without knowing
+// it (user_id set, current password not required). Every change is audited.
+func (s *Server) ChangePassword(_ context.Context, input *ChangePasswordInput) (*ChangePasswordOutput, error) {
+	caller, actor, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleViewer)
+	if err != nil {
+		return nil, err
+	}
+	if caller == nil {
+		return nil, huma.Error401Unauthorized("login required")
+	}
+	if strings.TrimSpace(input.Body.NewPassword) == "" {
+		return nil, huma.Error400BadRequest("new_password is required")
+	}
+	targetID := strings.TrimSpace(input.Body.UserID)
+	if targetID == "" || targetID == caller.ID {
+		if input.Body.CurrentPassword == "" {
+			return nil, huma.Error400BadRequest("current_password is required")
+		}
+		if err := s.db.ChangePassword(caller.ID, input.Body.CurrentPassword, input.Body.NewPassword); err != nil {
+			msg := err.Error()
+			if strings.Contains(msg, "invalid credentials") {
+				_ = s.db.LogAudit("user.password_change", caller.TenantID, actor, caller.ID, "failed: bad current password")
+				return nil, huma.Error401Unauthorized("invalid credentials")
+			}
+			if strings.Contains(msg, "at least 8 characters") {
+				return nil, huma.Error400BadRequest(msg)
+			}
+			return nil, huma.Error500InternalServerError(msg)
+		}
+		_ = s.db.LogAudit("user.password_change", caller.TenantID, actor, caller.ID, "changed via API")
+		log.Printf("user password changed: id=%s tenant=%s", caller.ID, caller.TenantID)
+		out := &ChangePasswordOutput{}
+		out.Body.Ok = true
+		return out, nil
+	}
+	if caller.Role != database.RoleAdmin {
+		return nil, huma.Error403Forbidden("resetting another user's password requires admin")
+	}
+	row, err := s.db.GetUser(targetID)
+	if err != nil {
+		return nil, huma.Error404NotFound(err.Error())
+	}
+	if err := s.db.UpdatePassword(targetID, input.Body.NewPassword); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "at least 8 characters") || strings.Contains(msg, "user not found") {
+			return nil, huma.Error400BadRequest(msg)
+		}
+		return nil, huma.Error500InternalServerError(msg)
+	}
+	_ = s.db.LogAudit("user.password_change", row.TenantID, actor, targetID, "reset by admin via API")
+	log.Printf("user password reset by admin: id=%s tenant=%s actor=%s", targetID, row.TenantID, actor)
+	out := &ChangePasswordOutput{}
 	out.Body.Ok = true
 	return out, nil
 }

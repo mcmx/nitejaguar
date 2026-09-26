@@ -1,0 +1,41 @@
+package web
+
+templ ProfilePage(data *ProfilePageData) {
+	@Base(data.CurrentUser) {
+		<main class="container mx-auto max-w-2xl px-4 py-8">
+			<div class="mb-8 flex flex-col gap-3">
+				<div>
+					<p class="text-sm font-medium text-red-500">Nite Jaguar</p>
+					<h1 class="text-3xl font-bold tracking-tight">Profile</h1>
+				</div>
+			</div>
+			if data.Error != "" {
+				<p class="mb-6 rounded-lg border border-red-500/50 p-4 text-red-500">{ data.Error }</p>
+			}
+			if data.Success != "" {
+				<p class="mb-6 rounded-lg border border-green-500/50 p-4 text-green-600">{ data.Success }</p>
+			}
+			<div class="mb-8 rounded-lg border border-border p-5">
+				<h2 class="font-semibold">{ data.User.Username }</h2>
+				<p class="mt-1 break-all font-mono text-xs text-muted-foreground">{ data.User.ID }</p>
+				<div class="mt-4 grid gap-2 text-sm text-muted-foreground"><p><strong class="text-foreground">Tenant:</strong> { data.User.TenantID }</p><p><strong class="text-foreground">Role:</strong> { data.User.Role }</p><p><strong class="text-foreground">Groups:</strong> { sprintStrings(data.User.Groups) }</p></div>
+			</div>
+			<form method="post" action="/profile/password" class="space-y-4 rounded-lg border border-border p-5">
+				<h2 class="font-semibold">Change password</h2>
+				<div>
+					<label class="mb-1 block text-xs font-medium">Current password</label>
+					<input type="password" name="current_password" required autocomplete="current-password" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+				</div>
+				<div>
+					<label class="mb-1 block text-xs font-medium">New password (min 8 chars)</label>
+					<input type="password" name="new_password" required minlength="8" autocomplete="new-password" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+				</div>
+				<div>
+					<label class="mb-1 block text-xs font-medium">Confirm new password</label>
+					<input type="password" name="confirm_password" required minlength="8" autocomplete="new-password" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+				</div>
+				<button type="submit" class="rounded bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">Change password</button>
+			</form>
+		</main>
+	}
+}

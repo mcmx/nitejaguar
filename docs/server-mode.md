@@ -43,16 +43,26 @@ reference.
 - **Bootstrap**: first server run prints a one-time `admin` password to
   stdout (or set `ADMIN_PASSWORD`). Use it to log in at `/login` or
   `POST /api/auth/login`.
-- **Website**: `/login`, `/logout`, `/audit` (audit trail), `/users`
-  (roster). Anonymous browsers redirect to `/login` once users exist.
+- **Website**: `/login`, `/logout`, `/profile` (own profile +
+  password change), `/credentials` (metadata list + store/delete
+  forms), `/clients` (client roster with revoke buttons, enrollment
+  token list with revoke, and an enroll-a-client form that mints a
+  token and prints the ready-to-run enrollment command once),
+  `/users` (roster + admin create/revoke forms), `/audit` (audit
+  trail). Anonymous browsers redirect to `/login` once users exist,
+  and the navbar hides every app link until you log in (only Login
+  stays visible).
 - **Gated API** (operator+ unless noted): enrollment tokens
   (`POST/GET /api/enrollment/tokens`, revoke), client revoke,
-  credential create/delete, workflow import/clone; user management is
-  admin-only (`POST/GET /api/users`, revoke); audit read is viewer+.
-  Sessions go in `Authorization: Bearer` / `X-Auth-Token` (cookie on
-  web).
-- **Audit**: `auth.login/logout`, `user.create/revoke`,
-  `workflow.import/clone/enable`, plus the existing enrollment, client,
+  credential create/delete, workflow import/clone/delete
+  (`DELETE /api/workflows/{id}`, audited as `workflow.delete`);
+  password change is any role (`POST /api/auth/password` — own
+  password with current required; admins may reset others via
+  `user_id`); user management is admin-only (`POST/GET
+  /api/users`, revoke); audit read is viewer+. Sessions go in
+  `Authorization: Bearer` / `X-Auth-Token` (cookie on web).
+- **Audit**: `auth.login/logout`, `user.create/revoke/password_change`,
+  `workflow.import/clone/enable/delete`, plus the existing enrollment, client,
   credential, and assignment actions; `GET /api/audit` is tenant-scoped
   for non-admins.
 
@@ -81,7 +91,21 @@ is ignored).
 - **Client revoke** (operator+): `POST /api/clients/{id}/revoke` — the client's
   token stops authenticating (heartbeat, assignments, results all
   return `401`); revoked clients show as `revoked`/stale in
-  `GET /api/clients` and on the `/clients` page.
+  `GET /api/clients` and on the `/clients` page (revoke button per
+  client).
+- **Enrolling from the UI**: on `/clients`, fill in the client name
+  (plus optional label, expiry hours, max uses — empty max uses means
+  a single enrollment) and submit. The page mints a token and shows
+  the copy-paste command **once** (the plaintext is stored hashed and
+  cannot be recovered later):
+
+  ```bash
+  nitejaguar client --server https://server:8080 --name edge-worker-1 --enrollment-token <TOKEN>
+  ```
+
+  Names with spaces are shell-quoted automatically. Existing tokens
+  are listed with use counts and revoke buttons; revoking blocks new
+  joins with that token.
 - **Audit**: every enrollment use, token op, and client revoke is
   recorded; `GET /api/audit?limit=100` (viewer+, tenant-scoped for
   non-admins) returns the trail

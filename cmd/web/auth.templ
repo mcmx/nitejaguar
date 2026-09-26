@@ -1,7 +1,7 @@
 package web
 
 templ LoginPage(data *LoginPageData) {
-	@Base() {
+	@Base(nil) {
 		<main class="container mx-auto max-w-md px-4 py-8">
 			<div class="mb-8 flex flex-col gap-3">
 				<div>
@@ -37,7 +37,7 @@ templ LoginPage(data *LoginPageData) {
 }
 
 templ AuditPage(data *AuditPageData) {
-	@Base() {
+	@Base(data.CurrentUser) {
 		<main class="container mx-auto max-w-6xl px-4 py-8">
 			<div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
 				<div>
@@ -65,7 +65,7 @@ templ AuditPage(data *AuditPageData) {
 }
 
 templ UsersPage(data *UsersPageData) {
-	@Base() {
+	@Base(data.CurrentUser) {
 		<main class="container mx-auto max-w-6xl px-4 py-8">
 			<div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
 				<div>
@@ -73,10 +73,46 @@ templ UsersPage(data *UsersPageData) {
 					<h1 class="text-3xl font-bold tracking-tight">Users</h1>
 				</div>
 			</div>
-			<p class="mb-6 text-sm text-muted-foreground">Roles: <code>admin</code> manages users and everything; <code>operator</code> manages tokens, clients, credentials, and workflows; <code>viewer</code> reads. Manage users via the API (<code>POST /api/users</code>, revoke via API); login at <code>POST /api/auth/login</code>.</p>
+			<p class="mb-6 text-sm text-muted-foreground">Roles: <code>admin</code> manages users and everything; <code>operator</code> manages tokens, clients, credentials, and workflows; <code>viewer</code> reads. Change your own password on the <a href="/profile" class="text-red-500 hover:underline">Profile</a> page.</p>
 			if data.Error != "" {
-				<p class="rounded-lg border border-red-500/50 p-6 text-red-500">{ data.Error }</p>
-			} else if len(data.Users) == 0 {
+				<p class="mb-6 rounded-lg border border-red-500/50 p-4 text-red-500">{ data.Error }</p>
+			}
+			if data.Success != "" {
+				<p class="mb-6 rounded-lg border border-green-500/50 p-4 text-green-600">{ data.Success }</p>
+			}
+			if data.CurrentUser != nil && data.CurrentUser.IsAdmin() {
+				<form method="post" action="/users" class="mb-8 space-y-4 rounded-lg border border-border p-5">
+					<h2 class="font-semibold">Create user</h2>
+					<div class="grid gap-4 md:grid-cols-2">
+						<div>
+							<label class="mb-1 block text-xs font-medium">Username</label>
+							<input type="text" name="username" required class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+						</div>
+						<div>
+							<label class="mb-1 block text-xs font-medium">Password (min 8 chars)</label>
+							<input type="password" name="password" required minlength="8" autocomplete="new-password" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+						</div>
+						<div>
+							<label class="mb-1 block text-xs font-medium">Role</label>
+							<select name="role" class="w-full rounded border border-border bg-background px-3 py-2 text-sm">
+								<option value="viewer">viewer</option>
+								<option value="operator">operator</option>
+								<option value="admin">admin</option>
+							</select>
+						</div>
+						<div>
+							<label class="mb-1 block text-xs font-medium">Groups (comma separated)</label>
+							<input type="text" name="groups" placeholder="ops, gpu" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+						</div>
+						<div class="md:col-span-2">
+							<label class="mb-1 block text-xs font-medium">Tenant ID (admins may target any tenant; defaults to yours)</label>
+							<input type="text" name="tenant_id" placeholder={ data.CurrentUser.TenantID } class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+						</div>
+					</div>
+					<button type="submit" class="rounded bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">Create user</button>
+				</form>
+			}
+			if len(data.Users) == 0 {
 				<p class="rounded-lg border border-border p-6">No users yet. Create the first admin via <code>POST /api/users</code> (open until the first user exists).</p>
 			} else {
 				<div class="grid gap-4 md:grid-cols-2">
@@ -91,6 +127,9 @@ templ UsersPage(data *UsersPageData) {
 								}
 							</div>
 							<div class="mt-4 grid gap-2 text-sm text-muted-foreground"><p><strong class="text-foreground">Tenant:</strong> { u.TenantID }</p><p><strong class="text-foreground">Groups:</strong> { sprintStrings(u.Groups) }</p><p><strong class="text-foreground">Created:</strong> { u.CreatedAt }</p></div>
+							if data.CurrentUser != nil && data.CurrentUser.IsAdmin() && !u.Revoked && (data.CurrentUser.ID != u.ID) {
+								<form method="post" action={ templ.URL("/users/" + u.ID + "/revoke") } class="mt-4" onsubmit="return confirm('Revoke user { u.Username }? Their sessions stop working immediately.');"><button type="submit" class="rounded border border-border px-3 py-1 text-xs hover:border-red-500">Revoke user</button></form>
+							}
 						</article>
 					}
 				</div>

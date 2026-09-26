@@ -45,6 +45,7 @@ type Service interface {
 	// GetWorkflows retrieves all workflow definitions from the database
 	GetWorkflows(all, isEnabled bool) ([]*ent.Workflow, error)
 	SetWorkflowEnabled(workflowID string, enabled bool) error
+	DeleteWorkflow(workflowID string) error
 
 	// Client database operations
 	RegisterClient(name string, tags []string, tenantID string) (*ent.RemoteClient, string, error)
@@ -101,6 +102,8 @@ type Service interface {
 	CountUsers() (int, error)
 	RevokeUser(id string) error
 	VerifyUser(tenantID, username, password string) (*ent.AppUser, error)
+	UpdatePassword(userID, newPassword string) error
+	ChangePassword(userID, currentPassword, newPassword string) error
 	CreateSession(userID string, ttl time.Duration) (*ent.AuthSession, string, error)
 	AuthenticateSession(token string) (*ent.AppUser, *ent.AuthSession, error)
 	RevokeSession(token string) error
@@ -294,6 +297,17 @@ func (s *service) GetWorkflows(all, isEnabled bool) ([]*ent.Workflow, error) {
 
 func (s *service) SetWorkflowEnabled(workflowID string, enabled bool) error {
 	return s.client.Workflow.UpdateOneID(workflowID).SetEnabled(enabled).Exec(context.Background())
+}
+
+// DeleteWorkflow removes a workflow definition by id.
+func (s *service) DeleteWorkflow(workflowID string) error {
+	if _, err := s.client.Workflow.Get(context.Background(), workflowID); err != nil {
+		return fmt.Errorf("workflow not found: %w", err)
+	}
+	if err := s.client.Workflow.DeleteOneID(workflowID).Exec(context.Background()); err != nil {
+		return fmt.Errorf("failed to delete workflow: %w", err)
+	}
+	return nil
 }
 
 func hashToken(token string) string {
