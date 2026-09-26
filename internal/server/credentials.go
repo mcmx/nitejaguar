@@ -44,8 +44,13 @@ type CreateCredentialInput struct {
 		Type        string `json:"type,omitempty"`
 		Scope       string `json:"scope,omitempty"`
 		OwnerID     string `json:"owner_id,omitempty"`
-		Secret      string `json:"secret"`
-		Description string `json:"description,omitempty"`
+		Secret      string `json:"secret,omitempty"`
+		// SecretFields is the structured alternative to Secret: per-type
+		// field name -> value (see common.CredentialTypeDefs). When
+		// present it is validated and encoded server-side into the
+		// stored secret string (JSON object for multi-field types).
+		SecretFields map[string]string `json:"secret_fields,omitempty"`
+		Description  string            `json:"description,omitempty"`
 	}
 }
 
@@ -119,14 +124,26 @@ func (s *Server) CreateCredential(_ context.Context, input *CreateCredentialInpu
 	if strings.TrimSpace(input.Body.Name) == "" {
 		return nil, huma.Error400BadRequest("name is required")
 	}
-	if input.Body.Secret == "" {
+	secret := input.Body.Secret
+	if len(input.Body.SecretFields) > 0 {
+		ctype := input.Body.Type
+		if ctype == "" {
+			ctype = "generic"
+		}
+		encoded, err := common.EncodeCredentialSecret(ctype, input.Body.SecretFields)
+		if err != nil {
+			return nil, huma.Error400BadRequest(err.Error())
+		}
+		secret = encoded
+	}
+	if secret == "" {
 		return nil, huma.Error400BadRequest("secret is required")
 	}
 	tenantID, err := scopedTenant(caller, input.Body.TenantID)
 	if err != nil {
 		return nil, err
 	}
-	row, err := s.db.CreateCredential(tenantID, input.Body.Name, input.Body.Type, input.Body.Scope, input.Body.OwnerID, input.Body.Secret, input.Body.Description)
+	row, err := s.db.CreateCredential(tenantID, input.Body.Name, input.Body.Type, input.Body.Scope, input.Body.OwnerID, secret, input.Body.Description)
 	if err != nil {
 		// Duplicate names and validation errors are client errors; only
 		// storage/crypto failures are 500s. Distinguish by message prefix.

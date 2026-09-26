@@ -13,6 +13,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/labstack/echo/v4"
 	"github.com/mcmx/nitejaguar/cmd/web"
+	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/workflow"
 )
@@ -91,7 +92,7 @@ func (s *Server) renderUsers(c echo.Context, data *web.UsersPageData) error {
 // non-admins. Secrets are never exposed.
 func (s *Server) credentialsPageData(c echo.Context) *web.CredentialsPageData {
 	user, open := s.webCurrentUser(c)
-	data := &web.CredentialsPageData{CurrentUser: s.navUser(c), Types: database.SupportedCredentialTypes}
+	data := &web.CredentialsPageData{CurrentUser: s.navUser(c), Defs: common.CredentialTypeDefs()}
 	tenant := ""
 	if !open && user != nil && user.Role != database.RoleAdmin {
 		tenant = user.TenantID
@@ -141,11 +142,46 @@ func (s *Server) createCredentialWeb(c echo.Context) error {
 	}
 	name := strings.TrimSpace(c.FormValue("name"))
 	credType := strings.TrimSpace(c.FormValue("type"))
+	if credType == "" {
+		credType = "generic"
+	}
 	scope := strings.TrimSpace(c.FormValue("scope"))
 	ownerID := strings.TrimSpace(c.FormValue("owner_id"))
-	secret := c.FormValue("secret")
 	description := strings.TrimSpace(c.FormValue("description"))
 	data := s.credentialsPageData(c)
+	def, ok := common.CredentialTypeDefFor(credType)
+	if !ok {
+		data.Error = "Unknown credential type " + credType + "."
+		templ.Handler(web.CredentialsPage(data)).ServeHTTP(c.Response(), c.Request())
+		return nil
+	}
+	// Assemble the secret from the per-type fields (form inputs named
+	// "secret_"+field). The legacy single "secret" input is honored as a
+	// fallback so older posted forms keep working.
+	values := make(map[string]string, len(def.Fields))
+	anySet := false
+	for _, f := range def.Fields {
+		v := c.FormValue("secret_" + f.Name)
+		values[f.Name] = v
+		if strings.TrimSpace(v) != "" {
+			anySet = true
+		}
+	}
+	secret := ""
+	if !anySet {
+		if legacy := c.FormValue("secret"); legacy != "" {
+			secret = legacy
+		}
+	}
+	if secret == "" {
+		var encErr error
+		secret, encErr = common.EncodeCredentialSecret(credType, values)
+		if encErr != nil {
+			data.Error = "Invalid credential: " + encErr.Error()
+			templ.Handler(web.CredentialsPage(data)).ServeHTTP(c.Response(), c.Request())
+			return nil
+		}
+	}
 	if name == "" || secret == "" {
 		data.Error = "Name and secret are required."
 		templ.Handler(web.CredentialsPage(data)).ServeHTTP(c.Response(), c.Request())

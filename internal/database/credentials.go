@@ -201,8 +201,13 @@ func (s *service) CreateCredential(tenantID, name, credType, scope, ownerID, sec
 	} else if strings.TrimSpace(ownerID) == "" {
 		return nil, fmt.Errorf("owner_id is required for %s scope", scope)
 	}
-	if secretPlaintext == "" {
-		return nil, fmt.Errorf("secret is required")
+	// Per-type secret-shape validation: single-value types need a raw
+	// non-empty string, multi-field types (username_password, ssh_key,
+	// aws) need a JSON object carrying every required field. The web
+	// form and the API secret_fields path assemble that JSON via
+	// common.EncodeCredentialSecret; raw API callers send it directly.
+	if err := common.ValidateCredentialSecret(credType, secretPlaintext); err != nil {
+		return nil, err
 	}
 	ctx := context.Background()
 	existing, err := s.client.Credential.Query().

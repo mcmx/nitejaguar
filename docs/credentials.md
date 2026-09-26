@@ -29,12 +29,43 @@ assignment payloads.
   `internal/actions/actions.go` delegate to it) is the source of truth.
   No new executables (EC2/S3) ship with the foundation — the AWS actions
   are registry placeholders for now.
+- **Secret shapes** are declared per type in
+  `common/credential_types.go` (`CredentialTypeDefs`), the single source
+  of truth for the web form, API encoding, and creation-time validation:
+
+  | Type | Stored secret | Fields |
+  |---|---|---|
+  | `generic` | raw string (verbatim) | `value` (required) |
+  | `token` | raw string (verbatim) | `token` (required) |
+  | `username_password` | JSON object | `username` (required), `password` (required) |
+  | `ssh_key` | JSON object | `username` (optional), `private_key` PEM (required), `passphrase` (optional) |
+  | `aws` | JSON object | `access_key_id` (required), `secret_access_key` (required), `region` (optional), `session_token` (optional, STS only) |
+
+  Examples of stored (pre-encryption) secrets:
+
+  ```json
+  // username_password
+  {"username": "svc", "password": "…"}
+  // aws
+  {"access_key_id": "AKIA…", "secret_access_key": "…", "region": "eu-west-1"}
+  // ssh_key
+  {"username": "deploy", "private_key": "-----BEGIN OPENSSH PRIVATE KEY-----…"}
+  ```
+
+  Fetch returns the same opaque string (`secret`); single-value types
+  come back verbatim, multi-field types come back as the JSON object for
+  the client to parse (see `DecodeCredentialSecret`).
 
 ## Type enforcement
 
 - **Create**: the credential `type` must be a known type (generic
   families plus each collection's declared type); anything else
-  (e.g. `s3`) is rejected with `400`.
+  (e.g. `s3`) is rejected with `400`. The secret must match the type's
+  shape: raw non-empty for `generic`/`token`, a JSON object carrying
+  every required field for `username_password`/`ssh_key`/`aws`
+  (e.g. posting `"secret": "just-a-string"` for `username_password`
+  fails with `400 missing required field "username"...`). Unknown
+  `secret_fields` keys are rejected so typos fail fast.
 - **Fetch**: when the request carries `workflow_id` + `node_id` resolving
   to a collection-typed node (e.g. an AWS `s3` node expects `aws`),
   the resolved credential's type must match, otherwise the fetch fails
@@ -85,10 +116,15 @@ Credential create/delete requires operator+ (own tenant; admin for
 cross-tenant). See [RBAC](./rbac.md).
 
 - `POST /api/credentials` — store a secret encrypted at rest
-  (`{tenant_id?, name, type?, scope?, owner_id?, secret, description?}`;
-  `scope` is `tenant`/`group`/`user`, `owner_id` required for
-  group/user; names are unique per tenant/scope/owner). Returns metadata
-  only — the plaintext is accepted once and never returned.
+  (`{tenant_id?, name, type?, scope?, owner_id?, secret, secret_fields?,
+  description?}`; `scope` is `tenant`/`group`/`user`, `owner_id`
+  required for group/user; names are unique per tenant/scope/owner).
+  Returns metadata only — the plaintext is accepted once and never
+  returned. Send the secret either as `secret` (raw string for
+  `generic`/`token`, JSON object string for multi-field types) or as
+  structured `secret_fields` (`{username, password, …}` per the table
+  above — the server validates and encodes it; unknown keys are
+  rejected).
 - `GET /api/credentials?tenant_id=` — list metadata (secrets never exposed).
 - `GET /api/credentials/{id}` — single metadata (secrets never exposed).
 - `DELETE /api/credentials/{id}` — delete a stored secret.
@@ -96,11 +132,17 @@ cross-tenant). See [RBAC](./rbac.md).
 ## Website
 
 `GET /credentials` (navbar: **Credentials**) lists metadata with a
-store form (name, type, scope, owner for group/user scope, secret,
-description) and per-credential delete buttons — operator+ (own
-tenant; cross-tenant via the API as admin). Secrets are never
-displayed; the form password field is accepted once and only metadata
-returns.
+store form (name, type, scope, owner for group/user scope, per-type
+secret fields, description) and per-credential delete buttons —
+operator+ (own tenant; cross-tenant via the API as admin). The type
+select drives the secret inputs (Alpine toggle, specs from
+`CredentialTypeDefs`): `generic`/`token` show one password field,
+`username_password` shows username + password, `ssh_key` shows optional
+username + PEM textarea + optional passphrase, `aws` shows access key ID
++ secret access key + optional region/session token. Hidden inputs are
+disabled so they never block submit or leak into the request; the owner
+field only appears for `group`/`user` scope. Secrets are never
+displayed; fields are accepted once and only metadata returns.
 
 ## Workflow usage
 
