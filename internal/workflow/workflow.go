@@ -110,10 +110,14 @@ func (wm *workflowManager) Run(ctx context.Context) {
 			if n.MergeInput {
 				result.Payload = wm.applyMergeInput(result, n)
 			}
+			decision := n.EvaluateRouting([]any{}, result)
+			result.ConditionResults = decision.Results
+			result.Nexts = decision.Nexts
+			result.ConditionError = decision.ConditionError
 			wm.saveResult(result)
 			wm.rememberResult(result)
 
-			nexts := n.GetNextNodes([]any{}, result)
+			nexts := decision.Nexts
 			fmt.Printf("Current %v and next nodes %v,\n", n, nexts)
 			for _, next := range nexts {
 				fmt.Printf("Executing next node %v,\n", next)
@@ -137,6 +141,13 @@ func (wm *workflowManager) Run(ctx context.Context) {
 }
 
 func (wm *workflowManager) saveResult(result common.ResultData) {
+	if result.ResultID == "" {
+		rID, _ := typeid.WithPrefix("result")
+		result.ResultID = rID.String()
+	}
+	if result.CreatedAt.IsZero() {
+		result.CreatedAt = time.Now()
+	}
 	jsonResult, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		log.Printf("Cannot marshal result %s: %s", result.ResultID, err)
@@ -152,6 +163,14 @@ func (wm *workflowManager) saveResult(result common.ResultData) {
 		return
 	}
 	log.Println("Node Result JSON file saved:", jsonFileName)
+	// Dual-write to the DB (queryable store); the JSON file stays as a
+	// human-readable backup. Best-effort: file-first so a DB outage
+	// never loses the result.
+	if wm.db != nil {
+		if _, err := wm.db.SaveResult(result); err != nil {
+			log.Printf("Cannot save result %s to DB: %s", result.ResultID, err)
+		}
+	}
 }
 
 // type Node
@@ -224,12 +243,25 @@ func (w *Workflow) NodeAssignedTo(n Node, clientID string, tags []string) bool {
 	return tmp.AssignedTo(clientID, tags)
 }
 
+// RoutingDecision is the recorded outcome of evaluating a node's
+// conditions against its own result. Results maps each condition entry
+// ID to whether it matched; Nexts is the flattened downstream node list;
+// ConditionError holds the first evaluation error, if any (routing
+// continues with the remaining entries).
+type RoutingDecision struct {
+	Nexts          []string
+	Results        map[string]bool
+	ConditionError string
+}
+
+// EvaluateRouting evaluates every condition entry and records the
+// per-entry outcome plus the flattened next-node list.
 // args how this node was called
 // The result from this execution
-func (n *Node) GetNextNodes(inputs []any, result common.ResultData) []string {
-	next_nodes := []string{}
+func (n *Node) EvaluateRouting(inputs []any, result common.ResultData) RoutingDecision {
+	decision := RoutingDecision{Results: map[string]bool{}}
 	if n.Conditions == nil {
-		return next_nodes
+		return decision
 	}
 	actionArgs := common.ActionArgs{
 		Id:         n.Id,
@@ -238,16 +270,26 @@ func (n *Node) GetNextNodes(inputs []any, result common.ResultData) []string {
 		ActionName: n.ActionName,
 		Args:       n.Arguments,
 	}
-	for _, c := range n.Conditions.Entries {
+	for id, c := range n.Conditions.Entries {
 		ok, err := c.Condition.evaluate(actionArgs, inputs, result)
 		if err != nil {
 			log.Printf("Error evaluating condition: %s", err)
+			if decision.ConditionError == "" {
+				decision.ConditionError = err.Error()
+			}
 		}
+		decision.Results[id] = ok
 		if ok {
-			next_nodes = append(next_nodes, c.Nexts...)
+			decision.Nexts = append(decision.Nexts, c.Nexts...)
 		}
 	}
-	return next_nodes
+	return decision
+}
+
+// args how this node was called
+// The result from this execution
+func (n *Node) GetNextNodes(inputs []any, result common.ResultData) []string {
+	return n.EvaluateRouting(inputs, result).Nexts
 }
 
 func (n *Node) GetAllNextNodes() []string {
@@ -538,10 +580,14 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 	if node.MergeInput {
 		result.Payload = wm.applyMergeInput(result, node)
 	}
+	decision := node.EvaluateRouting([]any{}, result)
+	result.ConditionResults = decision.Results
+	result.Nexts = decision.Nexts
+	result.ConditionError = decision.ConditionError
 	wm.saveResult(result)
 	wm.rememberResult(result)
 
-	nexts := node.GetNextNodes([]any{}, result)
+	nexts := decision.Nexts
 	// Persist dispatch state: the reporting node is done, every downstream
 	// next becomes a pending assignment for its owner to poll. Enqueue is
 	// idempotent, so re-ingested (replayed) results are safe.

@@ -14,12 +14,14 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
+	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/ent"
 	"github.com/mcmx/nitejaguar/ent/auditlog"
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
 	"github.com/mcmx/nitejaguar/ent/nodeassignment"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
 	"github.com/mcmx/nitejaguar/ent/workflow"
+	"github.com/mcmx/nitejaguar/ent/workflowresult"
 	"go.jetify.com/typeid"
 
 	_ "github.com/joho/godotenv/autoload"
@@ -71,6 +73,13 @@ type Service interface {
 	EnqueueNodeAssignment(tenantID, workflowID, executionID, nodeID, parentActionID string, payload any) (*ent.NodeAssignment, error)
 	ListPendingAssignments() ([]*ent.NodeAssignment, error)
 	CompleteNodeAssignment(workflowID, executionID, nodeID string) error
+
+	// Node results: every ingested/local result is dual-written here (the
+	// ./results JSON files stay as a human-readable backup). SaveResult is
+	// idempotent per result_id so replayed results are safe.
+	SaveResult(r common.ResultData) (*ent.WorkflowResult, error)
+	GetResult(id string) (*ent.WorkflowResult, error)
+	ListResults(workflowID, executionID string, limit int) ([]*ent.WorkflowResult, error)
 
 	// Credentials model (roadmap slice 3): nodes hold a credential_ref,
 	// never the secret. Secrets are encrypted at rest and delivered
@@ -642,6 +651,92 @@ func (s *service) CompleteNodeAssignment(workflowID, executionID, nodeID string)
 		return fmt.Errorf("failed to complete assignment: %w", err)
 	}
 	return nil
+}
+
+// SaveResult persists a node result (common.ResultData) including its
+// condition evaluation (per-entry outcomes, derived nexts, first error).
+// It is idempotent per result_id: an existing row is returned unchanged
+// so replayed results cannot duplicate.
+func (s *service) SaveResult(r common.ResultData) (*ent.WorkflowResult, error) {
+	if r.ResultID == "" {
+		return nil, fmt.Errorf("result_id is required")
+	}
+	ctx := context.Background()
+	if existing, err := s.client.WorkflowResult.Get(ctx, r.ResultID); err == nil {
+		return existing, nil
+	} else if !ent.IsNotFound(err) {
+		return nil, fmt.Errorf("failed to check existing result: %w", err)
+	}
+	tenantID := r.TenantID
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	payloadJSON := ""
+	if r.Payload != nil {
+		if raw, merr := json.Marshal(r.Payload); merr == nil {
+			payloadJSON = string(raw)
+		}
+	}
+	conditionJSON := ""
+	if len(r.ConditionResults) > 0 {
+		if raw, merr := json.Marshal(r.ConditionResults); merr == nil {
+			conditionJSON = string(raw)
+		}
+	}
+	nexts := r.Nexts
+	if nexts == nil {
+		nexts = []string{}
+	}
+	create := s.client.WorkflowResult.Create().
+		SetID(r.ResultID).
+		SetTenantID(tenantID).
+		SetWorkflowID(r.WorkflowID).
+		SetExecutionID(r.ExecutionID).
+		SetActionID(r.ActionID).
+		SetActionType(r.ActionType).
+		SetActionName(r.ActionName).
+		SetExecutorID(r.ExecutorID).
+		SetPayloadJSON(payloadJSON).
+		SetConditionResultsJSON(conditionJSON).
+		SetNexts(nexts).
+		SetConditionError(r.ConditionError)
+	if !r.CreatedAt.IsZero() {
+		create.SetCreatedAt(r.CreatedAt)
+	}
+	row, err := create.Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save result: %w", err)
+	}
+	return row, nil
+}
+
+// GetResult retrieves a persisted node result by result_id.
+func (s *service) GetResult(id string) (*ent.WorkflowResult, error) {
+	row, err := s.client.WorkflowResult.Get(context.Background(), id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get result: %w", err)
+	}
+	return row, nil
+}
+
+// ListResults lists persisted node results, newest first, optionally
+// filtered by workflow and/or execution. A non-positive limit means all.
+func (s *service) ListResults(workflowID, executionID string, limit int) ([]*ent.WorkflowResult, error) {
+	q := s.client.WorkflowResult.Query().Order(ent.Desc(workflowresult.FieldCreatedAt))
+	if workflowID != "" {
+		q.Where(workflowresult.WorkflowID(workflowID))
+	}
+	if executionID != "" {
+		q.Where(workflowresult.ExecutionID(executionID))
+	}
+	if limit > 0 {
+		q.Limit(limit)
+	}
+	rows, err := q.All(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list results: %w", err)
+	}
+	return rows, nil
 }
 
 // Ensure remoteclient import is used even when only enrollment code paths run.

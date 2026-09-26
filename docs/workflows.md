@@ -116,6 +116,32 @@ In the example the trigger inherits the workflow `gpu` default while the
 action overrides it to `cpu`. Import/clone preserve the defaults; the
 designer edits them as workflow-level fields.
 
+## Conditions & routing decisions
+
+Each node routes via its `conditions.entries`: every entry holds a
+`condition` (`leftOperand` / `operator` / `rightOperand`, with
+`$result.<path>` addressing the node's own payload and `$args.<path>`
+its static arguments) plus the downstream `nexts` taken when it matches.
+An omitted or empty condition is an unconditional route. Evaluation
+errors are logged server-side and recorded — they never fail the
+execution; routing continues with the healthy entries.
+
+The decision is persisted with the result that produced it:
+
+- `condition_results` — per-entry outcome (`entry id -> matched`).
+- `nexts` — flattened downstream node IDs whose entry matched.
+- `condition_error` — first evaluation error, if any.
+
+## Results
+
+Every node result is dual-written: one row in the `workflow_results` DB
+table (queryable via `SaveResult`/`GetResult`/`ListResults`, filterable
+by workflow/execution, idempotent per `result_id`) and one JSON mirror
+at `./results/<result_id>.json`. The `/results` page reads the DB first
+(files cover legacy rows), and `POST /api/results` returns
+`{workflow_id, execution_id, nexts, condition_results,
+condition_error}` so callers see the routing decision immediately.
+
 ## Credential references
 
 Every node (actions AND triggers) may set `credential_ref` to a

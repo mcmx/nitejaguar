@@ -17,6 +17,7 @@ import (
 	"github.com/mcmx/nitejaguar/ent/transfersession"
 	"github.com/mcmx/nitejaguar/ent/transfersignal"
 	"github.com/mcmx/nitejaguar/ent/workflow"
+	"github.com/mcmx/nitejaguar/ent/workflowresult"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -429,4 +430,54 @@ func init() {
 	workflowDescID := workflowFields[0].Descriptor()
 	// workflow.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	workflow.IDValidator = workflowDescID.Validators[0].(func(string) error)
+	workflowresultFields := schema.WorkflowResult{}.Fields()
+	_ = workflowresultFields
+	// workflowresultDescTenantID is the schema descriptor for tenant_id field.
+	workflowresultDescTenantID := workflowresultFields[1].Descriptor()
+	// workflowresult.DefaultTenantID holds the default value on creation for the tenant_id field.
+	workflowresult.DefaultTenantID = workflowresultDescTenantID.Default.(string)
+	// workflowresultDescWorkflowID is the schema descriptor for workflow_id field.
+	workflowresultDescWorkflowID := workflowresultFields[2].Descriptor()
+	// workflowresult.WorkflowIDValidator is a validator for the "workflow_id" field. It is called by the builders before save.
+	workflowresult.WorkflowIDValidator = workflowresultDescWorkflowID.Validators[0].(func(string) error)
+	// workflowresultDescExecutionID is the schema descriptor for execution_id field.
+	workflowresultDescExecutionID := workflowresultFields[3].Descriptor()
+	// workflowresult.DefaultExecutionID holds the default value on creation for the execution_id field.
+	workflowresult.DefaultExecutionID = workflowresultDescExecutionID.Default.(string)
+	// workflowresultDescActionID is the schema descriptor for action_id field.
+	workflowresultDescActionID := workflowresultFields[4].Descriptor()
+	// workflowresult.ActionIDValidator is a validator for the "action_id" field. It is called by the builders before save.
+	workflowresult.ActionIDValidator = workflowresultDescActionID.Validators[0].(func(string) error)
+	// workflowresultDescActionType is the schema descriptor for action_type field.
+	workflowresultDescActionType := workflowresultFields[5].Descriptor()
+	// workflowresult.DefaultActionType holds the default value on creation for the action_type field.
+	workflowresult.DefaultActionType = workflowresultDescActionType.Default.(string)
+	// workflowresultDescActionName is the schema descriptor for action_name field.
+	workflowresultDescActionName := workflowresultFields[6].Descriptor()
+	// workflowresult.DefaultActionName holds the default value on creation for the action_name field.
+	workflowresult.DefaultActionName = workflowresultDescActionName.Default.(string)
+	// workflowresultDescExecutorID is the schema descriptor for executor_id field.
+	workflowresultDescExecutorID := workflowresultFields[7].Descriptor()
+	// workflowresult.DefaultExecutorID holds the default value on creation for the executor_id field.
+	workflowresult.DefaultExecutorID = workflowresultDescExecutorID.Default.(string)
+	// workflowresultDescPayloadJSON is the schema descriptor for payload_json field.
+	workflowresultDescPayloadJSON := workflowresultFields[8].Descriptor()
+	// workflowresult.DefaultPayloadJSON holds the default value on creation for the payload_json field.
+	workflowresult.DefaultPayloadJSON = workflowresultDescPayloadJSON.Default.(string)
+	// workflowresultDescConditionResultsJSON is the schema descriptor for condition_results_json field.
+	workflowresultDescConditionResultsJSON := workflowresultFields[9].Descriptor()
+	// workflowresult.DefaultConditionResultsJSON holds the default value on creation for the condition_results_json field.
+	workflowresult.DefaultConditionResultsJSON = workflowresultDescConditionResultsJSON.Default.(string)
+	// workflowresultDescConditionError is the schema descriptor for condition_error field.
+	workflowresultDescConditionError := workflowresultFields[11].Descriptor()
+	// workflowresult.DefaultConditionError holds the default value on creation for the condition_error field.
+	workflowresult.DefaultConditionError = workflowresultDescConditionError.Default.(string)
+	// workflowresultDescCreatedAt is the schema descriptor for created_at field.
+	workflowresultDescCreatedAt := workflowresultFields[12].Descriptor()
+	// workflowresult.DefaultCreatedAt holds the default value on creation for the created_at field.
+	workflowresult.DefaultCreatedAt = workflowresultDescCreatedAt.Default.(func() time.Time)
+	// workflowresultDescID is the schema descriptor for id field.
+	workflowresultDescID := workflowresultFields[0].Descriptor()
+	// workflowresult.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	workflowresult.IDValidator = workflowresultDescID.Validators[0].(func(string) error)
 }

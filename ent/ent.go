@@ -23,6 +23,7 @@ import (
 	"github.com/mcmx/nitejaguar/ent/transfersession"
 	"github.com/mcmx/nitejaguar/ent/transfersignal"
 	"github.com/mcmx/nitejaguar/ent/workflow"
+	"github.com/mcmx/nitejaguar/ent/workflowresult"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -94,6 +95,7 @@ func checkColumn(t, c string) error {
 			transfersession.Table: transfersession.ValidColumn,
 			transfersignal.Table:  transfersignal.ValidColumn,
 			workflow.Table:        workflow.ValidColumn,
+			workflowresult.Table:  workflowresult.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

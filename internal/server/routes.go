@@ -420,13 +420,17 @@ type PostResultInput struct {
 type postResultRecord struct {
 	workflowID, executionID string
 	nexts                   []string
+	conditionResults        map[string]bool
+	conditionError          string
 }
 
 type PostResultOutput struct {
 	Body struct {
-		WorkflowID  string   `json:"workflow_id"`
-		ExecutionID string   `json:"execution_id"`
-		Nexts       []string `json:"nexts"`
+		WorkflowID       string          `json:"workflow_id"`
+		ExecutionID      string          `json:"execution_id"`
+		Nexts            []string        `json:"nexts"`
+		ConditionResults map[string]bool `json:"condition_results,omitempty"`
+		ConditionError   string          `json:"condition_error,omitempty"`
 	}
 }
 
@@ -875,6 +879,8 @@ func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostRes
 	if prior, ok := s.results[result.ResultID]; ok {
 		out := &PostResultOutput{}
 		out.Body.WorkflowID, out.Body.ExecutionID, out.Body.Nexts = prior.workflowID, prior.executionID, append([]string(nil), prior.nexts...)
+		out.Body.ConditionResults = prior.conditionResults
+		out.Body.ConditionError = prior.conditionError
 		return out, nil
 	}
 	stored, nexts, err := s.wm.IngestResult(result)
@@ -888,11 +894,13 @@ func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostRes
 	// IngestResult) is unchanged.
 	owned := s.filterNextsForExecutor(stored.WorkflowID, nexts, executorID)
 	_ = s.db.LogAudit("assignment.complete", stored.TenantID, executorID, stored.ActionID, "execution="+stored.ExecutionID+" workflow="+stored.WorkflowID)
-	s.results[result.ResultID] = postResultRecord{stored.WorkflowID, stored.ExecutionID, append([]string(nil), owned...)}
+	s.results[result.ResultID] = postResultRecord{stored.WorkflowID, stored.ExecutionID, append([]string(nil), owned...), stored.ConditionResults, stored.ConditionError}
 	out := &PostResultOutput{}
 	out.Body.WorkflowID = stored.WorkflowID
 	out.Body.ExecutionID = stored.ExecutionID
 	out.Body.Nexts = owned
+	out.Body.ConditionResults = stored.ConditionResults
+	out.Body.ConditionError = stored.ConditionError
 	return out, nil
 }
 
@@ -1115,9 +1123,26 @@ func (s *Server) workflowPage(c echo.Context) error {
 
 func (s *Server) resultsPage(c echo.Context) error {
 	data := &web.ResultsPageData{CurrentUser: s.navUser(c)}
+	seen := make(map[string]bool)
+	// Primary store: persisted results in the DB (include the recorded
+	// condition evaluation and routing decision).
+	if s.db != nil {
+		if rows, err := s.db.ListResults("", "", 0); err != nil {
+			log.Printf("results page: failed to list results from DB: %s", err)
+		} else {
+			for _, row := range rows {
+				data.Results = append(data.Results, workflowResultToData(row))
+				seen[row.ID] = true
+			}
+		}
+	}
+	// Fallback/legacy: JSON files in ./results not yet in the DB (e.g.
+	// written before the DB store existed). DB rows win on collisions.
 	entries, err := os.ReadDir("./results")
 	if err != nil && !os.IsNotExist(err) {
-		data.Error = "Unable to read results"
+		if len(data.Results) == 0 {
+			data.Error = "Unable to read results"
+		}
 	}
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
@@ -1133,12 +1158,47 @@ func (s *Server) resultsPage(c echo.Context) error {
 		}
 		var result common.ResultData
 		if json.Unmarshal(contents, &result) == nil {
+			if result.ResultID != "" && seen[result.ResultID] {
+				continue
+			}
 			data.Results = append(data.Results, result)
 		}
 	}
 	sort.Slice(data.Results, func(i, j int) bool { return data.Results[i].CreatedAt.After(data.Results[j].CreatedAt) })
 	templ.Handler(web.ResultsPage(data)).ServeHTTP(c.Response(), c.Request())
 	return nil
+}
+
+// workflowResultToData converts a persisted workflow_results row back to
+// the API-facing ResultData shape (payload and condition outcomes are
+// JSON-decoded; corrupt blobs yield nil instead of failing the page).
+func workflowResultToData(row *ent.WorkflowResult) common.ResultData {
+	data := common.ResultData{
+		ResultID:       row.ID,
+		WorkflowID:     row.WorkflowID,
+		ExecutionID:    row.ExecutionID,
+		ActionID:       row.ActionID,
+		ActionType:     row.ActionType,
+		ActionName:     row.ActionName,
+		ExecutorID:     row.ExecutorID,
+		TenantID:       row.TenantID,
+		CreatedAt:      row.CreatedAt,
+		Nexts:          append([]string(nil), row.Nexts...),
+		ConditionError: row.ConditionError,
+	}
+	if row.PayloadJSON != "" {
+		var payload any
+		if json.Unmarshal([]byte(row.PayloadJSON), &payload) == nil {
+			data.Payload = payload
+		}
+	}
+	if row.ConditionResultsJSON != "" {
+		var outcomes map[string]bool
+		if json.Unmarshal([]byte(row.ConditionResultsJSON), &outcomes) == nil {
+			data.ConditionResults = outcomes
+		}
+	}
+	return data
 }
 
 func (s *Server) clientsPage(c echo.Context) error {

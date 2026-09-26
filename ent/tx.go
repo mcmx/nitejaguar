@@ -34,6 +34,8 @@ type Tx struct {
 	TransferSignal *TransferSignalClient
 	// Workflow is the client for interacting with the Workflow builders.
 	Workflow *WorkflowClient
+	// WorkflowResult is the client for interacting with the WorkflowResult builders.
+	WorkflowResult *WorkflowResultClient
 
 	// lazily loaded.
 	client     *Client
@@ -176,6 +178,7 @@ func (tx *Tx) init() {
 	tx.TransferSession = NewTransferSessionClient(tx.config)
 	tx.TransferSignal = NewTransferSignalClient(tx.config)
 	tx.Workflow = NewWorkflowClient(tx.config)
+	tx.WorkflowResult = NewWorkflowResultClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

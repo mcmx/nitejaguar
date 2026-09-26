@@ -25,6 +25,7 @@ import (
 	"github.com/mcmx/nitejaguar/ent/transfersession"
 	"github.com/mcmx/nitejaguar/ent/transfersignal"
 	"github.com/mcmx/nitejaguar/ent/workflow"
+	"github.com/mcmx/nitejaguar/ent/workflowresult"
 )
 
 // Client is the client that holds all ent builders.
@@ -54,6 +55,8 @@ type Client struct {
 	TransferSignal *TransferSignalClient
 	// Workflow is the client for interacting with the Workflow builders.
 	Workflow *WorkflowClient
+	// WorkflowResult is the client for interacting with the WorkflowResult builders.
+	WorkflowResult *WorkflowResultClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -76,6 +79,7 @@ func (c *Client) init() {
 	c.TransferSession = NewTransferSessionClient(c.config)
 	c.TransferSignal = NewTransferSignalClient(c.config)
 	c.Workflow = NewWorkflowClient(c.config)
+	c.WorkflowResult = NewWorkflowResultClient(c.config)
 }
 
 type (
@@ -179,6 +183,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		TransferSession: NewTransferSessionClient(cfg),
 		TransferSignal:  NewTransferSignalClient(cfg),
 		Workflow:        NewWorkflowClient(cfg),
+		WorkflowResult:  NewWorkflowResultClient(cfg),
 	}, nil
 }
 
@@ -209,6 +214,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		TransferSession: NewTransferSessionClient(cfg),
 		TransferSignal:  NewTransferSignalClient(cfg),
 		Workflow:        NewWorkflowClient(cfg),
+		WorkflowResult:  NewWorkflowResultClient(cfg),
 	}, nil
 }
 
@@ -240,7 +246,7 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AppUser, c.AuditLog, c.AuthSession, c.Credential, c.EnrollmentToken,
 		c.NodeAssignment, c.RemoteClient, c.TransferChunk, c.TransferSession,
-		c.TransferSignal, c.Workflow,
+		c.TransferSignal, c.Workflow, c.WorkflowResult,
 	} {
 		n.Use(hooks...)
 	}
@@ -252,7 +258,7 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AppUser, c.AuditLog, c.AuthSession, c.Credential, c.EnrollmentToken,
 		c.NodeAssignment, c.RemoteClient, c.TransferChunk, c.TransferSession,
-		c.TransferSignal, c.Workflow,
+		c.TransferSignal, c.Workflow, c.WorkflowResult,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -283,6 +289,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.TransferSignal.mutate(ctx, m)
 	case *WorkflowMutation:
 		return c.Workflow.mutate(ctx, m)
+	case *WorkflowResultMutation:
+		return c.WorkflowResult.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -1751,16 +1759,149 @@ func (c *WorkflowClient) mutate(ctx context.Context, m *WorkflowMutation) (Value
 	}
 }
 
+// WorkflowResultClient is a client for the WorkflowResult schema.
+type WorkflowResultClient struct {
+	config
+}
+
+// NewWorkflowResultClient returns a client for the WorkflowResult from the given config.
+func NewWorkflowResultClient(c config) *WorkflowResultClient {
+	return &WorkflowResultClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `workflowresult.Hooks(f(g(h())))`.
+func (c *WorkflowResultClient) Use(hooks ...Hook) {
+	c.hooks.WorkflowResult = append(c.hooks.WorkflowResult, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `workflowresult.Intercept(f(g(h())))`.
+func (c *WorkflowResultClient) Intercept(interceptors ...Interceptor) {
+	c.inters.WorkflowResult = append(c.inters.WorkflowResult, interceptors...)
+}
+
+// Create returns a builder for creating a WorkflowResult entity.
+func (c *WorkflowResultClient) Create() *WorkflowResultCreate {
+	mutation := newWorkflowResultMutation(c.config, OpCreate)
+	return &WorkflowResultCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of WorkflowResult entities.
+func (c *WorkflowResultClient) CreateBulk(builders ...*WorkflowResultCreate) *WorkflowResultCreateBulk {
+	return &WorkflowResultCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *WorkflowResultClient) MapCreateBulk(slice any, setFunc func(*WorkflowResultCreate, int)) *WorkflowResultCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &WorkflowResultCreateBulk{err: fmt.Errorf("calling to WorkflowResultClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*WorkflowResultCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &WorkflowResultCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for WorkflowResult.
+func (c *WorkflowResultClient) Update() *WorkflowResultUpdate {
+	mutation := newWorkflowResultMutation(c.config, OpUpdate)
+	return &WorkflowResultUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *WorkflowResultClient) UpdateOne(_m *WorkflowResult) *WorkflowResultUpdateOne {
+	mutation := newWorkflowResultMutation(c.config, OpUpdateOne, withWorkflowResult(_m))
+	return &WorkflowResultUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *WorkflowResultClient) UpdateOneID(id string) *WorkflowResultUpdateOne {
+	mutation := newWorkflowResultMutation(c.config, OpUpdateOne, withWorkflowResultID(id))
+	return &WorkflowResultUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for WorkflowResult.
+func (c *WorkflowResultClient) Delete() *WorkflowResultDelete {
+	mutation := newWorkflowResultMutation(c.config, OpDelete)
+	return &WorkflowResultDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *WorkflowResultClient) DeleteOne(_m *WorkflowResult) *WorkflowResultDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *WorkflowResultClient) DeleteOneID(id string) *WorkflowResultDeleteOne {
+	builder := c.Delete().Where(workflowresult.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &WorkflowResultDeleteOne{builder}
+}
+
+// Query returns a query builder for WorkflowResult.
+func (c *WorkflowResultClient) Query() *WorkflowResultQuery {
+	return &WorkflowResultQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeWorkflowResult},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a WorkflowResult entity by its id.
+func (c *WorkflowResultClient) Get(ctx context.Context, id string) (*WorkflowResult, error) {
+	return c.Query().Where(workflowresult.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *WorkflowResultClient) GetX(ctx context.Context, id string) *WorkflowResult {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *WorkflowResultClient) Hooks() []Hook {
+	return c.hooks.WorkflowResult
+}
+
+// Interceptors returns the client interceptors.
+func (c *WorkflowResultClient) Interceptors() []Interceptor {
+	return c.inters.WorkflowResult
+}
+
+func (c *WorkflowResultClient) mutate(ctx context.Context, m *WorkflowResultMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&WorkflowResultCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&WorkflowResultUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&WorkflowResultUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&WorkflowResultDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown WorkflowResult mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
 		AppUser, AuditLog, AuthSession, Credential, EnrollmentToken, NodeAssignment,
-		RemoteClient, TransferChunk, TransferSession, TransferSignal,
-		Workflow []ent.Hook
+		RemoteClient, TransferChunk, TransferSession, TransferSignal, Workflow,
+		WorkflowResult []ent.Hook
 	}
 	inters struct {
 		AppUser, AuditLog, AuthSession, Credential, EnrollmentToken, NodeAssignment,
-		RemoteClient, TransferChunk, TransferSession, TransferSignal,
-		Workflow []ent.Interceptor
+		RemoteClient, TransferChunk, TransferSession, TransferSignal, Workflow,
+		WorkflowResult []ent.Interceptor
 	}
 )
