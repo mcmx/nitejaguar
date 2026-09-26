@@ -345,4 +345,56 @@ func TestWorkflowImportAndClone(t *testing.T) {
 			t.Fatalf("unexpected merged payload: %v", merged)
 		}
 	})
+
+	t.Run("ingest records routing and persists result", func(t *testing.T) {
+		if _, err := wm.ImportWorkflowJSON(routingResultsWorkflowJSON); err != nil {
+			t.Fatalf("import routing workflow: %v", err)
+		}
+		stored, nexts, err := wm.IngestResult(common.ResultData{
+			ActionID:   "trigger_01routingresultstest01",
+			ActionType: "trigger",
+			ActionName: "filechange",
+			Payload:    map[string]any{"file": "statement-jan.pdf"},
+		})
+		if err != nil {
+			t.Fatalf("ingest trigger: %v", err)
+		}
+		if len(nexts) != 1 || nexts[0] != "action_01routingresultstest01" {
+			t.Fatalf("expected nexts [action_01routingresultstest01], got %v", nexts)
+		}
+		if !stored.ConditionResults["entry_pdf"] {
+			t.Errorf("expected stored ConditionResults[entry_pdf]=true, got %v", stored.ConditionResults)
+		}
+		if stored.ConditionResults["entry_other"] {
+			t.Errorf("expected stored ConditionResults[entry_other]=false, got %v", stored.ConditionResults)
+		}
+		if len(stored.Nexts) != 1 || stored.Nexts[0] != "action_01routingresultstest01" {
+			t.Errorf("expected stored Nexts to carry the routing decision, got %v", stored.Nexts)
+		}
+
+		rows, err := db.ListResults("workflow_01routingresultstest01", stored.ExecutionID, 0)
+		if err != nil {
+			t.Fatalf("list results: %v", err)
+		}
+		if len(rows) != 1 {
+			t.Fatalf("expected 1 persisted result row, got %d", len(rows))
+		}
+		row := rows[0]
+		if row.ID != stored.ResultID {
+			t.Errorf("persisted row id %q != stored result %q", row.ID, stored.ResultID)
+		}
+		if len(row.Nexts) != 1 || row.Nexts[0] != "action_01routingresultstest01" {
+			t.Errorf("expected persisted nexts [action_01routingresultstest01], got %v", row.Nexts)
+		}
+		if row.ConditionResultsJSON == "" {
+			t.Error("expected persisted condition_results_json to be non-empty")
+		}
+		got, err := db.GetResult(stored.ResultID)
+		if err != nil {
+			t.Fatalf("get result: %v", err)
+		}
+		if got.WorkflowID != "workflow_01routingresultstest01" || got.ActionID != "trigger_01routingresultstest01" {
+			t.Errorf("unexpected persisted row: workflow=%q action=%q", got.WorkflowID, got.ActionID)
+		}
+	})
 }

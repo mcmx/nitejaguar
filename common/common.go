@@ -39,6 +39,19 @@ type ResultData struct {
 	TenantID    string    `json:"tenant_id"`
 	CreatedAt   time.Time `json:"created_at"`
 	Payload     any       `json:"payload"` // Generic payload for additional data
+	// ConditionResults records the per-entry outcome of the node's
+	// conditions evaluation (entry ID -> matched). It is computed by
+	// the workflow engine when routing (GetNextNodes / IngestResult)
+	// and persisted with the result so the decision is visible in
+	// result JSON, the DB, and the /results page.
+	ConditionResults map[string]bool `json:"condition_results,omitempty"`
+	// Nexts is the routing decision derived from ConditionResults: the
+	// downstream node IDs whose entry condition evaluated to true.
+	Nexts []string `json:"nexts,omitempty"`
+	// ConditionError captures the first condition evaluation error, if
+	// any. Routing continues with the remaining entries; the error is
+	// kept here (and logged) instead of failing the execution.
+	ConditionError string `json:"condition_error,omitempty"`
 }
 
 // MergePayloads deep-merges an upstream $input payload into an action's

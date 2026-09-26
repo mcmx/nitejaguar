@@ -38,3 +38,6 @@ type TransferSignal func(*sql.Selector)
 
 // Workflow is the predicate function for workflow builders.
 type Workflow func(*sql.Selector)
+
+// WorkflowResult is the predicate function for workflowresult builders.
+type WorkflowResult func(*sql.Selector)

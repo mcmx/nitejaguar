@@ -32,7 +32,9 @@ Server configuration relies on environment variables (loaded via `godotenv` from
   - `POST /api/workflows/clone` — Save an independent copy with fresh IDs and a `"Clone of: "` name prefix; returns `{ok, workflow_id}`; audited as `workflow.clone`.
 - **Artifacts**:
   - Logs: `./log/server.log`
-  - Results: `./results/`
+  - Results: persisted in the `workflow_results` DB table and mirrored
+    to `./results/<result_id>.json` files (DB is the queryable store;
+    files stay as a human-readable backup).
 
 ## RBAC + website auth & management
 
@@ -126,6 +128,13 @@ is ignored).
 - **Handoff fix**: `POST /api/results` returns only caller-owned `nexts`;
   foreign edges are never executed locally — they are routed via pending
   assignments. Audited as `assignment.enqueue` and `assignment.complete`.
+- **Condition evaluation & results**: every result records its routing
+  decision — per-entry booleans (`condition_results`), derived downstream
+  nodes (`nexts`), and the first evaluation error (`condition_error`,
+  routing continues with the healthy entries). `POST /api/results`
+  returns `{workflow_id, execution_id, nexts, condition_results,
+  condition_error}`; the `/results` page shows the routing block above
+  each payload. See [Workflows](./workflows.md).
 - **Client-to-client transfer**: `transfer` sessions (`transfer_` ids)
   with chunked relay (`POST/GET /api/transfers/{id}/chunks`) and WebRTC
   signaling (`POST/GET /api/transfers/{id}/signal`); receivers poll

@@ -238,7 +238,7 @@ templ ResultsPage(data *ResultsPageData) {
     @Base(data.CurrentUser) {
         <main class="container mx-auto max-w-6xl px-4 py-8">
             @pageTitle("Executions and results")
-            <p class="mb-6 text-sm text-muted-foreground">Results are read from the local <code>./results</code> directory.</p>
+            <p class="mb-6 text-sm text-muted-foreground">Results are persisted in the database and mirrored to the local <code>./results</code> directory. Each result records its condition evaluation (per-entry outcome) and the derived routing decision.</p>
             if data.Error != "" {
                 <p class="rounded-lg border border-red-500/50 p-6 text-red-500">{ data.Error }</p>
             } else if len(data.Results) == 0 {
@@ -249,6 +249,12 @@ templ ResultsPage(data *ResultsPageData) {
                         <article class="rounded-lg border border-border p-4">
                             <div class="flex flex-wrap justify-between gap-2"><span class="font-semibold">{ result.ActionName }</span><span class="font-mono text-xs text-muted-foreground">{ result.CreatedAt.Format("2006-01-02 15:04:05") }</span></div>
                             <p class="mt-3 break-all font-mono text-xs">workflow: { result.WorkflowID }<br/>execution: { result.ExecutionID }<br/>node: { result.ActionID }<br/>executor: { result.ExecutorID }</p>
+                            if len(result.ConditionResults) > 0 || len(result.Nexts) > 0 || result.ConditionError != "" {
+                                <p class="mt-3 break-all font-mono text-xs">routing: nexts { fmt.Sprint(result.Nexts) }<br/>conditions { jsonText(result.ConditionResults) }</p>
+                                if result.ConditionError != "" {
+                                    <p class="mt-1 break-all font-mono text-xs text-red-500">condition error: { result.ConditionError }</p>
+                                }
+                            }
                             <pre class="mt-3 overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(result.Payload) }</pre>
                         </article>
                     }
