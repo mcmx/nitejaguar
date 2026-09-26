@@ -2,6 +2,7 @@ package web
 
 import (
 	"github.com/mcmx/nitejaguar/cmd/web/modules"
+	"github.com/mcmx/nitejaguar/common"
 )
 
 type LoginPageData struct {
@@ -77,9 +78,12 @@ type CredentialView struct {
 type CredentialsPageData struct {
 	CurrentUser *modules.NavUser
 	Credentials []CredentialView
-	Types       []string
-	Error       string
-	Success     string
+	// Defs carries the per-type field specs (common.CredentialTypeDefs):
+	// the single source of truth for the store form's type select and
+	// per-type secret inputs.
+	Defs    []common.CredentialTypeDef
+	Error   string
+	Success string
 }
 
 type ProfilePageData struct {

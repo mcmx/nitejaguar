@@ -213,11 +213,12 @@ func TestCredentialScopeResolution(t *testing.T) {
 	addApiRoutes(api, s)
 	scopeAuth := ensureAdminToken(t, db)
 
-	// Same name in all three scopes.
+	// Same name in all three scopes. Multi-field types store a JSON
+	// object carrying every required field (see common.CredentialTypeDefs).
 	for _, c := range []map[string]any{
-		{"tenant_id": "scopeacme", "name": "db-pass", "type": "username_password", "secret": "tenant-secret"},
-		{"tenant_id": "scopeacme", "name": "db-pass", "type": "username_password", "scope": "group", "owner_id": "ops", "secret": "group-secret"},
-		{"tenant_id": "scopeacme", "name": "db-pass", "type": "username_password", "scope": "user", "owner_id": "alice", "secret": "user-secret"},
+		{"tenant_id": "scopeacme", "name": "db-pass", "type": "username_password", "secret": `{"username":"svc","password":"tenant-secret"}`},
+		{"tenant_id": "scopeacme", "name": "db-pass", "type": "username_password", "scope": "group", "owner_id": "ops", "secret": `{"username":"svc","password":"group-secret"}`},
+		{"tenant_id": "scopeacme", "name": "db-pass", "type": "username_password", "scope": "user", "owner_id": "alice", "secret": `{"username":"alice","password":"user-secret"}`},
 	} {
 		resp := api.Post("/api/credentials", scopeAuth, c)
 		if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
@@ -233,7 +234,9 @@ func TestCredentialScopeResolution(t *testing.T) {
 	}
 	decodeBody(t, strings.NewReader(resp.Body.String()), &registered)
 
-	fetch := func(query string) string {
+	// fetchPassword resolves the credential and returns the password
+	// field of its JSON secret object.
+	fetchPassword := func(query string) string {
 		t.Helper()
 		resp := api.Get("/api/credentials/db-pass/fetch"+query, "Authorization: Bearer "+registered.Token)
 		if resp.Code != http.StatusOK {
@@ -243,8 +246,13 @@ func TestCredentialScopeResolution(t *testing.T) {
 			Secret string `json:"secret"`
 		}
 		decodeBody(t, strings.NewReader(resp.Body.String()), &out)
-		return out.Secret
+		var obj map[string]string
+		if err := json.Unmarshal([]byte(out.Secret), &obj); err != nil {
+			t.Fatalf("fetch %q secret is not a JSON object: %v (%q)", query, err, out.Secret)
+		}
+		return obj["password"]
 	}
+	fetch := fetchPassword
 
 	// Most-specific wins: user > group > tenant.
 	if got := fetch(""); got != "tenant-secret" {
@@ -300,7 +308,7 @@ func TestCredentialFetchEnforcesCollectionType(t *testing.T) {
 	}
 
 	for _, c := range []map[string]any{
-		{"tenant_id": tenant, "name": "prod-aws", "type": "aws", "secret": "aws-secret"},
+		{"tenant_id": tenant, "name": "prod-aws", "type": "aws", "secret_fields": map[string]any{"access_key_id": "AKIAEXAMPLE", "secret_access_key": "aws-secret"}},
 		{"tenant_id": tenant, "name": "api-token", "type": "token", "secret": "token-secret"},
 	} {
 		resp := api.Post("/api/credentials", typeAuth, c)
@@ -357,5 +365,53 @@ func TestCredentialFetchEnforcesCollectionType(t *testing.T) {
 	resp = api.Get("/api/credentials/api-token/fetch", auth)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("context-free fetch status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestCredentialSecretShapesEnforced(t *testing.T) {
+	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
+	t.Setenv("CREDENTIALS_KEY", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
+	wm := workflow.NewWorkflowManager(false, db)
+	s := &Server{db: db, wm: wm}
+	_, api := humatest.New(t)
+	addApiRoutes(api, s)
+	auth := ensureAdminToken(t, db)
+
+	bad := []map[string]any{
+		// Raw non-JSON secret for a multi-field type.
+		{"tenant_id": "shapeten", "name": "raw-pair", "type": "username_password", "secret": "just-a-string"},
+		// JSON missing a required field.
+		{"tenant_id": "shapeten", "name": "no-user", "type": "username_password", "secret": `{"password":"x"}`},
+		{"tenant_id": "shapeten", "name": "no-key", "type": "aws", "secret": `{"access_key_id":"AKIAEXAMPLE"}`},
+		// Structured path missing a required field.
+		{"tenant_id": "shapeten", "name": "fields-nouser", "type": "username_password", "secret_fields": map[string]any{"password": "x"}},
+		// Unknown structured field (typo guard).
+		{"tenant_id": "shapeten", "name": "fields-typo", "type": "aws", "secret_fields": map[string]any{"access_key_id": "A", "secret_access_key": "B", "regoin": "eu-west-1"}},
+	}
+	for _, c := range bad {
+		resp := api.Post("/api/credentials", auth, c)
+		if resp.Code != http.StatusBadRequest && resp.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("create %v status = %v, want 400/422, body = %s", c, resp.Code, resp.Body.String())
+		}
+	}
+
+	// Structured happy paths: multi-field JSON is assembled server-side.
+	good := []map[string]any{
+		{"tenant_id": "shapeten", "name": "pair", "type": "username_password", "secret_fields": map[string]any{"username": "svc", "password": "pw"}},
+		{"tenant_id": "shapeten", "name": "key", "type": "ssh_key", "secret_fields": map[string]any{"private_key": "PEM-DATA"}},
+		{"tenant_id": "shapeten", "name": "iam", "type": "aws", "secret_fields": map[string]any{"access_key_id": "AKIAEXAMPLE", "secret_access_key": "shh", "region": "eu-west-1"}},
+	}
+	for _, c := range good {
+		resp := api.Post("/api/credentials", auth, c)
+		if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+			t.Fatalf("create %v status = %v, body = %s", c, resp.Code, resp.Body.String())
+		}
+		if strings.Contains(resp.Body.String(), "PEM-DATA") || strings.Contains(resp.Body.String(), `"password":"pw"`) {
+			t.Fatalf("create response leaks the secret: %s", resp.Body.String())
+		}
 	}
 }
