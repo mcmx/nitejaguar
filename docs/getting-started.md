@@ -16,6 +16,12 @@ Nitejaguar uses a `Makefile` to automate code generation (`ent`, `templ`, `tailw
 make build
 ```
 
+This builds two binaries from the same module, sharing all framework and
+contract code (`common/`, `internal/workflow` types, `internal/actions`):
+
+- `nitejaguar-server` (`./cmd/server`) — server only, links the DB/web stack.
+- `nitejaguar` (`./cmd/client`) — client only, no ent/sqlite/echo; roughly half the size.
+
 To run tests and linting:
 
 ```bash
@@ -35,7 +41,7 @@ make lint
 2. Start the server (with `-e` to enable local action execution):
    ```bash
    make run
-   # Or directly: ./nitejaguar server -e
+   # Or directly: ./nitejaguar-server -e
    ```
 3. Open your browser at `http://localhost:8080` for the Web Dashboard, or `http://localhost:8080/docs` for the OpenAPI documentation.
 
@@ -48,7 +54,7 @@ Nitejaguar includes an end-to-end workflow example (`examples/workflow-poc-downl
 ### 1. Server-Side Execution (Local Actions)
 Import and run the workflow on the server:
 ```bash
-./nitejaguar server -i examples/workflow-poc-downloads.json -e
+./nitejaguar-server -i examples/workflow-poc-downloads.json -e
 ```
 
 ### 2. Client-Side Execution (Remote Runner)
@@ -56,12 +62,12 @@ Alternatively, start the server without `-e`, and run a separate client instance
 
 **Terminal 1 (Server):**
 ```bash
-./nitejaguar server -i examples/workflow-poc-downloads.json
+./nitejaguar-server -i examples/workflow-poc-downloads.json
 ```
 
 **Terminal 2 (Client / Runner):**
 ```bash
-./nitejaguar client --server http://127.0.0.1:8080 --name downloads-client
+./nitejaguar --server http://127.0.0.1:8080 --name downloads-client
 ```
 
 Copy a PDF into `~/Downloads` to see it processed and renamed automatically. Check `./results/` for execution outputs.

@@ -1,11 +1,11 @@
 # Client Mode (Remote Runner)
 
-Nitejaguar supports distributed execution where remote **Clients** (runners) register with a central server, poll for assigned task nodes (`filechange`, `file`), execute them locally, and report execution results back.
+The `nitejaguar` binary is the client-only build. Nitejaguar supports distributed execution where remote **Clients** (runners) register with a central server, poll for assigned task nodes (`filechange`, `file`), execute them locally, and report execution results back.
 
 ## Starting a Client
 
 ```bash
-./nitejaguar client --server http://127.0.0.1:8080 --name worker-node-1 --enrollment-token <join-token>
+./nitejaguar --server http://127.0.0.1:8080 --name worker-node-1 --enrollment-token <join-token>
 ```
 
 ### CLI Flags & Environment Variables
@@ -33,8 +33,8 @@ The client command can import workflows through a running server's HTTP API
 (no direct database access; the server must be running):
 
 ```bash
-./nitejaguar client workflow import <file.json> [--server http://127.0.0.1:8080]
-./nitejaguar client workflow clone <file.json> [--server http://127.0.0.1:8080]
+./nitejaguar workflow import <file.json> [--server http://127.0.0.1:8080]
+./nitejaguar workflow clone <file.json> [--server http://127.0.0.1:8080]
 ```
 
 - `workflow import` POSTs the JSON to `POST /api/workflows/import`; the server saves it verbatim (upsert; ids and name untouched) and returns the workflow id.

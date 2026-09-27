@@ -12,7 +12,6 @@ import (
 
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions"
-	"github.com/mcmx/nitejaguar/internal/database"
 	"go.jetify.com/typeid"
 )
 
@@ -51,7 +50,7 @@ type workflowManager struct {
 	TriggerManager   actions.TriggerManager
 	ActionManager    actions.ActionManager
 	eventsChan       chan common.ResultData
-	db               database.Service
+	db               common.WorkflowStore
 	enableActions    bool
 	executorID       string
 	// execHistory tracks the latest payload per (execution, node) so the
@@ -64,7 +63,7 @@ type workflowManager struct {
 
 var wmmInstance *workflowManager
 
-func NewWorkflowManager(enableActions bool, db database.Service) WorkflowManager {
+func NewWorkflowManager(enableActions bool, db common.WorkflowStore) WorkflowManager {
 	if wmmInstance != nil {
 		return wmmInstance
 	}
@@ -167,7 +166,7 @@ func (wm *workflowManager) saveResult(result common.ResultData) {
 	// human-readable backup. Best-effort: file-first so a DB outage
 	// never loses the result.
 	if wm.db != nil {
-		if _, err := wm.db.SaveResult(result); err != nil {
+		if err := wm.db.SaveResultRecord(result); err != nil {
 			log.Printf("Cannot save result %s to DB: %s", result.ResultID, err)
 		}
 	}
@@ -540,7 +539,7 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 		}
 	}
 	if !nodeFound && wm.db != nil {
-		rows, err := wm.db.GetWorkflows(true, true)
+		rows, err := wm.db.ListWorkflowRecords(true, true)
 		if err == nil {
 			for _, row := range rows {
 				var def Workflow
@@ -598,7 +597,7 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 		}
 		_ = wm.db.CompleteNodeAssignment(workflowID, result.ExecutionID, result.ActionID)
 		for _, next := range nexts {
-			if _, err := wm.db.EnqueueNodeAssignment(tenantID, workflowID, result.ExecutionID, next, result.ActionID, result.Payload); err != nil {
+			if err := wm.db.EnqueueNodeAssignmentRecord(tenantID, workflowID, result.ExecutionID, next, result.ActionID, result.Payload); err != nil {
 				log.Printf("IngestResult: failed to enqueue assignment for %s: %s", next, err)
 				continue
 			}

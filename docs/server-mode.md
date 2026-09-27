@@ -1,6 +1,6 @@
 # Server Mode
 
-The Nitejaguar server acts as the central orchestrator, managing workflows, serving the Web UI, exposing the OpenAPI REST API, and coordinating remote clients.
+The `nitejaguar-server` binary acts as the central orchestrator, managing workflows, serving the Web UI, exposing the OpenAPI REST API, and coordinating remote clients.
 
 ## Configuration
 
@@ -14,7 +14,7 @@ Server configuration relies on environment variables (loaded via `godotenv` from
 ## Starting the Server
 
 ```bash
-./nitejaguar server [flags]
+./nitejaguar-server [flags]
 ```
 
 ### Key Flags
@@ -27,7 +27,7 @@ Server configuration relies on environment variables (loaded via `godotenv` from
 - **Web Dashboard**: Built with Go `templ`, HTMX, and Tailwind CSS (`cmd/web/`). Accessible at `http://localhost:8080`.
 - **OpenAPI Docs**: Built on Huma v2. Interactive Swagger / Redoc documentation available at `http://localhost:8080/docs`.
 - **WebSocket**: Real-time event streaming at `/websocket`.
-- **Workflow upsert API** (operator+, used by `client workflow import/clone`):
+- **Workflow upsert API** (operator+, used by `nitejaguar workflow import/clone`):
   - `POST /api/workflows/import` — Save a workflow definition verbatim (upsert); returns `{ok, workflow_id}`; audited as `workflow.import`.
   - `POST /api/workflows/clone` — Save an independent copy with fresh IDs and a `"Clone of: "` name prefix; returns `{ok, workflow_id}`; audited as `workflow.clone`.
 - **Artifacts**:
@@ -109,9 +109,9 @@ is ignored).
   the copy-paste command **once** (the plaintext is stored hashed and
   cannot be recovered later):
 
-  ```bash
-  nitejaguar client --server https://server:8080 --name edge-worker-1 --enrollment-token <TOKEN>
-  ```
+   ```bash
+   nitejaguar --server https://server:8080 --name edge-worker-1 --enrollment-token <TOKEN>
+   ```
 
   Names with spaces are shell-quoted automatically. Existing tokens
   are listed with use counts and revoke buttons; revoking blocks new
