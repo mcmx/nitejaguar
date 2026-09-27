@@ -39,7 +39,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -294,7 +293,6 @@ func findTriggerResult(inputs []any) *common.ResultData {
 }
 
 var resultRefPattern = regexp.MustCompile(`\$input\.[A-Za-z0-9_.\[\]]+`)
-var placeholderPattern = regexp.MustCompile(`\{\{\s*([^{}]+?)\s*\}\}`)
 
 // ResolveArgValue resolves one transfer arg (templating + $input refs).
 // Exported so the distributed sender flow reuses identical semantics;
@@ -312,51 +310,66 @@ func resolveArgValue(raw string, trigger *common.ResultData, sourceFile string) 
 		return "", fmt.Errorf("unsupported reference in %q: only $input. resolves against upstream payload in action args", raw)
 	}
 	out := raw
-	hasRef := strings.Contains(out, "$input.")
-	if trigger != nil && hasRef {
-		var resolveErr error
-		out = resultRefPattern.ReplaceAllStringFunc(out, func(m string) string {
-			if resolveErr != nil {
-				return m
-			}
-			val, err := resolveResultPath(trigger.Payload, m)
+	// Split out `{{...}}` regions so bare `$input.` refs and templates
+	// never consume each other when adjacent (`$input.now{{ext}}`,
+	// `{{ $input.tag | upper }}`).
+	var sb strings.Builder
+	for i, seg := range common.SplitTemplates(out) {
+		if i%2 == 1 {
+			repl, err := expandPlaceholder(seg, sourceFile, trigger)
 			if err != nil {
-				resolveErr = err
-				return m
+				return "", err
 			}
-			return common.StringifyArgValue(val)
-		})
-		if resolveErr != nil {
-			return "", resolveErr
+			sb.WriteString(repl)
+			continue
 		}
-	} else if trigger == nil && hasRef {
+		r, err := resolveRefs(seg, trigger, raw)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(r)
+	}
+	return sb.String(), nil
+}
+
+// resolveRefs expands bare `$input.<path>` references in a literal
+// segment (one without `{{...}}` regions).
+func resolveRefs(seg string, trigger *common.ResultData, raw string) (string, error) {
+	if !strings.Contains(seg, "$input.") {
+		return seg, nil
+	}
+	if trigger == nil {
 		return "", fmt.Errorf("no trigger result available to resolve %q", raw)
 	}
-	if strings.Contains(out, "{{") {
-		var tmplErr error
-		out = placeholderPattern.ReplaceAllStringFunc(out, func(m string) string {
-			if tmplErr != nil {
-				return m
-			}
-			inner := strings.TrimSpace(m[2 : len(m)-2])
-			repl, err := expandPlaceholder(inner, sourceFile)
-			if err != nil {
-				tmplErr = err
-				return m
-			}
-			return repl
-		})
-		if tmplErr != nil {
-			return "", tmplErr
+	var resolveErr error
+	out := resultRefPattern.ReplaceAllStringFunc(seg, func(m string) string {
+		if resolveErr != nil {
+			return m
 		}
+		val, err := common.ResolveRefPath(trigger.Payload, m)
+		if err != nil {
+			resolveErr = err
+			return m
+		}
+		return common.StringifyArgValue(val)
+	})
+	if resolveErr != nil {
+		return "", resolveErr
 	}
 	return out, nil
 }
 
-func expandPlaceholder(inner string, sourceFile string) (string, error) {
+func expandPlaceholder(inner string, sourceFile string, trigger *common.ResultData) (string, error) {
 	expr := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(inner), "."))
 	if expr == "" {
 		return "", fmt.Errorf("empty placeholder")
+	}
+	if strings.HasPrefix(expr, "$") {
+		v, err := common.EvalTemplate(expr, common.InputLookup(trigger))
+		if err != nil {
+			return "", err
+		}
+		return common.TemplateString(v), nil
 	}
 	switch strings.ToLower(expr) {
 	case "file":
@@ -379,127 +392,4 @@ func expandPlaceholder(inner string, sourceFile string) (string, error) {
 		return strings.TrimSuffix(base, filepath.Ext(base)), nil
 	}
 	return "", fmt.Errorf("unknown placeholder {{%s}}", inner)
-}
-
-func resolveResultPath(root any, fullPath string) (any, error) {
-	const prefix = "$input."
-	rest := strings.TrimPrefix(fullPath, prefix)
-	if rest == fullPath || rest == "" {
-		return nil, fmt.Errorf("unsupported path %q", fullPath)
-	}
-	cur := root
-	for _, seg := range strings.Split(rest, ".") {
-		if seg == "" {
-			return nil, fmt.Errorf("unsupported path %q: empty segment", fullPath)
-		}
-		field, indices, err := parsePathSegment(seg, fullPath)
-		if err != nil {
-			return nil, err
-		}
-		if field != "" {
-			cur, err = lookupResultField(cur, field, fullPath)
-			if err != nil {
-				return nil, err
-			}
-		}
-		for _, idx := range indices {
-			cur, err = lookupResultIndex(cur, idx, fullPath)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	return cur, nil
-}
-
-func parsePathSegment(seg, fullPath string) (string, []int, error) {
-	open := strings.IndexByte(seg, '[')
-	if open == -1 {
-		return seg, nil, nil
-	}
-	field := seg[:open]
-	rest := seg[open:]
-	var indices []int
-	for len(rest) > 0 {
-		if !strings.HasPrefix(rest, "[") {
-			return "", nil, fmt.Errorf("unsupported path %q: malformed segment %q", fullPath, seg)
-		}
-		closeIdx := strings.IndexByte(rest, ']')
-		if closeIdx == -1 {
-			return "", nil, fmt.Errorf("unsupported path %q: malformed segment %q", fullPath, seg)
-		}
-		n, err := strconv.Atoi(rest[1:closeIdx])
-		if err != nil {
-			return "", nil, fmt.Errorf("unsupported path %q: invalid index in segment %q", fullPath, seg)
-		}
-		indices = append(indices, n)
-		rest = rest[closeIdx+1:]
-	}
-	return field, indices, nil
-}
-
-func derefResultValue(v reflect.Value) reflect.Value {
-	for v.Kind() == reflect.Interface || v.Kind() == reflect.Pointer {
-		if v.IsNil() {
-			return v
-		}
-		v = v.Elem()
-	}
-	return v
-}
-
-func lookupResultField(cur any, field, fullPath string) (any, error) {
-	if cur == nil {
-		return nil, fmt.Errorf("unsupported path %q: key %q not found (nil)", fullPath, field)
-	}
-	v := derefResultValue(reflect.ValueOf(cur))
-	switch v.Kind() {
-	case reflect.Map:
-		if v.Type().Key().Kind() != reflect.String {
-			return nil, fmt.Errorf("unsupported path %q: cannot resolve key %q on non-string map", fullPath, field)
-		}
-		key := reflect.ValueOf(field)
-		if key.Type() != v.Type().Key() {
-			if !key.CanConvert(v.Type().Key()) {
-				return nil, fmt.Errorf("unsupported path %q: cannot resolve key %q", fullPath, field)
-			}
-			key = key.Convert(v.Type().Key())
-		}
-		mv := v.MapIndex(key)
-		if !mv.IsValid() {
-			return nil, fmt.Errorf("unsupported path %q: key %q not found", fullPath, field)
-		}
-		return mv.Interface(), nil
-	case reflect.Struct:
-		t := v.Type()
-		for i := 0; i < t.NumField(); i++ {
-			f := t.Field(i)
-			if !f.IsExported() {
-				continue
-			}
-			tag := strings.Split(f.Tag.Get("json"), ",")[0]
-			if tag == field || f.Name == field {
-				return v.Field(i).Interface(), nil
-			}
-		}
-		return nil, fmt.Errorf("unsupported path %q: key %q not found", fullPath, field)
-	default:
-		return nil, fmt.Errorf("unsupported path %q: cannot resolve key %q on %s", fullPath, field, v.Kind())
-	}
-}
-
-func lookupResultIndex(cur any, idx int, fullPath string) (any, error) {
-	if cur == nil {
-		return nil, fmt.Errorf("unsupported path %q: index %d out of range (nil)", fullPath, idx)
-	}
-	v := derefResultValue(reflect.ValueOf(cur))
-	switch v.Kind() {
-	case reflect.Slice, reflect.Array:
-		if idx < 0 || idx >= v.Len() {
-			return nil, fmt.Errorf("unsupported path %q: index %d out of range (len %d)", fullPath, idx, v.Len())
-		}
-		return v.Index(idx).Interface(), nil
-	default:
-		return nil, fmt.Errorf("unsupported path %q: cannot index %d on %s", fullPath, idx, v.Kind())
-	}
 }

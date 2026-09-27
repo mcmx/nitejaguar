@@ -230,3 +230,52 @@ func TestArgsToStringMapRobust(t *testing.T) {
 		t.Fatal("expected error for nil args")
 	}
 }
+
+// Upstream expressions share the template engine: filters and literals
+// work inside {{...}} alongside file-derived placeholders.
+func TestRenameTemplateExpressionWithFilter(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "statement.pdf")
+	if err := os.WriteFile(src, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a, events := newTestAction(t, map[string]string{
+		"action":   "rename",
+		"file":     "$input.file",
+		"new_file": dir + "/{{stem}}-{{ $input.tag | upper }}{{ext}}",
+	})
+	inputs := []any{common.ResultData{
+		ExecutionID: "exec_test",
+		ActionID:    "trigger_test",
+		ActionType:  "trigger",
+		ActionName:  "filechange",
+		Payload:     map[string]any{"type": "create", "file": src, "tag": "final"},
+	}}
+	a.Execute("exec1", inputs)
+	p := readPayload(t, events)
+	if p.Type != "success" {
+		t.Fatalf("expected success, got %+v", p)
+	}
+	want := filepath.Join(dir, "statement-FINAL.pdf")
+	if p.NewFile != want {
+		t.Fatalf("expected new_file %q, got %q", want, p.NewFile)
+	}
+}
+
+// Unknown placeholders still fail fast.
+func TestUnknownPlaceholderIsError(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "a.txt")
+	if err := os.WriteFile(src, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a, events := newTestAction(t, map[string]string{
+		"action":   "rename",
+		"file":     src,
+		"new_file": dir + "/{{bogus}}.txt",
+	})
+	a.Execute("exec1", nil)
+	if p := readPayload(t, events); p.Type != "error" {
+		t.Fatalf("expected error, got %+v", p)
+	}
+}

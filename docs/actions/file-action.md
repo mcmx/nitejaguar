@@ -13,6 +13,7 @@ The `file` action performs file system operations (`create`, `remove`, `rename`)
   - Template placeholders:
     - `{{file}}`, `{{base}}`, `{{ext}}`, `{{stem}}` derived from the source file.
     - `{{date}}` (defaults to local `YYYYMMDD`, e.g., `20060102`) or `{{date:<layout>}}` (e.g. `{{date:2006-01-02}}`).
+    - Upstream expressions `{{ $input.<path> }}` with an optional `|` filter chain (`upper`, `lower`, `trim`, `trimPrefix`, `trimSuffix`, `replace`, `default`), e.g. `new_file: "{{stem}}-{{ $input.tag | upper }}{{ext}}"`. Same shared engine and filter table as the [`set` action](./set-action.md#templates--).
   - Home directory `~` expansion on both source and destination paths.
 - **Collision Safety**: If the destination file already exists during a `create` or `rename` operation, `file` refuses to overwrite it, emits an error result (`Type: "error"`), and leaves the source untouched.
 

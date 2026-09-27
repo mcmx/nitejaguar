@@ -203,3 +203,36 @@ func TestDestinationClientEchoed(t *testing.T) {
 		t.Fatalf("expected echoed destination_client, got %+v", p)
 	}
 }
+
+// Upstream expressions share the template engine: destination names can
+// mix file-derived placeholders with filtered $input references.
+func TestDestinationTemplateExpressionWithFilter(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "report.pdf")
+	if err := os.WriteFile(src, []byte("data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a, events := newTestAction(t, map[string]string{
+		"file":             "$input.file",
+		"destination_file": dir + "/out/{{stem}}-{{ $input.tag | upper }}{{ext}}",
+	})
+	inputs := []any{common.ResultData{
+		ExecutionID: "exec1",
+		ActionID:    "trigger_test",
+		ActionType:  "trigger",
+		ActionName:  "filechange",
+		Payload:     map[string]any{"type": "create", "file": src, "tag": "final"},
+	}}
+	a.Execute("exec1", inputs)
+	p := readPayload(t, events)
+	if p.Type != "success" {
+		t.Fatalf("expected success, got %+v", p)
+	}
+	want := filepath.Join(dir, "out", "report-FINAL.pdf")
+	if p.DestinationFile != want {
+		t.Fatalf("expected destination %q, got %q", want, p.DestinationFile)
+	}
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("expected dest to exist: %v", err)
+	}
+}

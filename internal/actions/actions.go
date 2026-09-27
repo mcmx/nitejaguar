@@ -10,6 +10,7 @@ import (
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions/datetime"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
+	"github.com/mcmx/nitejaguar/internal/actions/set"
 	"github.com/mcmx/nitejaguar/internal/actions/transfer"
 	"github.com/mcmx/nitejaguar/internal/actions/wait"
 	"go.jetify.com/typeid"
@@ -75,6 +76,8 @@ func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, strin
 		action, err = wait.New(am.events, data)
 	case "transfer":
 		action, err = transfer.New(am.events, data)
+	case "set":
+		action, err = set.New(am.events, data)
 	default:
 		return nil, "", fmt.Errorf("unknown action_name: %q", data.ActionName)
 	}

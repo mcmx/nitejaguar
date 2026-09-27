@@ -22,3 +22,4 @@ Welcome to the official documentation for **Nitejaguar**, a lightweight and powe
 - [Datetime Action (`datetime`)](./actions/datetime-action.md)
 - [Wait Action (`wait`)](./actions/wait-action.md)
 - [Transfer Action (`transfer`)](./actions/transfer-action.md)
+- [Set Action (`set`)](./actions/set-action.md)
