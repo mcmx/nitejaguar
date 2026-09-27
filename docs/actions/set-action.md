@@ -31,6 +31,34 @@ The `set` action builds a new data payload from fixed values and upstream refere
 - In `json` mode, bare references keep native types (`"array": [$input.id]`) while quoted references become strings (`"name": "$input.name"`).
 - A reference with no upstream input available is an error result.
 
+## Templates (`{{ ... }}`)
+
+Every value additionally accepts `{{ ... }}` placeholders holding a `$input.<path>` reference (or a quoted literal) plus an optional `|` filter chain. Templates expand before bare `$input.` references, so both can mix in one value. All template syntax lives in plain workflow JSON args, so it is fully user-editable.
+
+| Filter | Example | Result |
+|---|---|---|
+| `upper` (`uppercase`) | `{{ $input.name \| upper }}` | `ADA` |
+| `lower` (`lowercase`) | `{{ $input.name \| lower }}` | `ada` |
+| `trim` | `{{ $input.name \| trim }}` | surrounding whitespace removed (`trim:" ."` trims a custom cutset) |
+| `trimPrefix` | `{{ $input.p \| trimPrefix:/tmp/ }}` | leading prefix stripped |
+| `trimSuffix` | `{{ $input.p \| trimSuffix:.bkp }}` | trailing suffix stripped |
+| `replace` | `{{ $input.s \| replace:a:b }}` | `ReplaceAll` (`old:new`; quote args containing `:` or `\|`) |
+| `default` | `{{ $input.missing \| default:n/a }}` | fallback for missing/null values (later filters still apply) |
+
+Concat works by placing templates next to literal text:
+
+```json
+{"arguments": {"field.backup": "{{ $input.file }}.bkp"}}
+```
+
+`/tmp/report.pdf` → `/tmp/report.pdf.bkp`.
+
+Notes:
+
+- A value that is exactly one filter-free template keeps the referenced native type (`"{{ $input.count }}"` with `count: 7` stays a number); filtered or embedded templates always produce strings.
+- Filters chain left to right (`{{ $input.name | trim | upper }}`) and operate Unicode-aware (`upper`/`lower`).
+- Unknown filters, empty templates, and unclosed `{{` are error results (or skipped assignments with `ignore_type_errors`).
+
 ## Result payload
 
 Success payloads are flat: `{"type":"success","mode":"manual","keep_only_set":false, ...fields}`. Assigned fields overlay the merged input (nested objects merge recursively). `type` is reserved and always `success` on success; error payloads look like `{"type":"error","mode":"...","result":"..."}`.

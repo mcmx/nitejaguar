@@ -9,8 +9,18 @@
 //     type (number, boolean, object, ...); embedded references are
 //     interpolated as strings.
 //   - json: parse the `json` template string (after resolving any
-//     embedded `$input.<path>` references) as a JSON object. Unquoted
-//     references keep native types, quoted ones become strings.
+//     embedded `$input.<path>` references and `{{ ... }}` templates)
+//     as a JSON object. Unquoted references keep native types, quoted
+//     ones become strings.
+//
+// Value templates (`{{ ... }}`): every value also accepts
+// `{{ $input.<path> }}` placeholders with an optional `|` filter
+// chain (`upper`, `lower`, `trim`, `trimPrefix`, `trimSuffix`,
+// `replace`, `default`), e.g. `"{{ $input.file }}.bkp"` or
+// `"{{ $input.name | upper }}"`. A value that is exactly one
+// filter-free template keeps the referenced native type; filtered or
+// embedded templates produce strings. Templates expand before bare
+// `$input.<path>` references, so both can mix in one value.
 //
 // Common args:
 //   - keep_only_set (default false): true outputs only the assigned
@@ -226,6 +236,13 @@ func collectJSONFields(rawArgs map[string]any, input *common.ResultData, ignoreE
 	}
 	if strings.Contains(tmpl, "$result.") || strings.Contains(tmpl, "$args.") {
 		return nil, fmt.Errorf("unsupported reference in json template: only $input. resolves against upstream payload in action args")
+	}
+	if strings.Contains(tmpl, "{{") {
+		var err error
+		tmpl, err = expandJSONTemplates(tmpl, input)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if strings.Contains(tmpl, "$input.") {
 		if input == nil {
@@ -461,6 +478,18 @@ func resolveStringTemplate(raw string, input *common.ResultData) (any, error) {
 	if strings.Contains(raw, "$result.") || strings.Contains(raw, "$args.") {
 		return "", fmt.Errorf("unsupported reference in %q: only $input. resolves against upstream payload in action args", raw)
 	}
+	// `{{ ... }}` templates expand first; a value that is exactly one
+	// filter-free template keeps the referenced native type.
+	if strings.Contains(raw, "{{") {
+		if inner, ok := singleTemplate(raw); ok {
+			return evalTemplate(inner, input)
+		}
+		expanded, err := expandTemplates(raw, input)
+		if err != nil {
+			return "", err
+		}
+		raw = expanded
+	}
 	if !strings.Contains(raw, "$input.") {
 		return raw, nil
 	}
@@ -481,7 +510,7 @@ func resolveStringTemplate(raw string, input *common.ResultData) (any, error) {
 			resolveErr = err
 			return m
 		}
-		return common.StringifyArgValue(val)
+		return templateString(val)
 	})
 	if resolveErr != nil {
 		return "", resolveErr

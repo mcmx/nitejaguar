@@ -329,3 +329,184 @@ func TestInvalidArgsTypeIsError(t *testing.T) {
 		t.Fatalf("expected error, got %+v", p)
 	}
 }
+
+func TestBraceConcatWithSuffix(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{
+		"field.backup":  "{{ $input.file }}.bkp",
+		"keep_only_set": "true",
+	})
+	a.Execute("exec1", inputWith(map[string]any{"file": "report.pdf"}))
+	p := readPayload(t, events)
+	if p["type"] != "success" || p["backup"] != "report.pdf.bkp" {
+		t.Fatalf("unexpected payload: %+v", p)
+	}
+}
+
+func TestBraceUpperLowerTrim(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{
+		"field.shout":   "{{ $input.name | upper }}",
+		"field.quiet":   "{{ $input.name | lower }}",
+		"field.neat":    "{{ $input.padded | trim }}",
+		"keep_only_set": "true",
+	})
+	a.Execute("exec1", inputWith(map[string]any{"name": "aDa", "padded": "  hi  "}))
+	p := readPayload(t, events)
+	if p["type"] != "success" {
+		t.Fatalf("expected success, got %+v", p)
+	}
+	if p["shout"] != "ADA" || p["quiet"] != "ada" || p["neat"] != "hi" {
+		t.Fatalf("unexpected payload: %+v", p)
+	}
+}
+
+func TestBraceWholeValueKeepsNativeType(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{
+		"field.n":       "{{ $input.count }}",
+		"keep_only_set": "true",
+	})
+	a.Execute("exec1", inputWith(map[string]any{"count": float64(7)}))
+	p := readPayload(t, events)
+	if p["type"] != "success" || p["n"] != float64(7) {
+		t.Fatalf("unexpected payload: %+v", p)
+	}
+}
+
+func TestBraceFiltersProduceStrings(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{
+		"field.n":       "{{ $input.count | trim }}",
+		"keep_only_set": "true",
+	})
+	a.Execute("exec1", inputWith(map[string]any{"count": float64(7)}))
+	p := readPayload(t, events)
+	if p["type"] != "success" || p["n"] != "7" {
+		t.Fatalf("unexpected payload: %+v", p)
+	}
+}
+
+func TestBraceReplaceAndAffixes(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{
+		"field.a":       "{{ $input.s | replace:a:b }}",
+		"field.b":       "{{ $input.p | trimPrefix:/tmp/ }}",
+		"field.c":       "{{ $input.p | trimSuffix:.tmp }}",
+		"keep_only_set": "true",
+	})
+	a.Execute("exec1", inputWith(map[string]any{"s": "aaa", "p": "/tmp/x.tmp"}))
+	p := readPayload(t, events)
+	if p["type"] != "success" {
+		t.Fatalf("expected success, got %+v", p)
+	}
+	if p["a"] != "bbb" || p["b"] != "x.tmp" || p["c"] != "/tmp/x" {
+		t.Fatalf("unexpected payload: %+v", p)
+	}
+}
+
+func TestBraceDefaultFallback(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{
+		"field.a":       "{{ $input.missing | default:n/a }}",
+		"field.b":       "{{ $input.present | default:n/a }}",
+		"field.c":       "{{ $input.missing | default:x | upper }}",
+		"keep_only_set": "true",
+	})
+	a.Execute("exec1", inputWith(map[string]any{"present": "here"}))
+	p := readPayload(t, events)
+	if p["type"] != "success" {
+		t.Fatalf("expected success, got %+v", p)
+	}
+	if p["a"] != "n/a" || p["b"] != "here" || p["c"] != "X" {
+		t.Fatalf("unexpected payload: %+v", p)
+	}
+}
+
+func TestBraceLiteralAndChainedFilters(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{
+		"field.a":       `{{ "hi" | upper }}`,
+		"field.b":       "{{ $input.name | trim | upper }}",
+		"keep_only_set": "true",
+	})
+	a.Execute("exec1", inputWith(map[string]any{"name": "  ada  "}))
+	p := readPayload(t, events)
+	if p["type"] != "success" || p["a"] != "HI" || p["b"] != "ADA" {
+		t.Fatalf("unexpected payload: %+v", p)
+	}
+}
+
+func TestBraceMixesWithBareRefs(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{
+		"field.a":       "{{ $input.first | upper }}-$input.last",
+		"keep_only_set": "true",
+	})
+	a.Execute("exec1", inputWith(map[string]any{"first": "ada", "last": "lovelace"}))
+	p := readPayload(t, events)
+	if p["type"] != "success" || p["a"] != "ADA-lovelace" {
+		t.Fatalf("unexpected payload: %+v", p)
+	}
+}
+
+func TestBraceInJSONMode(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{
+		"mode":          "json",
+		"json":          `{"file": "{{ $input.file }}.bkp", "n": {{ $input.count }}, "u": "{{ $input.name | upper }}"}`,
+		"keep_only_set": "true",
+	})
+	a.Execute("exec1", inputWith(map[string]any{"file": "r.pdf", "count": float64(3), "name": "ada"}))
+	p := readPayload(t, events)
+	if p["type"] != "success" {
+		t.Fatalf("expected success, got %+v", p)
+	}
+	if p["file"] != "r.pdf.bkp" || p["n"] != float64(3) || p["u"] != "ADA" {
+		t.Fatalf("unexpected payload: %+v", p)
+	}
+}
+
+func TestBraceUnknownFilterIsError(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{"field.a": "{{ $input.x | frobnicate }}"})
+	a.Execute("exec1", inputWith(map[string]any{"x": "1"}))
+	if p := readPayload(t, events); p["type"] != "error" {
+		t.Fatalf("expected error, got %+v", p)
+	}
+}
+
+func TestBraceUnclosedIsError(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{"field.a": "{{ $input.x"})
+	a.Execute("exec1", inputWith(map[string]any{"x": "1"}))
+	if p := readPayload(t, events); p["type"] != "error" {
+		t.Fatalf("expected error, got %+v", p)
+	}
+}
+
+func TestBraceBadExpressionIsError(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{"field.a": "{{ nope }}"})
+	a.Execute("exec1", inputWith(map[string]any{"x": "1"}))
+	if p := readPayload(t, events); p["type"] != "error" {
+		t.Fatalf("expected error, got %+v", p)
+	}
+}
+
+func TestBraceErrorSkippedWithIgnoreFlag(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{
+		"field.good":         `{{ "ok" | upper }}`,
+		"field.bad":          "{{ $input.x | frobnicate }}",
+		"keep_only_set":      "true",
+		"ignore_type_errors": "true",
+	})
+	a.Execute("exec1", inputWith(map[string]any{"x": "1"}))
+	p := readPayload(t, events)
+	if p["type"] != "success" || p["good"] != "OK" {
+		t.Fatalf("unexpected payload: %+v", p)
+	}
+	if _, ok := p["bad"]; ok {
+		t.Fatalf("expected bad field skipped, got %+v", p)
+	}
+}
+
+func TestBraceLargeNumberStaysReadable(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{
+		"field.a":       "id-{{ $input.id }}",
+		"keep_only_set": "true",
+	})
+	a.Execute("exec1", inputWith(map[string]any{"id": float64(23423532)}))
+	p := readPayload(t, events)
+	if p["type"] != "success" || p["a"] != "id-23423532" {
+		t.Fatalf("unexpected payload: %+v", p)
+	}
+}
