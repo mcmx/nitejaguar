@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielgtaylor/huma/v2/humatest"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/workflow"
 )
@@ -27,7 +26,7 @@ func TestCredentialsLifecycle(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 	adminAuth := ensureAdminToken(t, db)
 
@@ -210,7 +209,7 @@ func TestCredentialScopeResolution(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 	scopeAuth := ensureAdminToken(t, db)
 
@@ -279,7 +278,7 @@ func TestCredentialFetchEnforcesCollectionType(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 	typeAuth := ensureAdminToken(t, db)
 
@@ -378,7 +377,7 @@ func TestCredentialSecretShapesEnforced(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 	auth := ensureAdminToken(t, db)
 

@@ -128,7 +128,7 @@ func TestAnonymousReadsDenied(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	seed := seedIsolation(t, db, api)
@@ -163,7 +163,7 @@ func TestCrossTenantReadsDenied(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	seed := seedIsolation(t, db, api)
@@ -239,7 +239,7 @@ func TestCrossTenantWritesDenied(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	seed := seedIsolation(t, db, api)
@@ -359,7 +359,7 @@ func TestWebCrossTenantDenials(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	seed := seedIsolation(t, db, api)
