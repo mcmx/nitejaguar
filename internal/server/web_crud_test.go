@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielgtaylor/huma/v2/humatest"
 	"github.com/labstack/echo/v4"
 	"github.com/mcmx/nitejaguar/cmd/web/modules"
 	"github.com/mcmx/nitejaguar/internal/database"
@@ -24,7 +23,7 @@ func TestChangePasswordAPI(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	tenant := fmt.Sprintf("pwdchange%d", testAdminSeq.Add(1))
@@ -85,7 +84,7 @@ func TestAdminResetOtherPasswordAPI(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	tenant := fmt.Sprintf("pwdreset%d", testAdminSeq.Add(1))
@@ -127,7 +126,7 @@ func TestDeleteWorkflowAPI(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	tenant := fmt.Sprintf("wfdelete%d", testAdminSeq.Add(1))

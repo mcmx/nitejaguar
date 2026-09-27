@@ -8,8 +8,6 @@ import (
 
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/workflow"
-
-	"github.com/danielgtaylor/huma/v2/humatest"
 )
 
 func TestHandler(t *testing.T) {
@@ -19,7 +17,7 @@ func TestHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed initializing database: %v", err)
 	}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	s := &Server{db: db, wm: workflow.NewWorkflowManager(false, db)}
 	addApiRoutes(api, s)
 
@@ -104,7 +102,7 @@ func TestClientAssignmentFlow(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	if _, err := wm.ImportWorkflowJSON(assignmentFlowWorkflow); err != nil {
@@ -320,7 +318,7 @@ func TestClientAssignmentsExcludeDisabledWorkflows(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 	if _, err := wm.ImportWorkflowJSON(assignmentFlowWorkflow); err != nil {
 		t.Fatalf("seed workflow: %v", err)
@@ -358,7 +356,7 @@ func TestWorkflowImportCloneAPI(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	var def map[string]any
@@ -424,7 +422,7 @@ func TestTenantEnrollmentLifecycle(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	// Token issuance and lifecycle ops are operator-gated (open-bootstrap
@@ -596,7 +594,7 @@ func TestCrossClientHandoff(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	if _, err := wm.ImportWorkflowJSON(crossClientWorkflow); err != nil {
@@ -755,7 +753,7 @@ func TestWorkflowDefaultTargeting(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	if _, err := wm.ImportWorkflowJSON(defaultTargetingWorkflow); err != nil {

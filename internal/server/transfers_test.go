@@ -21,7 +21,7 @@ func testTransferServer(t *testing.T) (database.Service, humatest.TestAPI) {
 		t.Fatalf("failed initializing database: %v", err)
 	}
 	s := &Server{db: db, wm: workflow.NewWorkflowManager(false, db)}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 	return db, api
 }

@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/danielgtaylor/huma/v2/humatest"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/workflow"
 )
@@ -62,7 +61,7 @@ func TestAuthLoginLogoutMe(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	tenant := fmt.Sprintf("rbaclogin%d", testAdminSeq.Add(1))
@@ -130,7 +129,7 @@ func TestRBACRoleGating(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	tenant := fmt.Sprintf("rbacgate%d", testAdminSeq.Add(1))
@@ -279,7 +278,7 @@ func TestUserManagement(t *testing.T) {
 	}
 	wm := workflow.NewWorkflowManager(false, db)
 	s := &Server{db: db, wm: wm}
-	_, api := humatest.New(t)
+	_, api := newTestAPI(t)
 	addApiRoutes(api, s)
 
 	tenant := fmt.Sprintf("rbacusers%d", testAdminSeq.Add(1))
