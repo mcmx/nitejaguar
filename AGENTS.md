@@ -50,6 +50,17 @@ Workflow automation app (Go). Module `github.com/mcmx/nitejaguar`. Entrypoint `c
   - New filters and expression syntax belong in `common/template.go` only (registered in `applyTemplateFilter`, covered by `common/template_test.go`), so every action benefits. Supported today: `upper`, `lower`, `trim`, `trimPrefix`, `trimSuffix`, `replace`, `default` — see `docs/actions/set-action.md` (filter table is the user-facing contract; update it when adding filters).
   - Splitting rule: expand `{{...}}` regions separately from bare `$input.` refs (see `common.SplitTemplates`) so adjacent forms (`$input.now{{ext}}`, `{{ $input.tag | upper }}`) never consume each other. Reject `$result.`/`$args.` in args (own result doesn't exist at resolution time).
 
+## Web UI (sidebar shell + graph designer)
+
+- App shell: `Base` (`cmd/web/base.templ`) renders a left `Sidebar` + sticky `Topbar` (`cmd/web/modules/navbar.templ`) around page content (`.nj-content`, max 1400px). `Navbar` is kept as a thin wrapper over `Sidebar` for `TestNavbarGating` — don't remove it. Active-link highlighting is client-side (data-navlink vs `location.pathname`) so `Base` needs no route param.
+- Shell/graph styles live in `cmd/web/assets/css/input.css` (`nj-shell`, `nj-canvas`, `nj-node`, …); `output.css` is committed, so regenerate + commit it after any `.templ`/CSS change (`make build`).
+- Designer (`DesignerPage` in `cmd/web/dashboard.templ`) is a visual graph editor: draggable cards, bezier edges with arrowheads, per-node **＋ Add action** picker backed by the `DESIGNER_CATALOG` JS table, node inspector, live JSON preview. Canvas edges (`nexts`) are the source of truth — `getJSON()` translates them into workflow JSON (`conditions.entries` forward, `dependencies` recomputed from incoming edges) for `POST /designer/save`; the backend save path is unchanged.
+- templ + Alpine gotchas (all bitten before, all covered by `TestDesignerGraphClientLogic`):
+  - Never write a literal `{{`/`}}` inside a `<script>` block in `.templ` (the compiler parses it as template code → `undefined: base` build failure). Build brace strings via `String.fromCharCode(123, …)`.
+  - Never use `<template x-for>` inside `<svg>` (content parses in the HTML namespace, so `<path>` never paints). Render edges via `x-html` on a `<g>`.
+  - Canvas drag listeners must detach on `pointerup` **and** `pointercancel` (a missing detach leaves the card stuck to the cursor), with a small dead-zone so plain clicks don't jitter cards.
+- Designer JS is headless-testable: extract the `<script>` from `dashboard.templ`, stub `window` listener registry, and drive `designerGraph()` under `node` (edges, drag attach/detach, connect).
+
 ## Tenant isolation & RBAC — mandatory for every change
 
 - Model: every tenant-scoped row carries a `tenant_id` slug (`Tenant.Slug`; `default` always exists). Admins of `default` are **superusers**; tenant-local admins manage only their own tenant. Helpers: `database.IsSuperUser` / `database.CanCrossTenant` (server: `normalizeTenantID`, `scopedTenant`, `workflowTenant`). Roles rank `viewer < operator < admin` — gate with `requireRole` (API) / `webActor` (web forms).
