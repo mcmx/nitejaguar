@@ -239,16 +239,13 @@ func collectJSONFields(rawArgs map[string]any, input *common.ResultData, ignoreE
 	}
 	if strings.Contains(tmpl, "{{") {
 		var err error
-		tmpl, err = expandJSONTemplates(tmpl, input)
+		tmpl, err = common.ExpandJSONTemplates(tmpl, common.InputLookup(input))
 		if err != nil {
 			return nil, err
 		}
 	}
 	if strings.Contains(tmpl, "$input.") {
-		if input == nil {
-			return nil, fmt.Errorf("no input result available to resolve json template")
-		}
-		resolved, err := resolveJSONTemplate(tmpl, input)
+		resolved, err := common.ExpandJSONRefs(tmpl, common.InputLookup(input))
 		if err != nil {
 			return nil, err
 		}
@@ -281,89 +278,6 @@ func collectJSONFields(rawArgs map[string]any, input *common.ResultData, ignoreE
 		out[name] = val
 	}
 	return out, nil
-}
-
-// resolveJSONTemplate resolves `$input.<path>` references in a raw JSON
-// template. Each reference is replaced by the JSON encoding of the
-// referenced value, except when the reference sits inside a JSON string
-// literal (`"$input.name"`): then the plain string form is substituted
-// so the template stays valid JSON. Bare references keep native types
-// (numbers, booleans, objects, arrays).
-func resolveJSONTemplate(tmpl string, input *common.ResultData) (string, error) {
-	matches := resultRefPattern.FindAllStringIndex(tmpl, -1)
-	if len(matches) == 0 {
-		return tmpl, nil
-	}
-	var out strings.Builder
-	pos := 0
-	for _, m := range matches {
-		ref := tmpl[m[0]:m[1]]
-		val, err := resolveResultPath(input.Payload, ref)
-		if err != nil {
-			return "", err
-		}
-		out.WriteString(tmpl[pos:m[0]])
-		if isQuotedAt(tmpl, m[0], m[1]) {
-			var s string
-			if str, ok := val.(string); ok {
-				s = str
-			} else if raw, merr := json.Marshal(val); merr == nil && isJSONScalar(raw) {
-				// Numbers/bools/null render in JSON form
-				// (23423532, not 2.3423532e+07) inside the
-				// surrounding quotes.
-				out.Write(raw)
-				pos = m[1]
-				continue
-			} else {
-				s = common.StringifyArgValue(val)
-			}
-			// Reuse the JSON string escaper, minus the surrounding
-			// quotes, so values with quotes or newlines stay valid.
-			raw, err := json.Marshal(s)
-			if err != nil {
-				return "", err
-			}
-			out.Write(raw[1 : len(raw)-1])
-		} else {
-			raw, err := json.Marshal(val)
-			if err != nil {
-				return "", err
-			}
-			out.Write(raw)
-		}
-		pos = m[1]
-	}
-	out.WriteString(tmpl[pos:])
-	return out.String(), nil
-}
-
-// isJSONScalar reports whether raw JSON is a number, boolean, or null
-// (values that embed cleanly inside a surrounding string literal).
-func isJSONScalar(raw []byte) bool {
-	if len(raw) == 0 {
-		return false
-	}
-	switch raw[0] {
-	case '{', '[', '"':
-		return false
-	default:
-		return true
-	}
-}
-
-// isQuotedAt reports whether the match at [start,end) sits inside a JSON
-// string literal, detected by quotes immediately surrounding it
-// (allowing whitespace between the quote and the reference).
-func isQuotedAt(tmpl string, start, end int) bool {
-	before := start - 1
-	for before >= 0 && (tmpl[before] == ' ' || tmpl[before] == '\t' || tmpl[before] == '\n' || tmpl[before] == '\r') {
-		before--
-	}
-	after := end
-	for after < len(tmpl) && (tmpl[after] == ' ' || tmpl[after] == '\t' || tmpl[after] == '\n' || tmpl[after] == '\r') {
-		after++
-	}
-	return before >= 0 && tmpl[before] == '"' && after < len(tmpl) && tmpl[after] == '"'
 }
 
 // setField assigns a value, expanding dot notation into nested objects.
@@ -478,175 +392,57 @@ func resolveStringTemplate(raw string, input *common.ResultData) (any, error) {
 	if strings.Contains(raw, "$result.") || strings.Contains(raw, "$args.") {
 		return "", fmt.Errorf("unsupported reference in %q: only $input. resolves against upstream payload in action args", raw)
 	}
-	// `{{ ... }}` templates expand first; a value that is exactly one
-	// filter-free template keeps the referenced native type.
-	if strings.Contains(raw, "{{") {
-		if inner, ok := singleTemplate(raw); ok {
-			return evalTemplate(inner, input)
+	if strings.Contains(raw, "{{") && !common.HasTemplate(raw) {
+		return "", fmt.Errorf("invalid template in %q: unclosed \"{{\"", raw)
+	}
+	segs := common.SplitTemplates(raw)
+	// A value that is exactly one filter-free template keeps the
+	// referenced native type.
+	if len(segs) == 3 && segs[0] == "" && segs[2] == "" {
+		return common.EvalTemplate(segs[1], common.InputLookup(input))
+	}
+	// Split-out regions keep bare `$input.` refs and templates from
+	// consuming each other when adjacent.
+	var sb strings.Builder
+	for i, seg := range segs {
+		if i%2 == 1 {
+			v, err := common.EvalTemplate(seg, common.InputLookup(input))
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(common.TemplateString(v))
+			continue
 		}
-		expanded, err := expandTemplates(raw, input)
-		if err != nil {
-			return "", err
+		if !strings.Contains(seg, "$input.") {
+			sb.WriteString(seg)
+			continue
 		}
-		raw = expanded
-	}
-	if !strings.Contains(raw, "$input.") {
-		return raw, nil
-	}
-	if input == nil {
-		return "", fmt.Errorf("no input result available to resolve %q", raw)
-	}
-	trimmed := strings.TrimSpace(raw)
-	if m := resultRefPattern.FindString(trimmed); m == trimmed {
-		return resolveResultPath(input.Payload, m)
-	}
-	var resolveErr error
-	out := resultRefPattern.ReplaceAllStringFunc(raw, func(m string) string {
+		if input == nil {
+			return "", fmt.Errorf("no input result available to resolve %q", raw)
+		}
+		if len(segs) == 1 {
+			if trimmed := strings.TrimSpace(seg); resultRefPattern.FindString(trimmed) == trimmed {
+				return common.ResolveRefPath(input.Payload, trimmed)
+			}
+		}
+		var resolveErr error
+		out := resultRefPattern.ReplaceAllStringFunc(seg, func(m string) string {
+			if resolveErr != nil {
+				return m
+			}
+			val, err := common.ResolveRefPath(input.Payload, m)
+			if err != nil {
+				resolveErr = err
+				return m
+			}
+			return common.TemplateString(val)
+		})
 		if resolveErr != nil {
-			return m
+			return "", resolveErr
 		}
-		val, err := resolveResultPath(input.Payload, m)
-		if err != nil {
-			resolveErr = err
-			return m
-		}
-		return templateString(val)
-	})
-	if resolveErr != nil {
-		return "", resolveErr
+		sb.WriteString(out)
 	}
-	return out, nil
-}
-
-// resolveResultPath resolves `$input.<path>` against the upstream
-// payload. Supports dot-separated map keys / struct fields (json tag
-// aware) and optional [index] suffixes.
-func resolveResultPath(root any, fullPath string) (any, error) {
-	const prefix = "$input."
-	rest := strings.TrimPrefix(fullPath, prefix)
-	if rest == fullPath {
-		return nil, fmt.Errorf("unsupported path %q: must start with $input", fullPath)
-	}
-	if rest == "" {
-		return nil, fmt.Errorf("unsupported path %q: empty key", fullPath)
-	}
-	cur := root
-	for _, seg := range strings.Split(rest, ".") {
-		if seg == "" {
-			return nil, fmt.Errorf("unsupported path %q: empty segment", fullPath)
-		}
-		field, indices, err := parsePathSegment(seg, fullPath)
-		if err != nil {
-			return nil, err
-		}
-		if field != "" {
-			cur, err = lookupResultField(cur, field, fullPath)
-			if err != nil {
-				return nil, err
-			}
-		} else if len(indices) == 0 {
-			return nil, fmt.Errorf("unsupported path %q: empty segment", fullPath)
-		}
-		for _, idx := range indices {
-			cur, err = lookupResultIndex(cur, idx, fullPath)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	return cur, nil
-}
-
-func parsePathSegment(seg, fullPath string) (string, []int, error) {
-	open := strings.IndexByte(seg, '[')
-	if open == -1 {
-		return seg, nil, nil
-	}
-	field := seg[:open]
-	rest := seg[open:]
-	var indices []int
-	for len(rest) > 0 {
-		if !strings.HasPrefix(rest, "[") {
-			return "", nil, fmt.Errorf("unsupported path %q: malformed segment %q", fullPath, seg)
-		}
-		closeIdx := strings.IndexByte(rest, ']')
-		if closeIdx == -1 {
-			return "", nil, fmt.Errorf("unsupported path %q: malformed segment %q", fullPath, seg)
-		}
-		n, err := strconv.Atoi(rest[1:closeIdx])
-		if err != nil {
-			return "", nil, fmt.Errorf("unsupported path %q: invalid index in segment %q", fullPath, seg)
-		}
-		indices = append(indices, n)
-		rest = rest[closeIdx+1:]
-	}
-	return field, indices, nil
-}
-
-func derefResultValue(v reflect.Value) reflect.Value {
-	for v.Kind() == reflect.Interface || v.Kind() == reflect.Pointer {
-		if v.IsNil() {
-			return v
-		}
-		v = v.Elem()
-	}
-	return v
-}
-
-func lookupResultField(cur any, field, fullPath string) (any, error) {
-	if cur == nil {
-		return nil, fmt.Errorf("unsupported path %q: key %q not found (nil)", fullPath, field)
-	}
-	v := derefResultValue(reflect.ValueOf(cur))
-	switch v.Kind() {
-	case reflect.Map:
-		if v.Type().Key().Kind() != reflect.String {
-			return nil, fmt.Errorf("unsupported path %q: cannot resolve key %q on non-string map", fullPath, field)
-		}
-		key := reflect.ValueOf(field)
-		if key.Type() != v.Type().Key() {
-			if !key.CanConvert(v.Type().Key()) {
-				return nil, fmt.Errorf("unsupported path %q: cannot resolve key %q", fullPath, field)
-			}
-			key = key.Convert(v.Type().Key())
-		}
-		mv := v.MapIndex(key)
-		if !mv.IsValid() {
-			return nil, fmt.Errorf("unsupported path %q: key %q not found", fullPath, field)
-		}
-		return mv.Interface(), nil
-	case reflect.Struct:
-		t := v.Type()
-		for i := 0; i < t.NumField(); i++ {
-			f := t.Field(i)
-			if !f.IsExported() {
-				continue
-			}
-			tag := strings.Split(f.Tag.Get("json"), ",")[0]
-			if tag == field || f.Name == field {
-				return v.Field(i).Interface(), nil
-			}
-		}
-		return nil, fmt.Errorf("unsupported path %q: key %q not found", fullPath, field)
-	default:
-		return nil, fmt.Errorf("unsupported path %q: cannot resolve key %q on %s", fullPath, field, v.Kind())
-	}
-}
-
-func lookupResultIndex(cur any, idx int, fullPath string) (any, error) {
-	if cur == nil {
-		return nil, fmt.Errorf("unsupported path %q: index %d out of range (nil)", fullPath, idx)
-	}
-	v := derefResultValue(reflect.ValueOf(cur))
-	switch v.Kind() {
-	case reflect.Slice, reflect.Array:
-		if idx < 0 || idx >= v.Len() {
-			return nil, fmt.Errorf("unsupported path %q: index %d out of range (len %d)", fullPath, idx, v.Len())
-		}
-		return v.Index(idx).Interface(), nil
-	default:
-		return nil, fmt.Errorf("unsupported path %q: cannot index %d on %s", fullPath, idx, v.Kind())
-	}
+	return sb.String(), nil
 }
 
 // rawArgsMap normalizes action args while preserving value types.

@@ -510,3 +510,16 @@ func TestBraceLargeNumberStaysReadable(t *testing.T) {
 		t.Fatalf("unexpected payload: %+v", p)
 	}
 }
+
+func TestBareRefAdjacentToTemplate(t *testing.T) {
+	a, events := newTestAction(t, map[string]string{
+		"field.a":       "$input.x{{ $input.y }}",
+		"field.b":       "{{ $input.y }}$input.x",
+		"keep_only_set": "true",
+	})
+	a.Execute("exec1", inputWith(map[string]any{"x": "1", "y": "2"}))
+	p := readPayload(t, events)
+	if p["type"] != "success" || p["a"] != "12" || p["b"] != "21" {
+		t.Fatalf("unexpected payload: %+v", p)
+	}
+}

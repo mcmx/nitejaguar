@@ -6,7 +6,7 @@ The `transfer` action copies a file byte-for-byte to a destination path with cro
 
 - **Copy**: reads `file` (source) and writes `destination_file` verbatim (no line-ending conversion), reporting `bytes` + `sha256`.
 - **Automatic Directory Creation**: missing destination parents are created (`os.MkdirAll` `0755`).
-- **Dynamic Argument Templating**: literal strings, `$input.<path>` (upstream payload), and `{{file}}` / `{{base}}` / `{{ext}}` / `{{stem}}` derived from the source file. `~` expands on the executing side.
+- **Dynamic Argument Templating**: literal strings, `$input.<path>` (upstream payload), and `{{file}}` / `{{base}}` / `{{ext}}` / `{{stem}}` derived from the source file, plus upstream expressions `{{ $input.<path> }}` with an optional `|` filter chain (`upper`, `lower`, `trim`, `trimPrefix`, `trimSuffix`, `replace`, `default`) — same shared engine and filter table as the [`set` action](./set-action.md#templates--). `~` expands on the executing side.
 - **Collision Safety**: existing destination → `Type: "error"`, source untouched, no partial file.
 - **Permissions**: optional Unix octal `permissions` (`"0644"`, `"0755"`); omitted = preserve source mode (fallback `0644`). Best-effort on Windows (warn, still succeed).
 - **Cross-OS guard**: destination basenames with Windows-illegal `<>:"|?*` or reserved names (`CON`, `NUL`, `COM1-9`, `LPT1-9`, ...) are rejected on every OS.

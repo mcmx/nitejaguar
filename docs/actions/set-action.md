@@ -33,7 +33,7 @@ The `set` action builds a new data payload from fixed values and upstream refere
 
 ## Templates (`{{ ... }}`)
 
-Every value additionally accepts `{{ ... }}` placeholders holding a `$input.<path>` reference (or a quoted literal) plus an optional `|` filter chain. Templates expand before bare `$input.` references, so both can mix in one value. All template syntax lives in plain workflow JSON args, so it is fully user-editable.
+Every value additionally accepts `{{ ... }}` placeholders holding a `$input.<path>` reference (or a quoted literal) plus an optional `|` filter chain. Templates expand before bare `$input.` references, so both can mix in one value. All template syntax lives in plain workflow JSON args, so it is fully user-editable. The engine is shared (`common/template.go`): the same placeholders and filters work in the `file` and `transfer` actions, and this filter table is the contract for all of them.
 
 | Filter | Example | Result |
 |---|---|---|

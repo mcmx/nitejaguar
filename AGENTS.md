@@ -45,6 +45,10 @@ Workflow automation app (Go). Module `github.com/mcmx/nitejaguar`. Entrypoint `c
 - All entity IDs are typeid-based with prefixes: `workflow_`, `result_`, `action_`, `trigger_`. New code should keep generating IDs via `go.jetify.com/typeid` with the matching prefix rather than ints or unknown formats.
 - Workflow JSON structure: top-level `id`/`name`/`nodes`; each node has `action_type` (`trigger`|`action`), `action_name`, `arguments`, `conditions`, `dependencies`. See `examples/workflow2.json` / `workflows/workflow3.json`.
 - Client mode is stubbed (root command runs `client`, which exits with "not implemented").
+- Templates & `$input` references (shared engine in `common/template.go` + `common/refpath.go` — mandatory for new implementations):
+  - New actions/triggers MUST resolve `$input.<path>` via `common.ResolveRefPath` and `{{ ... }}` expressions via the shared template engine (`common.EvalTemplate` / `common.ExpandTemplates` / `common.ExpandJSONTemplates` / `common.SplitTemplates` / `common.InputLookup`); never copy-paste a private resolver.
+  - New filters and expression syntax belong in `common/template.go` only (registered in `applyTemplateFilter`, covered by `common/template_test.go`), so every action benefits. Supported today: `upper`, `lower`, `trim`, `trimPrefix`, `trimSuffix`, `replace`, `default` — see `docs/actions/set-action.md` (filter table is the user-facing contract; update it when adding filters).
+  - Splitting rule: expand `{{...}}` regions separately from bare `$input.` refs (see `common.SplitTemplates`) so adjacent forms (`$input.now{{ext}}`, `{{ $input.tag | upper }}`) never consume each other. Reject `$result.`/`$args.` in args (own result doesn't exist at resolution time).
 
 ## Tenant isolation & RBAC — mandatory for every change
 
