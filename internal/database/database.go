@@ -117,6 +117,23 @@ type Service interface {
 	AuthenticateSession(token string) (*ent.AppUser, *ent.AuthSession, error)
 	RevokeSession(token string) error
 	EnsureDefaultAdmin() (username, plaintext string, created bool, err error)
+	SetUserEmail(userID, email string) error
+
+	// Multi-tenant registry (roadmap slice 5): tenants own a slug used as
+	// tenant_id on all scoped rows. Admins of the default tenant are
+	// superusers and manage the registry; tenant admins manage only
+	// their own tenant.
+	EnsureDefaultTenant() (*ent.Tenant, error)
+	CreateTenant(name, slugOverride, contactEmail, adminUsername, adminEmail, adminPassword string) (*ent.Tenant, *ent.AppUser, string, error)
+	ListTenants() ([]*ent.Tenant, error)
+	GetTenant(idOrSlug string) (*ent.Tenant, error)
+	SetTenantStatus(idOrSlug, status string) (*ent.Tenant, error)
+	SuspendTenant(idOrSlug string) (*ent.Tenant, error)
+	ActivateTenant(idOrSlug string) (*ent.Tenant, error)
+	DeleteTenant(idOrSlug string) error
+	TenantStatus(slug string) string
+	IsTenantSuspended(slug string) bool
+	CountTenantUsers(slug string) (int, error)
 }
 
 type service struct {
@@ -169,6 +186,9 @@ func New() (Service, error) {
 	}
 	if err := client.Schema.Create(context.Background()); err != nil {
 		return nil, fmt.Errorf("failed creating schema resources: %w", err)
+	}
+	if _, err := dbInstance.EnsureDefaultTenant(); err != nil {
+		log.Printf("failed bootstrapping default tenant: %v", err)
 	}
 	if plaintext, created, err := dbInstance.EnsureDefaultEnrollmentToken(); err != nil {
 		log.Printf("failed bootstrapping default enrollment token: %v", err)
@@ -328,6 +348,9 @@ func (s *service) RegisterClient(name string, tags []string, tenantID string) (*
 	if tenantID == "" {
 		tenantID = "default"
 	}
+	if s.IsTenantSuspended(tenantID) {
+		return nil, "", fmt.Errorf("tenant is suspended")
+	}
 	tid, _ := typeid.WithPrefix("client")
 	buf := make([]byte, 32)
 	_, _ = rand.Read(buf)
@@ -428,6 +451,9 @@ func (s *service) CreateEnrollmentToken(tenantID, label string, expiresAt *time.
 	if tenantID == "" {
 		tenantID = "default"
 	}
+	if s.IsTenantSuspended(tenantID) {
+		return nil, "", fmt.Errorf("tenant is suspended")
+	}
 	if maxUses < 0 {
 		return nil, "", fmt.Errorf("max_uses cannot be negative")
 	}
@@ -491,6 +517,9 @@ func (s *service) ConsumeEnrollmentToken(token string) (*ent.EnrollmentToken, er
 		Only(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("invalid enrollment token")
+	}
+	if s.IsTenantSuspended(tok.TenantID) {
+		return nil, fmt.Errorf("tenant is suspended")
 	}
 	if tok.Revoked {
 		return nil, fmt.Errorf("enrollment token revoked")

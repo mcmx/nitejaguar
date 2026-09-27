@@ -92,6 +92,10 @@ func (s *Server) RegisterRoutes() http.Handler {
 	e.GET("/credentials", s.credentialsPage)
 	e.GET("/audit", s.auditPage)
 	e.GET("/users", s.usersPage)
+	e.GET("/tenants", s.tenantsPage)
+	e.POST("/tenants", s.createTenantWeb)
+	e.POST("/tenants/:id/suspend", s.suspendTenantWeb)
+	e.POST("/tenants/:id/activate", s.activateTenantWeb)
 	e.GET("/profile", s.profilePage)
 	e.POST("/workflows/:id/enabled", s.setWorkflowEnabled)
 	e.POST("/workflows/:id/delete", s.deleteWorkflowWeb)
@@ -283,6 +287,42 @@ func addApiRoutes(api huma.API, s *Server) {
 		Path:        "/auth/password",
 		Summary:     "Change your own password (admins may reset others via user_id)",
 	}, s.ChangePassword)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "create-tenant",
+		Method:      http.MethodPost,
+		Path:        "/tenants",
+		Summary:     "Provision a tenant plus its admin user (superuser only)",
+	}, s.CreateTenant)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "list-tenants",
+		Method:      http.MethodGet,
+		Path:        "/tenants",
+		Summary:     "List tenants (superusers see all; others see their own)",
+	}, s.ListTenants)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "get-tenant",
+		Method:      http.MethodGet,
+		Path:        "/tenants/{id}",
+		Summary:     "Tenant by id or slug (superusers any; others own only)",
+	}, s.GetTenant)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "suspend-tenant",
+		Method:      http.MethodPost,
+		Path:        "/tenants/{id}/suspend",
+		Summary:     "Suspend a tenant: block logins, enrollment, registration (superuser only)",
+	}, s.SuspendTenant)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "activate-tenant",
+		Method:      http.MethodPost,
+		Path:        "/tenants/{id}/activate",
+		Summary:     "Re-activate a suspended tenant (superuser only)",
+	}, s.ActivateTenant)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "delete-tenant",
+		Method:      http.MethodDelete,
+		Path:        "/tenants/{id}",
+		Summary:     "Delete a tenant registry row (superuser only, no cascade)",
+	}, s.DeleteTenant)
 	huma.Register(apiGrp, huma.Operation{
 		OperationID: "init-transfer",
 		Method:      http.MethodPost,
@@ -506,8 +546,10 @@ func (s *Server) GetAssignments(_ context.Context, input *AssignmentsInput) (*As
 	// Keep full definitions for pending filtering below.
 	defsByID := make(map[string]workflow.Workflow, len(rows))
 	for _, row := range rows {
-		// Tenant isolation check
-		if row.TenantID != "" && row.TenantID != "default" && client.TenantID != "" && client.TenantID != "default" && row.TenantID != client.TenantID {
+		// Strict tenant isolation: a client only receives workflows from
+		// its own tenant (empty normalizes to default; default is not a
+		// wildcard shared across tenants).
+		if normalizeTenantID(row.TenantID) != normalizeTenantID(client.TenantID) {
 			continue
 		}
 		var def workflow.Workflow
@@ -541,7 +583,7 @@ func (s *Server) GetAssignments(_ context.Context, input *AssignmentsInput) (*As
 	pending := []PendingAssignment{}
 	if assignRows, err := s.db.ListPendingAssignments(); err == nil {
 		for _, a := range assignRows {
-			if a.TenantID != "" && a.TenantID != "default" && client.TenantID != "" && client.TenantID != "default" && a.TenantID != client.TenantID {
+			if normalizeTenantID(a.TenantID) != normalizeTenantID(client.TenantID) {
 				continue
 			}
 			def, ok := defsByID[a.WorkflowID]
@@ -583,11 +625,25 @@ func (s *Server) GetAssignments(_ context.Context, input *AssignmentsInput) (*As
 	}, nil
 }
 
-func (s *Server) GetClients(_ context.Context, _ *struct{}) (*ClientsResponse, error) {
+type ListClientsInput struct {
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+}
+
+func (s *Server) GetClients(_ context.Context, input *ListClientsInput) (*ClientsResponse, error) {
+	caller, _, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleViewer)
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	clients := s.registry().list()
 	out := make([]ClientStatus, 0, len(clients))
 	for _, c := range clients {
+		// Tenant isolation: non-superusers only see their own tenant's
+		// clients (open-bootstrap mode sees everything).
+		if caller != nil && !database.CanCrossTenant(caller) && normalizeTenantID(c.TenantID) != normalizeTenantID(caller.TenantID) {
+			continue
+		}
 		out = append(out, ClientStatus{
 			ID: c.ID, Name: c.Name, TenantID: c.TenantID, Tags: c.Tags, Revoked: c.Revoked,
 			RegisteredAt:  c.RegisteredAt,
@@ -745,7 +801,7 @@ func (s *Server) ListEnrollmentTokens(_ context.Context, input *ListEnrollmentTo
 	}
 	out := &ListEnrollmentTokensOutput{}
 	for _, tok := range toks {
-		if caller != nil && caller.Role != database.RoleAdmin && tok.TenantID != caller.TenantID {
+		if caller != nil && !database.CanCrossTenant(caller) && tok.TenantID != caller.TenantID {
 			continue
 		}
 		out.Body.Tokens = append(out.Body.Tokens, EnrollmentTokenView{
@@ -778,8 +834,8 @@ func (s *Server) RevokeEnrollmentToken(_ context.Context, input *RevokeEnrollmen
 			tenantID = tok.TenantID
 		}
 	}
-	if caller != nil && caller.Role != database.RoleAdmin && tenantID != caller.TenantID {
-		return nil, huma.Error403Forbidden("cross-tenant operation requires admin")
+	if caller != nil && !database.CanCrossTenant(caller) && tenantID != caller.TenantID {
+		return nil, huma.Error403Forbidden("cross-tenant operation requires a superuser")
 	}
 	if err := s.db.RevokeEnrollmentToken(input.ID); err != nil {
 		return nil, huma.Error404NotFound(err.Error())
@@ -803,8 +859,8 @@ func (s *Server) RevokeClient(_ context.Context, input *RevokeClientInput) (*Rev
 	if c, ok := s.registry().getClient(input.ID); ok {
 		tenantID = c.TenantID
 	}
-	if caller != nil && caller.Role != database.RoleAdmin && tenantID != caller.TenantID {
-		return nil, huma.Error403Forbidden("cross-tenant operation requires admin")
+	if caller != nil && !database.CanCrossTenant(caller) && tenantID != caller.TenantID {
+		return nil, huma.Error403Forbidden("cross-tenant operation requires a superuser")
 	}
 	if err := s.db.RevokeClient(input.ID); err != nil {
 		return nil, huma.Error404NotFound(err.Error())
@@ -831,7 +887,7 @@ func (s *Server) ListAudit(_ context.Context, input *ListAuditInput) (*ListAudit
 	}
 	out := &ListAuditOutput{}
 	for _, l := range logs {
-		if caller != nil && caller.Role != database.RoleAdmin && l.TenantID != caller.TenantID {
+		if caller != nil && !database.CanCrossTenant(caller) && l.TenantID != caller.TenantID {
 			continue
 		}
 		out.Body.Entries = append(out.Body.Entries, AuditEntry{
@@ -854,6 +910,17 @@ func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostRes
 	if input.Body.ActionID == "" {
 		return nil, huma.Error400BadRequest("action_id is required")
 	}
+	executor, ok := s.registry().getClient(executorID)
+	if !ok {
+		return nil, huma.Error401Unauthorized("invalid or missing client token")
+	}
+	// Tenant binding: the result tenant is ALWAYS the authenticated
+	// client's tenant — a client-supplied tenant_id is ignored and never
+	// honored, so tenant A cannot write results or assignments into
+	// tenant B.
+	if err := s.checkResultWorkflowTenant(executor, input.Body.WorkflowID, input.Body.ActionID); err != nil {
+		return nil, err
+	}
 	log.Printf("client result received: action=%s name=%q", input.Body.ActionID, input.Body.ActionName)
 	result := common.ResultData{
 		ResultID:    input.Body.ResultID,
@@ -863,7 +930,7 @@ func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostRes
 		ActionType:  input.Body.ActionType,
 		ActionName:  input.Body.ActionName,
 		ExecutorID:  executorID,
-		TenantID:    input.Body.TenantID,
+		TenantID:    executor.TenantID,
 		CreatedAt:   input.Body.CreatedAt,
 		Payload:     input.Body.Payload,
 	}
@@ -902,6 +969,48 @@ func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostRes
 	out.Body.ConditionResults = stored.ConditionResults
 	out.Body.ConditionError = stored.ConditionError
 	return out, nil
+}
+
+// checkResultWorkflowTenant verifies a reported result targets the
+// reporting client's own tenant before IngestResult persists anything.
+// With an explicit workflow id the workflow must belong to the client's
+// tenant; without one the action must exist in at least one of the
+// client's tenant workflows. Anything else is a 404 (no existence oracle
+// for other tenants' workflows or actions).
+func (s *Server) checkResultWorkflowTenant(executor *clientInfo, workflowID, actionID string) error {
+	if s.db == nil {
+		return huma.Error500InternalServerError("no database")
+	}
+	if workflowID != "" {
+		row, err := s.db.GetWorkflow(workflowID)
+		if err != nil {
+			// Unknown to the DB: let IngestResult resolve (in-memory) or 404.
+			return nil
+		}
+		if workflowTenant(row.TenantID, row.JSONDefinition) != normalizeTenantID(executor.TenantID) {
+			return huma.Error404NotFound("workflow not found")
+		}
+		return nil
+	}
+	rows, err := s.db.GetWorkflows(true, true)
+	if err != nil {
+		return huma.Error500InternalServerError("failed to get workflows")
+	}
+	for _, row := range rows {
+		if workflowTenant(row.TenantID, row.JSONDefinition) != normalizeTenantID(executor.TenantID) {
+			continue
+		}
+		var def workflow.Workflow
+		if err := json.Unmarshal([]byte(row.JSONDefinition), &def); err != nil {
+			continue
+		}
+		if _, ok := def.Nodes[actionID]; ok {
+			return nil
+		}
+	}
+	// Not in the caller's tenant: either another tenant's action (reject)
+	// or genuinely unknown (IngestResult will 404). Same response either way.
+	return huma.Error404NotFound("unknown action_id")
 }
 
 // filterNextsForExecutor keeps only the downstream nodes assigned to the
@@ -989,6 +1098,17 @@ func (s *Server) ImportWorkflow(_ context.Context, input *UpsertWorkflowInput) (
 	tenantID, err := scopedTenant(caller, input.Body.TenantID)
 	if err != nil {
 		return nil, err
+	}
+	// Workflow ids are a global namespace (upsert by primary key): importing
+	// under an id owned by another tenant would hijack that workflow into
+	// the caller's tenant. Only superusers may overwrite across tenants.
+	if input.Body.ID != "" {
+		if existing, err := s.db.GetWorkflow(input.Body.ID); err == nil {
+			owner := workflowTenant(existing.TenantID, existing.JSONDefinition)
+			if owner != normalizeTenantID(tenantID) && !database.CanCrossTenant(caller) {
+				return nil, huma.Error403Forbidden("workflow id already exists in another tenant")
+			}
+		}
 	}
 	raw, err := json.Marshal(workflow.Workflow{
 		Id:                input.Body.ID,
@@ -1082,8 +1202,8 @@ func (s *Server) DeleteWorkflow(_ context.Context, input *DeleteWorkflowInput) (
 	if tenantID == "" {
 		tenantID = "default"
 	}
-	if caller != nil && caller.Role != database.RoleAdmin && tenantID != caller.TenantID {
-		return nil, huma.Error403Forbidden("cross-tenant operation requires admin")
+	if caller != nil && !database.CanCrossTenant(caller) && tenantID != caller.TenantID {
+		return nil, huma.Error403Forbidden("cross-tenant operation requires a superuser")
 	}
 	if err := s.db.DeleteWorkflow(input.ID); err != nil {
 		return nil, huma.Error404NotFound(err.Error())
@@ -1097,6 +1217,16 @@ func (s *Server) DeleteWorkflow(_ context.Context, input *DeleteWorkflowInput) (
 
 func (s *Server) workflowsPage(c echo.Context) error {
 	workflows, err := s.db.GetWorkflows(true, true)
+	user, open := s.webCurrentUser(c)
+	if err == nil && !open && user != nil && !database.IsSuperUser(user) {
+		filtered := workflows[:0]
+		for _, row := range workflows {
+			if workflowTenant(row.TenantID, row.JSONDefinition) == user.TenantID {
+				filtered = append(filtered, row)
+			}
+		}
+		workflows = filtered
+	}
 	data := &web.WorkflowPageData{CurrentUser: s.navUser(c), Workflows: workflows}
 	if err != nil {
 		data.Error = "Unable to load workflows"
@@ -1112,6 +1242,12 @@ func (s *Server) workflowsPage(c echo.Context) error {
 func (s *Server) workflowPage(c echo.Context) error {
 	row, err := s.db.GetWorkflow(c.Param("id"))
 	data := &web.WorkflowDetailData{CurrentUser: s.navUser(c), Workflow: row}
+	if user, open := s.webCurrentUser(c); !open && user != nil && !database.IsSuperUser(user) && err == nil &&
+		workflowTenant(row.TenantID, row.JSONDefinition) != user.TenantID {
+		row = nil
+		err = fmt.Errorf("not found")
+		data.Workflow = nil
+	}
 	if err != nil {
 		data.Error = "Workflow not found"
 	} else if err := json.Unmarshal([]byte(row.JSONDefinition), &data.Definition); err != nil {
@@ -1123,6 +1259,12 @@ func (s *Server) workflowPage(c echo.Context) error {
 
 func (s *Server) resultsPage(c echo.Context) error {
 	data := &web.ResultsPageData{CurrentUser: s.navUser(c)}
+	user, open := s.webCurrentUser(c)
+	// Tenant isolation: non-superusers only see their own tenant's results.
+	tenant := ""
+	if !open && user != nil && !database.IsSuperUser(user) {
+		tenant = user.TenantID
+	}
 	seen := make(map[string]bool)
 	// Primary store: persisted results in the DB (include the recorded
 	// condition evaluation and routing decision).
@@ -1131,6 +1273,9 @@ func (s *Server) resultsPage(c echo.Context) error {
 			log.Printf("results page: failed to list results from DB: %s", err)
 		} else {
 			for _, row := range rows {
+				if tenant != "" && normalizeTenantID(row.TenantID) != normalizeTenantID(tenant) {
+					continue
+				}
 				data.Results = append(data.Results, workflowResultToData(row))
 				seen[row.ID] = true
 			}
@@ -1159,6 +1304,9 @@ func (s *Server) resultsPage(c echo.Context) error {
 		var result common.ResultData
 		if json.Unmarshal(contents, &result) == nil {
 			if result.ResultID != "" && seen[result.ResultID] {
+				continue
+			}
+			if tenant != "" && normalizeTenantID(result.TenantID) != normalizeTenantID(tenant) {
 				continue
 			}
 			data.Results = append(data.Results, result)
@@ -1206,11 +1354,20 @@ func (s *Server) clientsPage(c echo.Context) error {
 }
 
 func (s *Server) setWorkflowEnabled(c echo.Context) error {
-	if _, _, err := s.webActor(c, database.RoleOperator); err != nil {
+	caller, _, err := s.webActor(c, database.RoleOperator)
+	if err != nil {
 		if he, ok := err.(*echo.HTTPError); ok && he.Code == http.StatusUnauthorized {
 			return c.Redirect(http.StatusSeeOther, "/login")
 		}
 		return err
+	}
+	row, err := s.db.GetWorkflow(c.Param("id"))
+	if err != nil {
+		return c.String(http.StatusNotFound, "workflow not found")
+	}
+	tenantID := workflowTenant(row.TenantID, row.JSONDefinition)
+	if caller != nil && !database.CanCrossTenant(caller) && tenantID != caller.TenantID {
+		return c.String(http.StatusForbidden, "cross-tenant operation requires a superuser")
 	}
 	enabled := c.FormValue("enabled") == "true"
 	if err := s.db.SetWorkflowEnabled(c.Param("id"), enabled); err != nil {
@@ -1220,20 +1377,18 @@ func (s *Server) setWorkflowEnabled(c echo.Context) error {
 	if user, open := s.webCurrentUser(c); !open && user != nil {
 		actor = user.ID
 	}
-	tenantID := "default"
-	if row, err := s.db.GetWorkflow(c.Param("id")); err == nil {
-		var def workflow.Workflow
-		if json.Unmarshal([]byte(row.JSONDefinition), &def) == nil && def.TenantID != "" {
-			tenantID = def.TenantID
-		} else if row.TenantID != "" {
-			tenantID = row.TenantID
-		}
-	}
 	_ = s.db.LogAudit("workflow.enable", tenantID, actor, c.Param("id"), fmt.Sprintf("enabled=%t via web", enabled))
 	return c.Redirect(http.StatusSeeOther, "/workflows/"+c.Param("id"))
 }
 
 func (s *Server) TriggerWebHandler(c echo.Context) error {
+	caller, _, err := s.webActor(c, database.RoleOperator)
+	if err != nil {
+		if he, ok := err.(*echo.HTTPError); ok && he.Code == http.StatusUnauthorized {
+			return c.Redirect(http.StatusSeeOther, "/login")
+		}
+		return err
+	}
 	value := c.FormValue("id")
 	if value == "" {
 		value = c.FormValue("name")
@@ -1247,6 +1402,19 @@ func (s *Server) TriggerWebHandler(c echo.Context) error {
 	if resolved, ok := t.FindTriggerIDByName(value); ok {
 		id = resolved
 	}
+	// Tenant binding: triggers live in a server-global registry, so
+	// non-superusers may only stop triggers owned by a workflow in their
+	// own tenant (superusers may stop any). Unknown triggers are 404
+	// either way, revealing nothing about other tenants.
+	if caller != nil && !database.CanCrossTenant(caller) {
+		owned, err := s.triggerOwnedByTenant(id, value, caller.TenantID)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, "Failed to resolve trigger")
+		}
+		if !owned {
+			return c.JSON(http.StatusNotFound, "Trigger not found")
+		}
+	}
 	if err := t.RemoveTrigger(id); err != nil {
 		return c.JSON(http.StatusNotFound, "Trigger not found")
 	}
@@ -1254,11 +1422,69 @@ func (s *Server) TriggerWebHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": "trigger stopped", "id": id})
 }
 
-func (s *Server) GetWorkflows(c context.Context, input *struct{}) (*WorkflowsResponse, error) {
+// triggerOwnedByTenant reports whether a trigger id (or name) belongs to a
+// workflow in the given tenant. It scans tenant workflows for a node key or
+// node Id matching either the resolved id or the raw form value.
+func (s *Server) triggerOwnedByTenant(id, raw, tenantID string) (bool, error) {
+	if s.db == nil {
+		return false, fmt.Errorf("no database")
+	}
+	rows, err := s.db.GetWorkflows(true, true)
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if workflowTenant(row.TenantID, row.JSONDefinition) != tenantID {
+			continue
+		}
+		var def workflow.Workflow
+		if err := json.Unmarshal([]byte(row.JSONDefinition), &def); err != nil {
+			continue
+		}
+		for key, n := range def.Nodes {
+			if n.ActionType != "trigger" {
+				continue
+			}
+			if key == id || key == raw || n.Id == id || n.Id == raw || n.Name == raw {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+type ListWorkflowsInput struct {
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+}
+
+// filterWorkflowsByTenant drops rows from other tenants for non-superuser
+// callers (open-bootstrap mode sees everything). The effective tenant is
+// the definition tenant, mirroring workflowTenant.
+func (s *Server) filterWorkflowsByTenant(caller *ent.AppUser, rows []*ent.Workflow) []*ent.Workflow {
+	if caller == nil || database.CanCrossTenant(caller) {
+		return rows
+	}
+	out := make([]*ent.Workflow, 0, len(rows))
+	for _, row := range rows {
+		if workflowTenant(row.TenantID, row.JSONDefinition) != caller.TenantID {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+func (s *Server) GetWorkflows(c context.Context, input *ListWorkflowsInput) (*WorkflowsResponse, error) {
+	caller, _, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleViewer)
+	if err != nil {
+		return nil, err
+	}
 	workflows, err := s.db.GetWorkflows(true, true)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to get workflows")
 	}
+	workflows = s.filterWorkflowsByTenant(caller, workflows)
 	return &WorkflowsResponse{
 		Body: struct {
 			Workflows []*ent.Workflow `json:"workflows"`
@@ -1268,16 +1494,28 @@ func (s *Server) GetWorkflows(c context.Context, input *struct{}) (*WorkflowsRes
 	}, nil
 }
 
-func (s *Server) GetWorkflow(c context.Context, input *struct {
-	ID string `path:"id"`
-}) (*struct {
+type GetWorkflowInput struct {
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+	ID            string `path:"id"`
+}
+
+func (s *Server) GetWorkflow(c context.Context, input *GetWorkflowInput) (*struct {
 	Body struct {
 		Workflow *ent.Workflow `json:"workflow"`
 	}
 }, error) {
-	fmt.Println("GetWorkflow", input)
+	caller, _, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleViewer)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("GetWorkflow", input.ID)
 	workflow, err := s.db.GetWorkflow(input.ID)
 	if err != nil {
+		return nil, huma.Error404NotFound("workflow not found")
+	}
+	if caller != nil && !database.CanCrossTenant(caller) &&
+		workflowTenant(workflow.TenantID, workflow.JSONDefinition) != caller.TenantID {
 		return nil, huma.Error404NotFound("workflow not found")
 	}
 	return &struct {
@@ -1293,11 +1531,16 @@ func (s *Server) GetWorkflow(c context.Context, input *struct {
 	}, nil
 }
 
-func (s *Server) WorkflowEvents(c context.Context, input *struct{}) (*WorkflowsResponse, error) {
+func (s *Server) WorkflowEvents(c context.Context, input *ListWorkflowsInput) (*WorkflowsResponse, error) {
+	caller, _, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleViewer)
+	if err != nil {
+		return nil, err
+	}
 	workflows, err := s.db.GetWorkflows(true, true)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to get workflows")
 	}
+	workflows = s.filterWorkflowsByTenant(caller, workflows)
 	return &WorkflowsResponse{
 		Body: struct {
 			Workflows []*ent.Workflow `json:"workflows"`
@@ -1367,12 +1610,27 @@ func (s *Server) renderDesigner(c echo.Context, workflowID string) error {
 	if workflowID == "" {
 		workflowID = c.QueryParam("id")
 	}
+	user, open := s.webCurrentUser(c)
 	workflows, err := s.db.GetWorkflows(true, true)
 	if err == nil {
+		if !open && user != nil && !database.IsSuperUser(user) {
+			filtered := workflows[:0]
+			for _, row := range workflows {
+				if workflowTenant(row.TenantID, row.JSONDefinition) == user.TenantID {
+					filtered = append(filtered, row)
+				}
+			}
+			workflows = filtered
+		}
 		data.Workflows = workflows
 	}
 	if workflowID != "" {
 		row, err := s.db.GetWorkflow(workflowID)
+		if err == nil && !open && user != nil && !database.IsSuperUser(user) &&
+			workflowTenant(row.TenantID, row.JSONDefinition) != user.TenantID {
+			row = nil
+			err = fmt.Errorf("not found")
+		}
 		if err != nil {
 			data.Error = "Workflow not found"
 		} else {
@@ -1391,7 +1649,8 @@ func (s *Server) renderDesigner(c echo.Context, workflowID string) error {
 }
 
 func (s *Server) designerSaveWorkflow(c echo.Context) error {
-	if _, _, err := s.webActor(c, database.RoleOperator); err != nil {
+	caller, _, err := s.webActor(c, database.RoleOperator)
+	if err != nil {
 		if he, ok := err.(*echo.HTTPError); ok && he.Code == http.StatusUnauthorized {
 			return c.Redirect(http.StatusSeeOther, "/login")
 		}
@@ -1401,23 +1660,43 @@ func (s *Server) designerSaveWorkflow(c echo.Context) error {
 	if jsonDef == "" {
 		return c.String(http.StatusBadRequest, "workflow_json is required")
 	}
-	if _, err := s.wm.ImportWorkflowJSON(jsonDef); err != nil {
+	var wf workflow.Workflow
+	if err := json.Unmarshal([]byte(jsonDef), &wf); err != nil {
+		return c.String(http.StatusBadRequest, "Failed to import workflow: invalid JSON")
+	}
+	// Tenant binding: non-superusers always save into their own tenant —
+	// a doctored tenant_id in the designer JSON is ignored and never
+	// honored. Superusers (and open-bootstrap mode) keep the JSON tenant.
+	tenantID := wf.TenantID
+	if caller != nil && !database.CanCrossTenant(caller) {
+		tenantID = caller.TenantID
+	}
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	wf.TenantID = tenantID
+	// Same global-id hijack guard as the import API.
+	if wf.Id != "" {
+		if existing, err := s.db.GetWorkflow(wf.Id); err == nil {
+			if owner := workflowTenant(existing.TenantID, existing.JSONDefinition); owner != normalizeTenantID(tenantID) && !database.CanCrossTenant(caller) {
+				return c.String(http.StatusForbidden, "workflow id already exists in another tenant")
+			}
+		}
+	}
+	scoped, err := json.Marshal(wf)
+	if err != nil {
 		return c.String(http.StatusBadRequest, "Failed to import workflow: "+err.Error())
 	}
-	var wf workflow.Workflow
+	if _, err := s.wm.ImportWorkflowJSON(string(scoped)); err != nil {
+		return c.String(http.StatusBadRequest, "Failed to import workflow: "+err.Error())
+	}
 	actor := "api"
 	if user, open := s.webCurrentUser(c); !open && user != nil {
 		actor = user.ID
 	}
-	tenantID := "default"
-	if err := json.Unmarshal([]byte(jsonDef), &wf); err == nil {
-		if wf.TenantID != "" {
-			tenantID = wf.TenantID
-		}
-		_ = s.db.LogAudit("workflow.import", tenantID, actor, wf.Id, "name="+wf.Name+" via designer")
-		if wf.Id != "" {
-			return c.Redirect(http.StatusSeeOther, "/workflows/"+wf.Id)
-		}
+	_ = s.db.LogAudit("workflow.import", tenantID, actor, wf.Id, "name="+wf.Name+" via designer")
+	if wf.Id != "" {
+		return c.Redirect(http.StatusSeeOther, "/workflows/"+wf.Id)
 	}
 	return c.Redirect(http.StatusSeeOther, "/")
 }

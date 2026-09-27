@@ -46,6 +46,17 @@ Workflow automation app (Go). Module `github.com/mcmx/nitejaguar`. Entrypoint `c
 - Workflow JSON structure: top-level `id`/`name`/`nodes`; each node has `action_type` (`trigger`|`action`), `action_name`, `arguments`, `conditions`, `dependencies`. See `examples/workflow2.json` / `workflows/workflow3.json`.
 - Client mode is stubbed (root command runs `client`, which exits with "not implemented").
 
+## Tenant isolation & RBAC — mandatory for every change
+
+- Model: every tenant-scoped row carries a `tenant_id` slug (`Tenant.Slug`; `default` always exists). Admins of `default` are **superusers**; tenant-local admins manage only their own tenant. Helpers: `database.IsSuperUser` / `database.CanCrossTenant` (server: `normalizeTenantID`, `scopedTenant`, `workflowTenant`). Roles rank `viewer < operator < admin` — gate with `requireRole` (API) / `webActor` (web forms).
+- New entities: any new ent object holding per-tenant data **must** carry `tenant_id`. Child objects without it (like `transfer_chunks`/`transfer_signals` today) are only acceptable if **every** access path re-checks the parent session's tenant first.
+- Never trust caller-supplied tenants: derive the tenant from the authenticated session (`scopedTenant`) or client token, and ignore/override any `tenant_id` in the body/JSON (see `PostResult`, `designerSaveWorkflow`). `default` is an ordinary tenant, **never** a wildcard — compare tenants with `normalizeTenantID`/`normalizeTenant` (empty == `default`), never with `!= "default"` carve-outs.
+- Reads: every endpoint needs a session (viewer+ minimum; open-bootstrap `nil`-caller only for fresh-install flows). Collections silently omit foreign rows; single foreign objects return `404` (never `403`, no existence oracle); anonymous calls get `401` once users exist.
+- Writes: verify ownership **before** mutating. Global namespaces (workflow ids are upsert-by-primary-key) need an explicit cross-tenant hijack guard — only superusers may overwrite another tenant's id (see `ImportWorkflow`, `designerSaveWorkflow`). Cross-tenant writes are `403`.
+- Suspension fails closed: suspended tenants must be refused in `VerifyUser`, `CreateSession`, `AuthenticateSession`, enrollment mint/consume, and `RegisterClient`.
+- Audit every tenant/user/token/workflow/credential mutation with the session user as actor (`tenant.create/suspend/...` for registry ops).
+- Tests + docs are part of the change: extend `internal/server/tenant_isolation_test.go` (anonymous, cross-tenant read, cross-tenant write, web-denial cases) for any new endpoint or entity, and update `docs/tenants.md` + `docs/rbac.md` concurrently.
+
 ## Lint
 
 - Local linting is via `make lint`, which mirrors CI (`templ generate -path .`, then `golangci-lint run ./...` with golangci-lint v2.13.2). Run it after changes; remember to regenerate templ first so generated `_templ.go` files are linted/typed too.

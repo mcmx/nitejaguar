@@ -90,15 +90,16 @@ func TestCredentialsLifecycle(t *testing.T) {
 		t.Fatalf("secret is not encrypted at rest")
 	}
 
-	// List and get expose metadata only.
-	resp = api.Get("/api/credentials?tenant_id=credacme")
+	// List and get expose metadata only (viewer-gated, tenant-scoped;
+	// the default-tenant superuser sees everything).
+	resp = api.Get("/api/credentials?tenant_id=credacme", adminAuth)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("list status = %v", resp.Code)
 	}
 	if strings.Contains(resp.Body.String(), "s3cr3t-acme") || strings.Contains(resp.Body.String(), "secret_encrypted") {
 		t.Fatalf("list leaks secret material: %s", resp.Body.String())
 	}
-	resp = api.Get("/api/credentials/" + created.ID)
+	resp = api.Get("/api/credentials/"+created.ID, adminAuth)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("get status = %v, body = %s", resp.Code, resp.Body.String())
 	}

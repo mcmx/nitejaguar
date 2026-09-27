@@ -22,6 +22,8 @@ type AppUser struct {
 	TenantID string `json:"tenant_id,omitempty"`
 	// unique per tenant
 	Username string `json:"username,omitempty"`
+	// contact email; required for tenant admins created with a tenant
+	Email string `json:"email,omitempty"`
 	// PasswordHash holds the value of the "password_hash" field.
 	PasswordHash string `json:"-"`
 	// admin, operator, or viewer
@@ -46,7 +48,7 @@ func (*AppUser) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case appuser.FieldRevoked:
 			values[i] = new(sql.NullBool)
-		case appuser.FieldID, appuser.FieldTenantID, appuser.FieldUsername, appuser.FieldPasswordHash, appuser.FieldRole:
+		case appuser.FieldID, appuser.FieldTenantID, appuser.FieldUsername, appuser.FieldEmail, appuser.FieldPasswordHash, appuser.FieldRole:
 			values[i] = new(sql.NullString)
 		case appuser.FieldCreatedAt, appuser.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -82,6 +84,12 @@ func (_m *AppUser) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field username", values[i])
 			} else if value.Valid {
 				_m.Username = value.String
+			}
+		case appuser.FieldEmail:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field email", values[i])
+			} else if value.Valid {
+				_m.Email = value.String
 			}
 		case appuser.FieldPasswordHash:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -162,6 +170,9 @@ func (_m *AppUser) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("username=")
 	builder.WriteString(_m.Username)
+	builder.WriteString(", ")
+	builder.WriteString("email=")
+	builder.WriteString(_m.Email)
 	builder.WriteString(", ")
 	builder.WriteString("password_hash=<sensitive>")
 	builder.WriteString(", ")

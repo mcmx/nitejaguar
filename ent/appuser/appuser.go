@@ -17,6 +17,8 @@ const (
 	FieldTenantID = "tenant_id"
 	// FieldUsername holds the string denoting the username field in the database.
 	FieldUsername = "username"
+	// FieldEmail holds the string denoting the email field in the database.
+	FieldEmail = "email"
 	// FieldPasswordHash holds the string denoting the password_hash field in the database.
 	FieldPasswordHash = "password_hash"
 	// FieldRole holds the string denoting the role field in the database.
@@ -38,6 +40,7 @@ var Columns = []string{
 	FieldID,
 	FieldTenantID,
 	FieldUsername,
+	FieldEmail,
 	FieldPasswordHash,
 	FieldRole,
 	FieldGroups,
@@ -61,6 +64,8 @@ var (
 	DefaultTenantID string
 	// UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	UsernameValidator func(string) error
+	// DefaultEmail holds the default value on creation for the "email" field.
+	DefaultEmail string
 	// PasswordHashValidator is a validator for the "password_hash" field. It is called by the builders before save.
 	PasswordHashValidator func(string) error
 	// DefaultRole holds the default value on creation for the "role" field.
@@ -93,6 +98,11 @@ func ByTenantID(opts ...sql.OrderTermOption) OrderOption {
 // ByUsername orders the results by the username field.
 func ByUsername(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUsername, opts...).ToFunc()
+}
+
+// ByEmail orders the results by the email field.
+func ByEmail(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldEmail, opts...).ToFunc()
 }
 
 // ByPasswordHash orders the results by the password_hash field.

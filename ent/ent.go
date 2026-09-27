@@ -19,6 +19,7 @@ import (
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
 	"github.com/mcmx/nitejaguar/ent/nodeassignment"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
+	"github.com/mcmx/nitejaguar/ent/tenant"
 	"github.com/mcmx/nitejaguar/ent/transferchunk"
 	"github.com/mcmx/nitejaguar/ent/transfersession"
 	"github.com/mcmx/nitejaguar/ent/transfersignal"
@@ -91,6 +92,7 @@ func checkColumn(t, c string) error {
 			enrollmenttoken.Table: enrollmenttoken.ValidColumn,
 			nodeassignment.Table:  nodeassignment.ValidColumn,
 			remoteclient.Table:    remoteclient.ValidColumn,
+			tenant.Table:          tenant.ValidColumn,
 			transferchunk.Table:   transferchunk.ValidColumn,
 			transfersession.Table: transfersession.ValidColumn,
 			transfersignal.Table:  transfersignal.ValidColumn,

@@ -50,23 +50,31 @@ reference.
   forms), `/clients` (client roster with revoke buttons, enrollment
   token list with revoke, and an enroll-a-client form that mints a
   token and prints the ready-to-run enrollment command once),
-  `/users` (roster + admin create/revoke forms), `/audit` (audit
-  trail). Anonymous browsers redirect to `/login` once users exist,
-  and the navbar hides every app link until you log in (only Login
-  stays visible).
-- **Gated API** (operator+ unless noted): enrollment tokens
-  (`POST/GET /api/enrollment/tokens`, revoke), client revoke,
-  credential create/delete, workflow import/clone/delete
+  `/users` (roster + admin create/revoke forms), `/tenants`
+  (registry + superuser create/suspend/activate forms), `/audit`
+  (audit trail). Anonymous browsers redirect to `/login` once users
+  exist, and the navbar hides every app link until you log in (only
+  Login stays visible).
+- **Gated API** (operator+ unless noted): reads are viewer+ and
+  tenant-scoped (`GET /api/workflows[/{id}]`, `/api/events`,
+  `/api/clients`, `/api/credentials[/{id}]` — superusers see all,
+  others see their own tenant; foreign objects are `404`);
+  enrollment tokens (`POST/GET /api/enrollment/tokens`, revoke),
+  client revoke, credential create/delete, workflow import/clone/delete
   (`DELETE /api/workflows/{id}`, audited as `workflow.delete`);
   password change is any role (`POST /api/auth/password` — own
   password with current required; admins may reset others via
-  `user_id`); user management is admin-only (`POST/GET
-  /api/users`, revoke); audit read is viewer+. Sessions go in
-  `Authorization: Bearer` / `X-Auth-Token` (cookie on web).
+  `user_id`); user management is admin-only within the caller's tenant
+  (`POST/GET /api/users`, revoke); tenant management is superuser-only
+  (`POST/GET /api/tenants`, suspend/activate/delete — see
+  [Tenants & Superusers](./tenants.md)); audit read is viewer+.
+  Sessions go in `Authorization: Bearer` / `X-Auth-Token` (cookie on
+  web).
 - **Audit**: `auth.login/logout`, `user.create/revoke/password_change`,
+  `tenant.create/suspend/activate/delete`,
   `workflow.import/clone/enable/delete`, plus the existing enrollment, client,
   credential, and assignment actions; `GET /api/audit` is tenant-scoped
-  for non-admins.
+  for non-superusers.
 
 ## Tenant Enrollment & Client Lifecycle
 

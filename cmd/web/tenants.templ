@@ -1,0 +1,98 @@
+package web
+
+templ TenantsPage(data *TenantsPageData) {
+	@Base(data.CurrentUser) {
+		<main class="container mx-auto max-w-6xl px-4 py-8">
+			<div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+				<div>
+					<p class="text-sm font-medium text-red-500">Nite Jaguar</p>
+					<h1 class="text-3xl font-bold tracking-tight">Tenants</h1>
+				</div>
+			</div>
+			<p class="mb-6 text-sm text-muted-foreground">Isolation boundaries: every user, workflow, credential, client, result, and audit row belongs to one tenant. Admins of the <code>default</code> tenant are superusers and manage this registry. Each new tenant gets its own admin user. Suspended tenants cannot log in, enroll clients, or register.</p>
+			if data.Error != "" {
+				<p class="mb-6 rounded-lg border border-red-500/50 p-4 text-red-500">{ data.Error }</p>
+			}
+			if data.Success != "" {
+				<p class="mb-6 rounded-lg border border-green-500/50 p-4 text-green-600">{ data.Success }</p>
+			}
+			if data.NewPassword != "" {
+				<p class="mb-6 rounded-lg border border-amber-500/50 p-4 text-sm">Tenant <strong>{ data.NewTenant }</strong> provisioned. One-time admin password (copy now, it is never shown again): <code class="font-mono">{ data.NewPassword }</code></p>
+			}
+			if data.IsSuperuser {
+				<form method="post" action="/tenants" class="mb-8 space-y-4 rounded-lg border border-border p-5">
+					<h2 class="font-semibold">Create tenant</h2>
+					<div class="grid gap-4 md:grid-cols-2">
+						<div>
+							<label class="mb-1 block text-xs font-medium">Tenant name (required)</label>
+							<input type="text" name="name" required maxlength="100" placeholder="Acme Corp" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+						</div>
+						<div>
+							<label class="mb-1 block text-xs font-medium">Slug (optional, auto-derived from name)</label>
+							<input type="text" name="slug" placeholder="acme-corp" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
+						</div>
+						<div>
+							<label class="mb-1 block text-xs font-medium">Tenant admin email (required)</label>
+							<input type="email" name="admin_email" required placeholder="admin@acme.example" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+						</div>
+						<div>
+							<label class="mb-1 block text-xs font-medium">Contact email (optional, defaults to admin email)</label>
+							<input type="email" name="contact_email" placeholder="ops@acme.example" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+						</div>
+						<div>
+							<label class="mb-1 block text-xs font-medium">Admin username (optional, defaults to admin)</label>
+							<input type="text" name="admin_username" placeholder="admin" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+						</div>
+						<div>
+							<label class="mb-1 block text-xs font-medium">Admin password (optional, generated when empty)</label>
+							<input type="password" name="admin_password" minlength="8" autocomplete="new-password" placeholder="leave empty to generate" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
+						</div>
+					</div>
+					<button type="submit" class="rounded bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">Create tenant + admin</button>
+				</form>
+			}
+			if len(data.Tenants) == 0 {
+				<p class="rounded-lg border border-border p-6">No tenants found.</p>
+			} else {
+				<div class="grid gap-4 md:grid-cols-2">
+					for _, t := range data.Tenants {
+						<article class="rounded-lg border border-border p-5">
+							<div class="flex items-start justify-between gap-4">
+								<div><h2 class="font-semibold">{ t.Name }</h2><p class="mt-1 break-all font-mono text-xs text-muted-foreground">slug: { t.Slug } · { t.ID }</p></div>
+								if t.Status == "suspended" {
+									<span class="rounded-full bg-red-500/15 px-2 py-1 text-xs text-red-600">suspended</span>
+								} else {
+									<span class="rounded-full bg-green-500/15 px-2 py-1 text-xs text-green-600">active</span>
+								}
+							</div>
+							<div class="mt-4 grid gap-2 text-sm text-muted-foreground"><p><strong class="text-foreground">Contact:</strong> { tenantEmail(t.ContactEmail) }</p><p><strong class="text-foreground">Admin user:</strong> { tenantAdmin(t.AdminUserID) }</p><p><strong class="text-foreground">Created:</strong> { t.CreatedAt }</p></div>
+							if data.IsSuperuser && t.Slug != "default" {
+								<div class="mt-4 flex gap-2">
+									if t.Status == "suspended" {
+										<form method="post" action={ templ.URL("/tenants/" + t.Slug + "/activate") } class="m-0"><button type="submit" class="rounded border border-border px-3 py-1 text-xs hover:border-green-500">Activate</button></form>
+									} else {
+										<form method="post" action={ templ.URL("/tenants/" + t.Slug + "/suspend") } class="m-0" onsubmit="return confirm('Suspend tenant { t.Name }? Its users cannot log in and its clients cannot enroll until re-activated.');"><button type="submit" class="rounded border border-border px-3 py-1 text-xs hover:border-red-500">Suspend</button></form>
+									}
+								</div>
+							}
+						</article>
+					}
+				</div>
+			}
+		</main>
+	}
+}
+
+func tenantEmail(v string) string {
+	if v == "" {
+		return "—"
+	}
+	return v
+}
+
+func tenantAdmin(v string) string {
+	if v == "" {
+		return "—"
+	}
+	return v
+}

@@ -13,6 +13,7 @@ import (
 	"github.com/mcmx/nitejaguar/ent/nodeassignment"
 	"github.com/mcmx/nitejaguar/ent/remoteclient"
 	"github.com/mcmx/nitejaguar/ent/schema"
+	"github.com/mcmx/nitejaguar/ent/tenant"
 	"github.com/mcmx/nitejaguar/ent/transferchunk"
 	"github.com/mcmx/nitejaguar/ent/transfersession"
 	"github.com/mcmx/nitejaguar/ent/transfersignal"
@@ -34,24 +35,28 @@ func init() {
 	appuserDescUsername := appuserFields[2].Descriptor()
 	// appuser.UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	appuser.UsernameValidator = appuserDescUsername.Validators[0].(func(string) error)
+	// appuserDescEmail is the schema descriptor for email field.
+	appuserDescEmail := appuserFields[3].Descriptor()
+	// appuser.DefaultEmail holds the default value on creation for the email field.
+	appuser.DefaultEmail = appuserDescEmail.Default.(string)
 	// appuserDescPasswordHash is the schema descriptor for password_hash field.
-	appuserDescPasswordHash := appuserFields[3].Descriptor()
+	appuserDescPasswordHash := appuserFields[4].Descriptor()
 	// appuser.PasswordHashValidator is a validator for the "password_hash" field. It is called by the builders before save.
 	appuser.PasswordHashValidator = appuserDescPasswordHash.Validators[0].(func(string) error)
 	// appuserDescRole is the schema descriptor for role field.
-	appuserDescRole := appuserFields[4].Descriptor()
+	appuserDescRole := appuserFields[5].Descriptor()
 	// appuser.DefaultRole holds the default value on creation for the role field.
 	appuser.DefaultRole = appuserDescRole.Default.(string)
 	// appuserDescRevoked is the schema descriptor for revoked field.
-	appuserDescRevoked := appuserFields[6].Descriptor()
+	appuserDescRevoked := appuserFields[7].Descriptor()
 	// appuser.DefaultRevoked holds the default value on creation for the revoked field.
 	appuser.DefaultRevoked = appuserDescRevoked.Default.(bool)
 	// appuserDescCreatedAt is the schema descriptor for created_at field.
-	appuserDescCreatedAt := appuserFields[7].Descriptor()
+	appuserDescCreatedAt := appuserFields[8].Descriptor()
 	// appuser.DefaultCreatedAt holds the default value on creation for the created_at field.
 	appuser.DefaultCreatedAt = appuserDescCreatedAt.Default.(func() time.Time)
 	// appuserDescUpdatedAt is the schema descriptor for updated_at field.
-	appuserDescUpdatedAt := appuserFields[8].Descriptor()
+	appuserDescUpdatedAt := appuserFields[9].Descriptor()
 	// appuser.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	appuser.DefaultUpdatedAt = appuserDescUpdatedAt.Default.(func() time.Time)
 	// appuser.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -280,6 +285,42 @@ func init() {
 	remoteclientDescID := remoteclientFields[0].Descriptor()
 	// remoteclient.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	remoteclient.IDValidator = remoteclientDescID.Validators[0].(func(string) error)
+	tenantFields := schema.Tenant{}.Fields()
+	_ = tenantFields
+	// tenantDescSlug is the schema descriptor for slug field.
+	tenantDescSlug := tenantFields[1].Descriptor()
+	// tenant.SlugValidator is a validator for the "slug" field. It is called by the builders before save.
+	tenant.SlugValidator = tenantDescSlug.Validators[0].(func(string) error)
+	// tenantDescName is the schema descriptor for name field.
+	tenantDescName := tenantFields[2].Descriptor()
+	// tenant.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	tenant.NameValidator = tenantDescName.Validators[0].(func(string) error)
+	// tenantDescContactEmail is the schema descriptor for contact_email field.
+	tenantDescContactEmail := tenantFields[3].Descriptor()
+	// tenant.DefaultContactEmail holds the default value on creation for the contact_email field.
+	tenant.DefaultContactEmail = tenantDescContactEmail.Default.(string)
+	// tenantDescAdminUserID is the schema descriptor for admin_user_id field.
+	tenantDescAdminUserID := tenantFields[4].Descriptor()
+	// tenant.DefaultAdminUserID holds the default value on creation for the admin_user_id field.
+	tenant.DefaultAdminUserID = tenantDescAdminUserID.Default.(string)
+	// tenantDescStatus is the schema descriptor for status field.
+	tenantDescStatus := tenantFields[5].Descriptor()
+	// tenant.DefaultStatus holds the default value on creation for the status field.
+	tenant.DefaultStatus = tenantDescStatus.Default.(string)
+	// tenantDescCreatedAt is the schema descriptor for created_at field.
+	tenantDescCreatedAt := tenantFields[6].Descriptor()
+	// tenant.DefaultCreatedAt holds the default value on creation for the created_at field.
+	tenant.DefaultCreatedAt = tenantDescCreatedAt.Default.(func() time.Time)
+	// tenantDescUpdatedAt is the schema descriptor for updated_at field.
+	tenantDescUpdatedAt := tenantFields[7].Descriptor()
+	// tenant.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	tenant.DefaultUpdatedAt = tenantDescUpdatedAt.Default.(func() time.Time)
+	// tenant.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	tenant.UpdateDefaultUpdatedAt = tenantDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// tenantDescID is the schema descriptor for id field.
+	tenantDescID := tenantFields[0].Descriptor()
+	// tenant.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	tenant.IDValidator = tenantDescID.Validators[0].(func(string) error)
 	transferchunkFields := schema.TransferChunk{}.Fields()
 	_ = transferchunkFields
 	// transferchunkDescTransferID is the schema descriptor for transfer_id field.

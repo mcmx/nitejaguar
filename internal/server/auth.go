@@ -16,6 +16,7 @@ type UserView struct {
 	ID        string   `json:"id"`
 	TenantID  string   `json:"tenant_id"`
 	Username  string   `json:"username"`
+	Email     string   `json:"email,omitempty"`
 	Role      string   `json:"role"`
 	Groups    []string `json:"groups,omitempty"`
 	Revoked   bool     `json:"revoked"`
@@ -29,7 +30,7 @@ func toUserView(row *ent.AppUser) UserView {
 	}
 	return UserView{
 		ID: row.ID, TenantID: row.TenantID, Username: row.Username,
-		Role: row.Role, Groups: groups, Revoked: row.Revoked,
+		Email: row.Email, Role: row.Role, Groups: groups, Revoked: row.Revoked,
 		CreatedAt: row.CreatedAt.String(),
 	}
 }
@@ -79,6 +80,7 @@ type CreateUserInput struct {
 		Username string   `json:"username"`
 		Password string   `json:"password"`
 		TenantID string   `json:"tenant_id,omitempty"`
+		Email    string   `json:"email,omitempty"`
 		Role     string   `json:"role,omitempty"`
 		Groups   []string `json:"groups,omitempty"`
 	}
@@ -184,8 +186,20 @@ func (s *Server) requireRole(authorization, compat, minimum string) (*ent.AppUse
 	return user, user.ID, nil
 }
 
+// normalizeTenantID maps an empty tenant to default, mirroring the
+// database layer. Tenant comparison must always go through here (or the
+// caller's own tenant) so empty and "default" compare equal — and so the
+// default tenant is never treated as a wildcard across tenants.
+func normalizeTenantID(tenantID string) string {
+	if tenantID == "" {
+		return "default"
+	}
+	return tenantID
+}
+
 // scopedTenant defaults an empty request tenant to the caller's tenant and
-// rejects cross-tenant requests from non-admins.
+// rejects cross-tenant requests from anyone but superusers (admins of the
+// default tenant). Tenant-local admins manage only their own tenant.
 func scopedTenant(caller *ent.AppUser, requested string) (string, error) {
 	if caller == nil {
 		if requested == "" {
@@ -196,8 +210,8 @@ func scopedTenant(caller *ent.AppUser, requested string) (string, error) {
 	if requested == "" {
 		return caller.TenantID, nil
 	}
-	if requested != caller.TenantID && caller.Role != database.RoleAdmin {
-		return "", huma.Error403Forbidden("cross-tenant operation requires admin")
+	if requested != caller.TenantID && !database.CanCrossTenant(caller) {
+		return "", huma.Error403Forbidden("cross-tenant operation requires a superuser")
 	}
 	return requested, nil
 }
@@ -288,6 +302,12 @@ func (s *Server) CreateUser(_ context.Context, input *CreateUserInput) (*CreateU
 		}
 		return nil, huma.Error500InternalServerError(msg)
 	}
+	if email := strings.TrimSpace(input.Body.Email); email != "" {
+		if err := s.db.SetUserEmail(row.ID, email); err != nil {
+			return nil, huma.Error400BadRequest(err.Error())
+		}
+		row.Email = email
+	}
 	_ = s.db.LogAudit("user.create", row.TenantID, actor, row.ID, "username="+row.Username+" role="+row.Role)
 	log.Printf("user created: id=%s tenant=%s username=%q role=%s", row.ID, row.TenantID, row.Username, row.Role)
 	out := &CreateUserOutput{}
@@ -304,7 +324,7 @@ func (s *Server) ListUsers(_ context.Context, input *ListUsersInput) (*ListUsers
 	}
 	tenant := input.TenantID
 	if caller != nil {
-		if caller.Role != database.RoleAdmin {
+		if !database.CanCrossTenant(caller) {
 			tenant = caller.TenantID
 		} else if tenant == "" {
 			tenant = ""
@@ -316,8 +336,8 @@ func (s *Server) ListUsers(_ context.Context, input *ListUsersInput) (*ListUsers
 	}
 	out := &ListUsersOutput{}
 	for _, row := range rows {
-		// Non-admins only see their own tenant.
-		if caller != nil && caller.Role != database.RoleAdmin && row.TenantID != caller.TenantID {
+		// Non-superusers only see their own tenant.
+		if caller != nil && !database.CanCrossTenant(caller) && row.TenantID != caller.TenantID {
 			continue
 		}
 		out.Body.Users = append(out.Body.Users, toUserView(row))
@@ -345,8 +365,8 @@ func (s *Server) RevokeUser(_ context.Context, input *RevokeUserInput) (*RevokeU
 	if err != nil {
 		return nil, huma.Error404NotFound(err.Error())
 	}
-	if caller != nil && caller.Role != database.RoleAdmin && row.TenantID != caller.TenantID {
-		return nil, huma.Error403Forbidden("cross-tenant operation requires admin")
+	if caller != nil && !database.CanCrossTenant(caller) && row.TenantID != caller.TenantID {
+		return nil, huma.Error403Forbidden("cross-tenant operation requires a superuser")
 	}
 	if err := s.db.RevokeUser(input.ID); err != nil {
 		return nil, huma.Error404NotFound(err.Error())
@@ -400,6 +420,9 @@ func (s *Server) ChangePassword(_ context.Context, input *ChangePasswordInput) (
 	row, err := s.db.GetUser(targetID)
 	if err != nil {
 		return nil, huma.Error404NotFound(err.Error())
+	}
+	if !database.CanCrossTenant(caller) && row.TenantID != caller.TenantID {
+		return nil, huma.Error403Forbidden("cross-tenant operation requires a superuser")
 	}
 	if err := s.db.UpdatePassword(targetID, input.Body.NewPassword); err != nil {
 		msg := err.Error()

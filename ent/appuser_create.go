@@ -40,6 +40,20 @@ func (_c *AppUserCreate) SetUsername(v string) *AppUserCreate {
 	return _c
 }
 
+// SetEmail sets the "email" field.
+func (_c *AppUserCreate) SetEmail(v string) *AppUserCreate {
+	_c.mutation.SetEmail(v)
+	return _c
+}
+
+// SetNillableEmail sets the "email" field if the given value is not nil.
+func (_c *AppUserCreate) SetNillableEmail(v *string) *AppUserCreate {
+	if v != nil {
+		_c.SetEmail(*v)
+	}
+	return _c
+}
+
 // SetPasswordHash sets the "password_hash" field.
 func (_c *AppUserCreate) SetPasswordHash(v string) *AppUserCreate {
 	_c.mutation.SetPasswordHash(v)
@@ -153,6 +167,10 @@ func (_c *AppUserCreate) defaults() {
 		v := appuser.DefaultTenantID
 		_c.mutation.SetTenantID(v)
 	}
+	if _, ok := _c.mutation.Email(); !ok {
+		v := appuser.DefaultEmail
+		_c.mutation.SetEmail(v)
+	}
 	if _, ok := _c.mutation.Role(); !ok {
 		v := appuser.DefaultRole
 		_c.mutation.SetRole(v)
@@ -183,6 +201,9 @@ func (_c *AppUserCreate) check() error {
 		if err := appuser.UsernameValidator(v); err != nil {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "AppUser.username": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.Email(); !ok {
+		return &ValidationError{Name: "email", err: errors.New(`ent: missing required field "AppUser.email"`)}
 	}
 	if _, ok := _c.mutation.PasswordHash(); !ok {
 		return &ValidationError{Name: "password_hash", err: errors.New(`ent: missing required field "AppUser.password_hash"`)}
@@ -251,6 +272,10 @@ func (_c *AppUserCreate) createSpec() (*AppUser, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Username(); ok {
 		_spec.SetField(appuser.FieldUsername, field.TypeString, value)
 		_node.Username = value
+	}
+	if value, ok := _c.mutation.Email(); ok {
+		_spec.SetField(appuser.FieldEmail, field.TypeString, value)
+		_node.Email = value
 	}
 	if value, ok := _c.mutation.PasswordHash(); ok {
 		_spec.SetField(appuser.FieldPasswordHash, field.TypeString, value)

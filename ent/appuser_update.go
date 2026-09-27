@@ -57,6 +57,20 @@ func (_u *AppUserUpdate) SetNillableUsername(v *string) *AppUserUpdate {
 	return _u
 }
 
+// SetEmail sets the "email" field.
+func (_u *AppUserUpdate) SetEmail(v string) *AppUserUpdate {
+	_u.mutation.SetEmail(v)
+	return _u
+}
+
+// SetNillableEmail sets the "email" field if the given value is not nil.
+func (_u *AppUserUpdate) SetNillableEmail(v *string) *AppUserUpdate {
+	if v != nil {
+		_u.SetEmail(*v)
+	}
+	return _u
+}
+
 // SetPasswordHash sets the "password_hash" field.
 func (_u *AppUserUpdate) SetPasswordHash(v string) *AppUserUpdate {
 	_u.mutation.SetPasswordHash(v)
@@ -197,6 +211,9 @@ func (_u *AppUserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(appuser.FieldUsername, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.Email(); ok {
+		_spec.SetField(appuser.FieldEmail, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.PasswordHash(); ok {
 		_spec.SetField(appuser.FieldPasswordHash, field.TypeString, value)
 	}
@@ -264,6 +281,20 @@ func (_u *AppUserUpdateOne) SetUsername(v string) *AppUserUpdateOne {
 func (_u *AppUserUpdateOne) SetNillableUsername(v *string) *AppUserUpdateOne {
 	if v != nil {
 		_u.SetUsername(*v)
+	}
+	return _u
+}
+
+// SetEmail sets the "email" field.
+func (_u *AppUserUpdateOne) SetEmail(v string) *AppUserUpdateOne {
+	_u.mutation.SetEmail(v)
+	return _u
+}
+
+// SetNillableEmail sets the "email" field if the given value is not nil.
+func (_u *AppUserUpdateOne) SetNillableEmail(v *string) *AppUserUpdateOne {
+	if v != nil {
+		_u.SetEmail(*v)
 	}
 	return _u
 }
@@ -437,6 +468,9 @@ func (_u *AppUserUpdateOne) sqlSave(ctx context.Context) (_node *AppUser, err er
 	}
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(appuser.FieldUsername, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Email(); ok {
+		_spec.SetField(appuser.FieldEmail, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.PasswordHash(); ok {
 		_spec.SetField(appuser.FieldPasswordHash, field.TypeString, value)
