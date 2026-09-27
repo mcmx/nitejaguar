@@ -26,7 +26,7 @@ Note that if using the recommended value any change will be lost after the appli
 
 To start the server:
 
-`./nitejaguar server`
+`./nitejaguar-server`
 
 Now you can access the web page at the port.
 
@@ -51,7 +51,7 @@ The client registers with a NiteJaguar server, polls for assignments, executes a
 server. The default server is `http://127.0.0.1:8080`:
 
 ```bash
-./nitejaguar client --server http://127.0.0.1:8080 --name downloads
+./nitejaguar --server http://127.0.0.1:8080 --name downloads
 ```
 
 Use `--client-id` to reconnect with an existing registration, and `--token` for servers
@@ -65,7 +65,7 @@ cancellation (for example, SIGINT).
 Import and run the example on the server (the `-e` flag enables local actions):
 
 ```bash
-./nitejaguar server -i examples/workflow-poc-downloads.json -e
+./nitejaguar-server -i examples/workflow-poc-downloads.json -e
 ```
 
 The workflow watches `~/Downloads` for create and write events, debounces bursts from
@@ -78,7 +78,7 @@ terminal (the same JSON is assigned without changes; the `~` path is expanded on
 client):
 
 ```bash
-./nitejaguar client --server http://127.0.0.1:8080 --name downloads
+./nitejaguar --server http://127.0.0.1:8080 --name downloads
 ```
 
 To test either mode, remove any old dated destination, copy a PDF into `~/Downloads`,

@@ -54,11 +54,12 @@ build: ent tailwind templ-install
 	@echo "Building..."
 	@templ generate
 	@./tailwindcss -i cmd/web/assets/css/input.css -o cmd/web/assets/css/output.css
-	@go build -o main main.go
+	@go build -o nitejaguar-server ./cmd/server
+	@CGO_ENABLED=0 go build -o nitejaguar ./cmd/client
 
 # Run the application
 run:
-	@go run main.go server -e
+	@go run ./cmd/server -e
 
 # Test the application
 # Mirrors .github/workflows/go-test.yml: templ generate, build, test.
@@ -75,10 +76,10 @@ lint: templ-install golangci-install
 	@templ generate -path .
 	@golangci-lint run ./...
 
-# Clean the binary
+# Clean the binaries
 clean:
 	@echo "Cleaning..."
-	@rm -f main
+	@rm -f main nitejaguar nitejaguar-server
 
 # Live Reload
 air:

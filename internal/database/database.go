@@ -49,6 +49,14 @@ type Service interface {
 	SetWorkflowEnabled(workflowID string, enabled bool) error
 	DeleteWorkflow(workflowID string) error
 
+	// WorkflowStore boundary (implemented in workflow_store.go): plain-record
+	// projections so internal/workflow never imports ent. These let a Service
+	// satisfy common.WorkflowStore directly, keeping existing
+	// NewWorkflowManager(false, db) call sites working.
+	ListWorkflowRecords(all, enabled bool) ([]common.WorkflowRecord, error)
+	SaveResultRecord(r common.ResultData) error
+	EnqueueNodeAssignmentRecord(tenantID, workflowID, executionID, nodeID, parentActionID string, payload any) error
+
 	// Client database operations
 	RegisterClient(name string, tags []string, tenantID string) (*ent.RemoteClient, string, error)
 	HeartbeatClient(id string) error

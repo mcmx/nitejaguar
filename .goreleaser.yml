@@ -4,11 +4,26 @@ before:
   - go mod tidy
 
 env:
-  - PACKAGE_PATH=github.com/mcmx/nitejaguar/cmd.Version
+  - PACKAGE_PATH=github.com/mcmx/nitejaguar/internal/version.Version
 
 builds:
-- binary: "{{ .ProjectName }}"
-  main: ./
+- id: server
+  binary: "nitejaguar-server"
+  main: ./cmd/server
+  goos:
+  - darwin
+  - linux
+  - windows
+  goarch:
+  - amd64
+  - arm64
+  env:
+  - CGO_ENABLED=1
+  ldflags:
+  - -s -w -X {{.Env.PACKAGE_PATH}}={{.Version}} 
+- id: client
+  binary: "nitejaguar"
+  main: ./cmd/client
   goos:
   - darwin
   - linux

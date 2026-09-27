@@ -43,16 +43,16 @@ The `action_name` field uses one concise, lowercase, category-free identifier fo
 
 ## Import vs. Clone
 
-- **Import (`server -i file.json` or `client workflow import file.json`)**:
+- **Import (`nitejaguar-server -i file.json` or `nitejaguar workflow import file.json`)**:
   - Imports the workflow verbatim.
   - Existing IDs and names are preserved (upsert behavior).
-  - `server -i` imports at server startup; `client workflow import` POSTs the file to `POST /api/workflows/import` on a running server and prints the workflow id.
-- **Clone (`server -c file.json` or `client workflow clone file.json`)**:
+  - `nitejaguar-server -i` imports at server startup; `nitejaguar workflow import` POSTs the file to `POST /api/workflows/import` on a running server and prints the workflow id.
+- **Clone (`nitejaguar-server -c file.json` or `nitejaguar workflow clone file.json`)**:
   - Creates a brand new workflow.
   - Mints fresh TypeIDs (`workflow_`, `trigger_`, `action_`).
   - Rewrites all dependency edges (`conditions.nexts` and `dependencies`) through the old-to-new ID map.
   - Prefixes the workflow name with `"Clone of: "`.
-  - `server -c` clones at server startup; `client workflow clone` POSTs the file to `POST /api/workflows/clone` on a running server and prints the new workflow id.
+  - `nitejaguar-server -c` clones at server startup; `nitejaguar workflow clone` POSTs the file to `POST /api/workflows/clone` on a running server and prints the new workflow id.
 - **Delete (`DELETE /api/workflows/{id}`, operator+, audited as
   `workflow.delete`)**: removes a workflow definition. Cross-tenant
   requires admin.

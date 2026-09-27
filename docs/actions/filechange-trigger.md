@@ -38,5 +38,5 @@ Add a `filechange` node to your workflow JSON definition:
 
 Start the workflow on the server:
 ```bash
-./nitejaguar server -i examples/workflow-poc-downloads.json -e
+./nitejaguar-server -i examples/workflow-poc-downloads.json -e
 ```
