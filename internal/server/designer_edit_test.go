@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mcmx/nitejaguar/cmd/web"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/workflow"
 )
@@ -99,5 +102,32 @@ func TestDesignerEditShowsRequestedWorkflow(t *testing.T) {
 		if !strings.Contains(rec.Body.String(), "Edit Workflow") {
 			t.Errorf("GET %s: missing edit-mode title", target)
 		}
+	}
+}
+
+// TestDesignerGraphClientLogic guards the two visual-designer
+// regressions: drag listeners that never detached (cards stuck to the
+// cursor) and edges rendered via <template x-for> inside <svg> (template
+// content parses in the HTML namespace, so <path> never paints).
+func TestDesignerGraphClientLogic(t *testing.T) {
+	var buf bytes.Buffer
+	if err := web.DesignerPage(&web.DesignerPageData{InitJSON: "{}"}).Render(context.Background(), &buf); err != nil {
+		t.Fatalf("render designer: %v", err)
+	}
+	body := buf.String()
+	for _, want := range []string{
+		`x-html="edgeSVG()"`,
+		"pointercancel",
+		"removeEventListener('pointermove', move)",
+		"url(#nj-arrow)",
+		"Add action",
+		"designer-initial",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("designer page missing %q", want)
+		}
+	}
+	if strings.Contains(body, `x-for="e in edgePaths()"`) {
+		t.Errorf("designer still uses <template x-for> for svg edges (paths would not paint)")
 	}
 }

@@ -1,15 +1,155 @@
 package modules
 
+// sideLink renders one sidebar navigation entry. The active state is
+// applied client-side (see Sidebar): matching data-path against
+// window.location.pathname so Base never needs the current route.
+templ sideLink(href string, label string, sub string, icon string) {
+	<a
+		href={ href }
+		data-navlink={ href }
+		class="nj-navlink group flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition hover:bg-muted"
+	>
+		<span class="nj-navicon flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-base transition group-hover:bg-red-500/15" aria-hidden="true">{ icon }</span>
+		<span class="min-w-0">
+			<span class="block truncate font-medium leading-tight">{ label }</span>
+			<span class="block truncate text-xs text-muted-foreground">{ sub }</span>
+		</span>
+	</a>
+}
+
+// Navbar keeps the historic component name rendering the full 2026
+// sidebar navigation. Tests and pages that reference Navbar keep
+// working; Base composes Sidebar + Topbar directly.
 templ Navbar(user *NavUser) {
-	<nav class="border-b py-3">
-		<div class="container mx-auto px-4 flex items-center justify-between">
+	@Sidebar(user)
+}
+
+templ sideSection(title string) {
+	<p class="px-3 pt-5 pb-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{ title }</p>
+}
+
+templ Sidebar(user *NavUser) {
+	<div id="nj-sidebar-backdrop" class="fixed inset-0 z-30 hidden bg-black/40 lg:hidden" onclick="document.getElementById('nj-sidebar').classList.add('-translate-x-full');this.classList.add('hidden')"></div>
+	<aside id="nj-sidebar" class="fixed inset-y-0 left-0 z-40 flex w-[264px] -translate-x-full flex-col border-r border-border bg-card transition-transform duration-200 lg:static lg:translate-x-0">
+		<div class="flex items-center gap-3 px-4 pt-5 pb-4">
+			<span class="flex h-9 w-9 items-center justify-center rounded-xl bg-red-600 text-lg font-bold text-white" aria-hidden="true">N</span>
+			<div class="min-w-0">
+				<p class="truncate text-sm font-bold leading-tight">Nitejaguar</p>
+				<p class="truncate text-xs text-muted-foreground">workflow automation</p>
+			</div>
+		</div>
+		<div class="px-4 pb-2">
+			<label class="flex items-center gap-2 rounded-xl border border-border bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
+				<span aria-hidden="true">⌕</span>
+				<input id="nj-nav-search" type="text" placeholder="Search" autocomplete="off" class="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"/>
+			</label>
+		</div>
+		<nav class="flex-1 overflow-y-auto px-2 pb-4" aria-label="Primary">
 			if user != nil && user.LoggedIn {
-				<div class="flex gap-4 text-sm"><a href="/" class="hover:text-red-500">Workflows</a><a href="/designer" class="hover:text-red-500">Designer</a><a href="/clients" class="hover:text-red-500">Clients</a><a href="/credentials" class="hover:text-red-500">Credentials</a><a href="/results" class="hover:text-red-500">Results</a><a href="/audit" class="hover:text-red-500">Audit</a><a href="/users" class="hover:text-red-500">Users</a><a href="/tenants" class="hover:text-red-500">Tenants</a></div>
-				<div class="flex items-center gap-4"><a href="/profile" class="text-sm text-muted-foreground hover:text-red-500" title={ user.Role + " @ " + user.TenantID }>{ user.Username }</a><form method="post" action="/logout" class="m-0"><button type="submit" class="text-sm hover:text-red-500">Logout</button></form>@ThemeSwitcher()</div>
+				@sideSection("Overview")
+				@sideLink("/", "Workflows", "List & detail", "◈")
+				@sideLink("/designer", "Designer", "Visual graph editor", "✦")
+				@sideLink("/results", "Executions", "Results & routing", "▤")
+				@sideSection("Fleet")
+				@sideLink("/clients", "Clients", "Runners & enrollment", "⛁")
+				@sideLink("/credentials", "Credentials", "Secrets registry", "🔑")
+				@sideSection("Admin")
+				@sideLink("/audit", "Audit", "Who did what", "📜")
+				@sideLink("/users", "Users", "Roles & access", "👥")
+				@sideLink("/tenants", "Tenants", "Isolation boundaries", "🏢")
+				@sideSection("Help")
+				@sideLink("/docs", "Docs", "OpenAPI reference", "📖")
+				@sideLink("/profile", "Profile", "Account & password", "👤")
 			} else {
-				<div class="flex gap-4 text-sm"><span class="font-medium">Nite Jaguar</span></div>
-				<div class="flex items-center gap-4"><a href="/login" class="text-sm hover:text-red-500">Login</a>@ThemeSwitcher()</div>
+				@sideSection("Welcome")
+				@sideLink("/login", "Login", "Sign in to continue", "➔")
+				@sideLink("/docs", "Docs", "OpenAPI reference", "📖")
+			}
+		</nav>
+		<div class="border-t border-border p-3">
+			if user != nil && user.LoggedIn {
+				<div class="flex items-center gap-3 rounded-xl bg-muted/60 px-3 py-2">
+					<span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-500/15 text-sm font-bold text-red-600" aria-hidden="true">{ userInitial(user) }</span>
+					<div class="min-w-0 flex-1">
+						<p class="truncate text-sm font-medium leading-tight" title={ user.Role + " @ " + user.TenantID }>{ user.Username }</p>
+						<p class="truncate font-mono text-[11px] text-muted-foreground">{ user.Role }{ "@" } { user.TenantID }</p>
+					</div>
+					@ThemeSwitcher()
+				</div>
+				<form method="post" action="/logout" class="m-0 mt-2">
+					<button type="submit" class="w-full rounded-xl border border-border px-3 py-2 text-left text-sm hover:border-red-500">Logout ⎋</button>
+				</form>
+			} else {
+				<div class="flex items-center justify-between rounded-xl bg-muted/60 px-3 py-2">
+					<span class="text-sm text-muted-foreground">Not signed in</span>
+					@ThemeSwitcher()
+				</div>
 			}
 		</div>
-	</nav>
+	</aside>
+	<script nonce={ templ.GetNonce(ctx) }>
+		(function () {
+			function highlight() {
+				var path = window.location.pathname || "/";
+				document.querySelectorAll("[data-navlink]").forEach(function (a) {
+					var href = a.getAttribute("data-navlink");
+					var active = href === "/" ? path === "/" : path === href || path.indexOf(href + "/") === 0;
+					if (active) { a.classList.add("bg-red-500/10", "text-foreground"); }
+				});
+				var q = document.getElementById("nj-nav-search");
+				if (q) {
+					q.addEventListener("input", function () {
+						var needle = q.value.toLowerCase();
+						document.querySelectorAll("[data-navlink]").forEach(function (a) {
+							a.style.display = a.textContent.toLowerCase().indexOf(needle) !== -1 ? "" : "none";
+						});
+					});
+				}
+			}
+			if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", highlight); } else { highlight(); }
+		})();
+	</script>
+}
+
+templ Topbar(user *NavUser) {
+	<header class="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
+		<div class="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-2.5 lg:px-8">
+			<button
+				type="button"
+				class="rounded-lg border border-border px-2.5 py-1.5 text-sm lg:hidden"
+				aria-label="Open navigation"
+				onclick="document.getElementById('nj-sidebar').classList.remove('-translate-x-full');document.getElementById('nj-sidebar-backdrop').classList.remove('hidden')"
+			>☰</button>
+			<div class="min-w-0 flex-1">
+				<p class="truncate text-sm font-semibold leading-tight" id="nj-crumb">Nite Jaguar</p>
+				<p class="truncate text-xs text-muted-foreground">Design, run, and observe workflows</p>
+			</div>
+			<a href="/docs" class="hidden items-center gap-2 rounded-xl border border-border px-3 py-1.5 text-sm text-muted-foreground hover:border-red-500 md:flex" title="OpenAPI docs">
+				<span aria-hidden="true">⌕</span><span>Quick nav</span><kbd class="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">/docs</kbd>
+			</a>
+			if user != nil && user.LoggedIn {
+				<span class="hidden rounded-full border border-border px-2.5 py-1 font-mono text-xs text-muted-foreground sm:block">{ user.TenantID }</span>
+				<span class="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/15 text-sm font-bold text-red-600" title={ user.Username + " (" + user.Role + ")" }>{ userInitial(user) }</span>
+			} else {
+				<a href="/login" class="rounded-xl bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600">Login</a>
+			}
+		</div>
+	</header>
+	<script nonce={ templ.GetNonce(ctx) }>
+		(function () {
+			var titles = { "/": "Workflows", "/designer": "Designer", "/results": "Executions", "/clients": "Clients", "/credentials": "Credentials", "/audit": "Audit", "/users": "Users", "/tenants": "Tenants", "/profile": "Profile", "/docs": "Docs", "/login": "Login" };
+			var path = window.location.pathname || "/";
+			var key = titles[path] ? path : Object.keys(titles).filter(function (k) { return k !== "/" && path.indexOf(k + "/") === 0; })[0];
+			var el = document.getElementById("nj-crumb");
+			if (el && key) { el.textContent = "Nite Jaguar / " + titles[key]; }
+		})();
+	</script>
+}
+
+func userInitial(user *NavUser) string {
+	if user == nil || user.Username == "" {
+		return "?"
+	}
+	chars := []rune(user.Username)
+	return string(chars[0:1])
 }

@@ -87,3 +87,97 @@
       "calt" 1;
   }
 }
+
+/* ---- 2026 app shell: left sidebar + content grid backdrop ---- */
+.nj-shell {
+  display: flex;
+  min-height: 100vh;
+  background-color: hsl(220 20% 97%);
+  background-image:
+    linear-gradient(to right, hsl(220 14% 90% / 0.55) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(220 14% 90% / 0.55) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+.dark .nj-shell {
+  background-color: hsl(0 0% 5%);
+  background-image:
+    linear-gradient(to right, hsl(0 0% 100% / 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(0 0% 100% / 0.045) 1px, transparent 1px);
+}
+.nj-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.nj-content {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+@media (min-width: 1024px) {
+  .nj-content { padding: 2rem 2rem 4rem; }
+}
+
+/* ---- workflow graph canvas ---- */
+.nj-canvas {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  background-color: hsl(0 0% 100% / 0.7);
+  background-image:
+    linear-gradient(to right, hsl(220 14% 82% / 0.6) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(220 14% 82% / 0.6) 1px, transparent 1px);
+  background-size: 24px 24px;
+  touch-action: none;
+}
+.dark .nj-canvas {
+  background-color: hsl(0 0% 8% / 0.7);
+  background-image:
+    linear-gradient(to right, hsl(0 0% 100% / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(0 0% 100% / 0.06) 1px, transparent 1px);
+}
+.nj-canvas-inner {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+.nj-edge {
+  fill: none;
+  stroke-width: 2;
+}
+.nj-node {
+  position: absolute;
+  width: 248px;
+  border-radius: 0.9rem;
+  border: 1.5px solid hsl(220 14% 82%);
+  background: hsl(0 0% 100%);
+  box-shadow: 0 8px 24px hsl(220 20% 20% / 0.08);
+  cursor: grab;
+  user-select: none;
+}
+.dark .nj-node {
+  border-color: hsl(0 0% 22%);
+  background: hsl(0 0% 10%);
+  box-shadow: 0 8px 24px hsl(0 0% 0% / 0.5);
+}
+.nj-node:active { cursor: grabbing; }
+.nj-node-selected {
+  border-color: hsl(0 72.2% 50.6%) !important;
+  box-shadow: 0 0 0 3px hsl(0 72.2% 50.6% / 0.25) !important;
+}
+.nj-node-trigger { border-top: 4px solid hsl(38 92% 50%); }
+.nj-node-action { border-top: 4px solid hsl(0 72.2% 50.6%); }
+.nj-port {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  border: 2px solid hsl(0 0% 100%);
+  box-shadow: 0 0 0 1.5px hsl(220 14% 70%);
+}
+.nj-fade-in { animation: nj-fade-in 0.16s ease-out; }
+@keyframes nj-fade-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}

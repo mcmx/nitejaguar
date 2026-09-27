@@ -59,12 +59,40 @@ The `action_name` field uses one concise, lowercase, category-free identifier fo
 
 ## Website management
 
-The workflow list (`/`) shows **View**, **Edit** (designer), **Clone**,
-and **Delete** (confirm-guarded) per workflow; the detail page
+The app shell uses a left sidebar (Overview / Fleet / Admin / Help)
+with a top bar showing the current section and tenant. The workflow
+list (`/`) shows **View**, **Edit** (designer), **Clone**, and
+**Delete** (confirm-guarded) per workflow; the detail page
 (`/workflows/:id`) adds enable/disable plus the same clone/delete
 actions. Clone lands on the new workflow; delete returns to the list
 with a confirmation notice. Mutating buttons require operator+ and
 are hidden otherwise.
+
+### Visual graph designer (`/designer`)
+
+The designer is a node-graph canvas, not a form list:
+
+- Each workflow node is a draggable card showing its icon, name,
+  `action_type`/`action_name`, an argument summary, and its id.
+- Every card has a **＋ Add action** button: it opens the action
+  picker (all six catalog entries with descriptions and a filter box),
+  and the chosen action appears on the canvas as a new card already
+  connected downstream of the card you clicked.
+- Click a card's **red output dot**, then click another card, to draw
+  an edge; downstream/upstream chips in the inspector remove edges.
+- Clicking a card opens the **inspector** (name, type, action,
+  arguments JSON with format + validation, client targeting,
+  `credential_ref`, `merge_input` for actions, duplicate/delete).
+- **Graph → JSON translation happens on save**: the drawn edges are
+  the source of truth — `conditions.entries.entry1.nexts` carry each
+  card's outgoing edges forward and `dependencies` are recomputed from
+  incoming edges — so the saved definition always matches the picture.
+  A live JSON preview shows exactly what `Save` sends to
+  `POST /designer/save`, and saving validates (at least one node, at
+  least one trigger, all arguments parse as JSON) before submitting.
+- Canvas tools: auto-layout (topological columns), zoom controls,
+  and node positions kept per browser (layout-only, never saved into
+  workflow JSON).
 
 ## Client targeting & distributed execution
 

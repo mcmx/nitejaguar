@@ -371,248 +371,560 @@ templ designerInitialData(jsonData string) {
 }
 
 templ DesignerPage(data *DesignerPageData) {
-    @Base(data.CurrentUser) {
-        @designerInitialData(data.InitJSON)
-        <script>
-        function defaultNodes() {
-            return [
-                {
-                    id: 'trigger_1',
-                    name: 'File Trigger',
-                    description: '',
-                    action_type: 'trigger',
-                    action_name: 'filechange',
-                    arguments: '{\n  "path": "/tmp",\n  "event_type": "create"\n}',
-                    client: '',
-                    client_tags: 'gpu',
-                    credential_ref: '',
-                    dependencies: '',
-                    nexts: 'action_1',
-                    merge_input: false
-                },
-                {
-                    id: 'action_1',
-                    name: 'File Action',
-                    description: '',
-                    action_type: 'action',
-                    action_name: 'file',
-                    arguments: '{\n  "action": "create",\n  "file": "/tmp/out.txt"\n}',
-                    client: '',
-                    client_tags: 'gpu',
-                    credential_ref: '',
-                    dependencies: 'trigger_1',
-                    nexts: '',
-                    merge_input: false
-                }
-            ];
-        }
-        function splitList(value) {
-            if (!value) { return []; }
-            return value.split(',').map(s => s.trim()).filter(Boolean);
-        }
-        function designerData() {
-            let initial = null;
-            try {
-                const el = document.getElementById('designer-initial');
-                if (el && el.textContent.trim()) { initial = JSON.parse(el.textContent); }
-            } catch(e) { initial = null; }
-            const hasInitialNodes = !!(initial && initial.nodes && initial.nodes.length);
-            return {
-                workflowId: (initial && initial.workflowId) || ('workflow_' + Math.random().toString(36).substring(2, 9)),
-                name: (initial && initial.name) || 'New Workflow',
-                tenantId: (initial && initial.tenantId) || 'default',
-                defaultClient: (initial && initial.defaultClient) || '',
-                defaultClientTags: (initial && initial.defaultClientTags) || '',
-                nodes: hasInitialNodes ? initial.nodes : defaultNodes(),
-                addNode() {
-                    this.nodes.push({
-                        id: 'node_' + Math.random().toString(36).substring(2, 9),
-                        name: 'New Node',
-                        description: '',
-                        action_type: 'action',
-                        action_name: 'file',
-                        arguments: '{\n  "action": "create"\n}',
-                        client: '',
-                        client_tags: '',
-                        credential_ref: '',
-                        dependencies: '',
-                        nexts: '',
-                        merge_input: false
-                    });
-                },
-                removeNode(index) {
-                    this.nodes.splice(index, 1);
-                },
-                getJSON() {
-                    let obj = {
-                        id: this.workflowId,
-                        name: this.name,
-                        tenant_id: this.tenantId,
-                        default_client: this.defaultClient || '',
-                        default_client_tags: splitList(this.defaultClientTags),
-                        nodes: {}
-                    };
-                    this.nodes.forEach(n => {
-                        let args = {};
-                        try { args = JSON.parse(n.arguments); } catch(e) {}
-                        let nexts = splitList(n.nexts);
-                        let conditions = { entries: {} };
-                        if (nexts.length > 0) {
-                            conditions.entries['entry1'] = {
-                                condition: { leftOperand: true, operator: '', rightOperand: null },
-                                nexts: nexts
-                            };
-                        }
-                        obj.nodes[n.id] = {
-                            id: n.id,
-                            name: n.name,
-                            description: n.description || '',
-                            action_type: n.action_type,
-                            action_name: n.action_name,
-                            arguments: args,
-                            conditions: conditions,
-                            dependencies: splitList(n.dependencies),
-                            client: n.client || '',
-                            client_tags: splitList(n.client_tags),
-                            credential_ref: (n.credential_ref || '').trim(),
-                            merge_input: !!n.merge_input
-                        };
-                    });
-                    return JSON.stringify(obj, null, 2);
-                }
-            }
-        }
-        </script>
-        <main class="container mx-auto max-w-4xl px-4 py-8" x-data="designerData()">
-            if data.EditWorkflowID != "" {
-                @pageTitle("Edit Workflow")
-            } else {
-                @pageTitle("Visual Workflow Designer")
-            }
-            <p class="mb-6 text-sm text-muted-foreground">Create, connect, and configure workflows, nodes, and multi-tenant targeting visually. Saving an existing workflow ID updates it in place.</p>
-            if data.Error != "" {
-                <p class="mb-6 rounded-lg border border-red-500/50 p-4 text-red-500">{ data.Error }</p>
-            }
-            if data.EditWorkflowID != "" {
-                <div class="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-border p-4 text-sm"><span>Editing <code class="font-mono">{ data.EditWorkflowID }</code></span><a href="/designer" class="text-red-500 hover:underline">Create new workflow</a></div>
-            } else if len(data.Workflows) > 0 {
-                <div class="mb-6 rounded-lg border border-border p-4 text-sm">
-                    <label class="mb-2 block text-xs font-medium">Or edit an existing workflow</label>
-                    <div class="flex flex-wrap gap-2">
-                        for _, wf := range data.Workflows {
-                            <a href={ templ.URL("/designer/" + wf.ID) } class="rounded border border-border px-3 py-1 font-mono text-xs hover:border-red-500">{ workflowName(wf) }</a>
-                        }
-                    </div>
-                </div>
-            }
-
-            <form method="post" action="/designer/save" class="space-y-6">
-                <input type="hidden" name="workflow_json" x-model="getJSON()"/>
-
-                <div class="grid gap-4 md:grid-cols-3 rounded-lg border border-border p-5">
-                    <div>
-                        <label class="block text-xs font-medium mb-1">Workflow ID</label>
-                        <input type="text" x-model="workflowId" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium mb-1">Workflow Name</label>
-                        <input type="text" x-model="name" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium mb-1">Tenant ID</label>
-                        <input type="text" x-model="tenantId" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium mb-1">Default Client ID (optional)</label>
-                        <input type="text" x-model="defaultClient" placeholder="Leave empty to broadcast" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium mb-1">Default Client Tags (comma separated)</label>
-                        <input type="text" x-model="defaultClientTags" placeholder="gpu, tenant-a" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
-                    </div>
-                </div>
-
-                <div class="flex items-center justify-between">
-                    <h2 class="text-xl font-bold">Nodes</h2>
-                    <button type="button" @click="addNode()" class="rounded bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">Add Node</button>
-                </div>
-
-                <div class="space-y-4">
-                    <template x-for="(node, index) in nodes" :key="index">
-                        <div class="rounded-lg border border-border p-5 space-y-4 relative bg-card">
-                            <button type="button" @click="removeNode(index)" class="absolute top-4 right-4 text-xs text-red-500 hover:underline">Remove</button>
-                            <div class="grid gap-4 md:grid-cols-2">
-                                <div>
-                                    <label class="block text-xs font-medium mb-1">Node ID</label>
-                                    <input type="text" x-model="node.id" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-medium mb-1">Node Name</label>
-                                    <input type="text" x-model="node.name" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-medium mb-1">Action Type</label>
-                                    <select x-model="node.action_type" class="w-full rounded border border-border bg-background px-3 py-2 text-sm">
-                                        <option value="trigger">Trigger</option>
-                                        <option value="action">Action</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-medium mb-1">Action Name</label>
-                    <input type="text" x-model="node.action_name" placeholder="filechange / file / datetime / wait / transfer / set" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
-                                </div>
-                                <div class="md:col-span-2">
-                                    <label class="block text-xs font-medium mb-1">Description</label>
-                                    <input type="text" x-model="node.description" placeholder="What does this node do?" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium mb-1">Arguments (JSON)</label>
-                                <textarea x-model="node.arguments" rows="3" class="w-full rounded border border-border bg-background p-3 text-xs font-mono"></textarea>
-                            </div>
-                            <div class="grid gap-4 md:grid-cols-2">
-                                <div>
-                                    <label class="block text-xs font-medium mb-1">Next nodes (comma separated)</label>
-                                    <input type="text" x-model="node.nexts" placeholder="action_1, action_2" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-medium mb-1">Dependencies (comma separated)</label>
-                                    <input type="text" x-model="node.dependencies" placeholder="trigger_1" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-medium mb-1">Client ID (optional)</label>
-                                    <input type="text" x-model="node.client" placeholder="Leave empty to broadcast" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-medium mb-1">Client Tags (comma separated)</label>
-                                    <input type="text" x-model="node.client_tags" placeholder="gpu, tenant-a" class="w-full rounded border border-border bg-background px-3 py-2 text-sm"/>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-medium mb-1">Credential ref (optional)</label>
-                                    <input type="text" x-model="node.credential_ref" placeholder="my-api-token (name or credential_ id)" class="w-full rounded border border-border bg-background px-3 py-2 text-sm font-mono"/>
-                                </div>
-                            </div>
-                            <div x-show="node.action_type === 'action'">
-                                <label class="flex items-center gap-2 text-xs font-medium"><input type="checkbox" x-model="node.merge_input" class="rounded border border-border"/> Merge $input into $result ($result wins)</label>
-                                <p class="mt-1 text-xs text-muted-foreground">Deep-merges the upstream payload into this node's result; conflicting keys keep the result's values.</p>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-
-                <div class="rounded-lg border border-border p-5 space-y-2">
-                    <h3 class="font-medium text-sm">JSON Preview</h3>
-                    <pre class="overflow-x-auto rounded bg-muted p-3 text-xs font-mono" x-text="getJSON()"></pre>
-                </div>
-
-                <div>
-                    if data.EditWorkflowID != "" {
-                        <button type="submit" class="w-full rounded bg-red-500 px-4 py-3 font-semibold text-white hover:bg-red-600">Save Changes</button>
-                    } else {
-                        <button type="submit" class="w-full rounded bg-red-500 px-4 py-3 font-semibold text-white hover:bg-red-600">Save & Import Workflow</button>
-                    }
-                </div>
-            </form>
-        </main>
-    }
+	@Base(data.CurrentUser) {
+		@designerInitialData(data.InitJSON)
+		<script>
+		// Action catalog: the single visual source of truth for the picker.
+		// action_type mirrors the workflow engine (trigger vs action);
+		// action_name is the canonical lowercase identifier used in JSON.
+		var DESIGNER_CATALOG = [
+			{ action_type: 'trigger', action_name: 'filechange', icon: '📁', label: 'File Change', desc: 'Watch a directory for creates, writes, renames…', args: { path: '/tmp', event_type: 'create' } },
+			{ action_type: 'action', action_name: 'file', icon: '📄', label: 'File', desc: 'Create, remove or rename files.', args: { action: 'create', file: '/tmp/out.txt' } },
+			{ action_type: 'action', action_name: 'datetime', icon: '🕒', label: 'Datetime', desc: 'Current timestamp, formatted for downstream use.', args: { operation: 'getCurrentDate', format: '2006-01-02', timezone: 'UTC', output_field: 'current_date' } },
+			{ action_type: 'action', action_name: 'wait', icon: '⏳', label: 'Wait', desc: 'Pause the execution before continuing.', args: { duration: '1.5 minutes' } },
+			{ action_type: 'action', action_name: 'transfer', icon: '📦', label: 'Transfer', desc: 'Copy a file, locally or to another client.', args: { file: '$input.file', destination_file: '~/received/' + String.fromCharCode(123, 123) + 'base' + String.fromCharCode(125, 125) } },
+			{ action_type: 'action', action_name: 'set', icon: '🧩', label: 'Set', desc: 'Shape a payload from literals and $input refs.', args: { mode: 'manual', 'field.kind': 'contact', keep_only_set: 'false' } }
+		];
+		function designerCatalogEntry(type, name) {
+			for (var i = 0; i < DESIGNER_CATALOG.length; i++) {
+				if (DESIGNER_CATALOG[i].action_type === type && DESIGNER_CATALOG[i].action_name === name) { return DESIGNER_CATALOG[i]; }
+			}
+			return null;
+		}
+		function designerIcon(type, name) {
+			var e = designerCatalogEntry(type, name);
+			return e ? e.icon : (type === 'trigger' ? '⚡' : '⬢');
+		}
+		function designerArgsTemplate(type, name) {
+			var e = designerCatalogEntry(type, name);
+			var a = e ? e.args : {};
+			return JSON.stringify(a, null, 2);
+		}
+		function designerSplitList(value) {
+			if (!value) { return []; }
+			if (Array.isArray(value)) { return value; }
+			return String(value).split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+		}
+		function designerUid(prefix) {
+			return prefix + '_' + Math.random().toString(36).substring(2, 9);
+		}
+		function designerGraph() {
+			var initial = null;
+			try {
+				var el = document.getElementById('designer-initial');
+				if (el && el.textContent.trim()) { initial = JSON.parse(el.textContent); }
+			} catch (e) { initial = null; }
+			var seedNodes = [];
+			if (initial && initial.nodes && initial.nodes.length) {
+				seedNodes = initial.nodes.map(function (n) {
+					return {
+						id: n.id, name: n.name || 'Untitled', description: n.description || '',
+						action_type: n.action_type || 'action', action_name: n.action_name || 'file',
+						arguments: n.arguments || '{}', client: n.client || '',
+						client_tags: n.client_tags || '', credential_ref: n.credential_ref || '',
+						merge_input: !!n.merge_input, nexts: designerSplitList(n.nexts), x: 80, y: 80
+					};
+				});
+			} else {
+				seedNodes = [
+					{ id: 'trigger_1', name: 'File Trigger', description: '', action_type: 'trigger', action_name: 'filechange', arguments: '{\n  "path": "/tmp",\n  "event_type": "create"\n}', client: '', client_tags: '', credential_ref: '', merge_input: false, nexts: ['action_1'], x: 80, y: 200 },
+					{ id: 'action_1', name: 'File Action', description: '', action_type: 'action', action_name: 'file', arguments: '{\n  "action": "create",\n  "file": "/tmp/out.txt"\n}', client: '', client_tags: '', credential_ref: '', merge_input: false, nexts: [], x: 420, y: 200 }
+				];
+			}
+			return {
+				workflowId: (initial && initial.workflowId) || ('workflow_' + Math.random().toString(36).substring(2, 9)),
+				name: (initial && initial.name) || 'New Workflow',
+				tenantId: (initial && initial.tenantId) || 'default',
+				defaultClient: (initial && initial.defaultClient) || '',
+				defaultClientTags: (initial && initial.defaultClientTags) || '',
+				nodes: seedNodes,
+				selectedId: seedNodes.length ? seedNodes[0].id : null,
+				pickerFor: null, pickerQuery: '', showJson: false, zoom: 1,
+				connectFrom: null, formError: '', drag: null,
+				init() { this.autoLayout(); },
+				selected() { for (var i = 0; i < this.nodes.length; i++) { if (this.nodes[i].id === this.selectedId) { return this.nodes[i]; } } return null; },
+				nodeById(id) { for (var i = 0; i < this.nodes.length; i++) { if (this.nodes[i].id === id) { return this.nodes[i]; } } return null; },
+				incoming(id) { var out = []; for (var i = 0; i < this.nodes.length; i++) { if ((this.nodes[i].nexts || []).indexOf(id) !== -1) { out.push(this.nodes[i]); } } return out; },
+				counts() { var t = 0, a = 0; this.nodes.forEach(function (n) { if (n.action_type === 'trigger') { t++; } else { a++; } }); return { triggers: t, actions: a, edges: 0 }; },
+				edgeCount() { var c = 0; this.nodes.forEach(function (n) { c += (n.nexts || []).length; }); return c; },
+				canvasW() { var m = 900; this.nodes.forEach(function (n) { m = Math.max(m, (n.x || 0) + 420); }); return m; },
+				canvasH() { var m = 640; this.nodes.forEach(function (n) { m = Math.max(m, (n.y || 0) + 340); }); return m; },
+				edgePaths() {
+					var paths = [], self = this;
+					this.nodes.forEach(function (n) {
+						var from = n;
+						(n.nexts || []).forEach(function (tid) {
+							var to = self.nodeById(tid);
+							if (!to) { return; }
+							var x1 = (from.x || 0) + 248, y1 = (from.y || 0) + 86;
+							var x2 = (to.x || 0), y2 = (to.y || 0) + 86;
+							var dx = Math.max(60, Math.abs(x2 - x1) / 2);
+							paths.push({ key: from.id + '->' + tid, to: tid, d: 'M ' + x1 + ' ' + y1 + ' C ' + (x1 + dx) + ' ' + y1 + ', ' + (x2 - dx) + ' ' + y2 + ', ' + x2 + ' ' + y2 });
+						});
+					});
+					return paths;
+				},
+				// edgeSVG renders the edge paths as an HTML string for x-html
+				// on the <g> below. A <template x-for> cannot be used here:
+				// template content is parsed in the HTML namespace, so the
+				// cloned <path> elements are not SVG elements and never
+				// paint. innerHTML on an SVG <g> parses in SVG context, and
+				// Alpine re-renders it whenever a node moves (x/y are read
+				// during evaluation, so the binding stays live).
+				edgeSVG() {
+					return this.edgePaths().map(function (p) {
+						return '<path d="' + p.d + '" fill="none" stroke="hsl(0 72.2% 50.6%)" stroke-opacity="0.7" stroke-width="2.5" marker-end="url(#nj-arrow)"></path>';
+					}).join('');
+				},
+				autoLayout() {
+					var self = this, depth = {}, visit = function (id, seen) {
+						if (depth[id] !== undefined) { return depth[id]; }
+						if (seen[id]) { return 0; }
+						seen[id] = true;
+						var n = self.nodeById(id), d = 0;
+						if (n) { self.incoming(id).forEach(function (p) { d = Math.max(d, visit(p.id, seen) + 1); }); }
+						depth[id] = d;
+						return d;
+					};
+					this.nodes.forEach(function (n) { visit(n.id, {}); });
+					var layers = {};
+					this.nodes.forEach(function (n) {
+						var d = depth[n.id] || 0;
+						layers[d] = layers[d] || [];
+						layers[d].push(n);
+					});
+					Object.keys(layers).forEach(function (d) {
+						layers[d].forEach(function (n, i) { n.x = 60 + Number(d) * 320; n.y = 60 + i * 250; });
+					});
+				},
+				openPicker(parentId) { this.pickerFor = parentId || null; this.pickerQuery = ''; },
+				closePicker() { this.pickerFor = null; this.pickerQuery = ''; },
+				pickerParent() { return this.pickerFor ? this.nodeById(this.pickerFor) : null; },
+				filteredCatalog() {
+					var q = (this.pickerQuery || '').toLowerCase();
+					if (!q) { return DESIGNER_CATALOG; }
+					return DESIGNER_CATALOG.filter(function (e) { return (e.label + ' ' + e.action_name + ' ' + e.desc).toLowerCase().indexOf(q) !== -1; });
+				},
+				addFromCatalog(entry) {
+					var prefix = entry.action_type === 'trigger' ? 'trigger' : 'action';
+					var node = {
+						id: designerUid(prefix), name: entry.label, description: '',
+						action_type: entry.action_type, action_name: entry.action_name,
+						arguments: JSON.stringify(entry.args, null, 2),
+						client: '', client_tags: '', credential_ref: '', merge_input: false, nexts: [], x: 400, y: 120
+					};
+					var parent = this.pickerParent();
+					if (parent) {
+						node.x = (parent.x || 0) + 320; node.y = (parent.y || 0) + 40;
+						node.client_tags = parent.client_tags || '';
+						parent.nexts = parent.nexts || [];
+						if (parent.nexts.indexOf(node.id) === -1) { parent.nexts.push(node.id); }
+					} else if (this.nodes.length) {
+						node.x = 60 + (this.nodes.length % 4) * 320; node.y = 60 + Math.floor(this.nodes.length / 4) * 250;
+					}
+					this.nodes.push(node);
+					this.selectedId = node.id;
+					this.closePicker();
+				},
+				select(id) {
+					if (this.connectFrom && this.connectFrom !== id) { this.connect(this.connectFrom, id); return; }
+					this.selectedId = id;
+				},
+				removeNode(id) {
+					this.nodes = this.nodes.filter(function (n) { return n.id !== id; });
+					this.nodes.forEach(function (n) { n.nexts = (n.nexts || []).filter(function (t) { return t !== id; }); });
+					if (this.selectedId === id) { this.selectedId = this.nodes.length ? this.nodes[0].id : null; }
+					if (this.connectFrom === id) { this.connectFrom = null; }
+				},
+				duplicateNode(id) {
+					var src = this.nodeById(id);
+					if (!src) { return; }
+					var copy = JSON.parse(JSON.stringify(src));
+					copy.id = designerUid(src.action_type === 'trigger' ? 'trigger' : 'action');
+					copy.name = src.name + ' (copy)';
+					copy.nexts = [];
+					copy.x = (src.x || 0) + 40; copy.y = (src.y || 0) + 200;
+					this.nodes.push(copy);
+					this.selectedId = copy.id;
+				},
+				startConnect(id) {
+					if (this.connectFrom === id) { this.connectFrom = null; return; }
+					this.connectFrom = id;
+				},
+				connect(fromId, toId) {
+					if (fromId === toId) { this.connectFrom = null; return; }
+					var from = this.nodeById(fromId);
+					if (!from) { this.connectFrom = null; return; }
+					from.nexts = from.nexts || [];
+					if (from.nexts.indexOf(toId) === -1) { from.nexts.push(toId); }
+					this.connectFrom = null;
+					this.selectedId = toId;
+				},
+				disconnect(fromId, toId) {
+					var from = this.nodeById(fromId);
+					if (from) { from.nexts = (from.nexts || []).filter(function (t) { return t !== toId; }); }
+				},
+				// ---- drag & drop on the canvas ----
+				startDrag(ev, node) {
+					if (ev.target.closest('button, input, select, textarea, a')) { return; }
+					if (this.connectFrom) { return; }
+					this.selectedId = node.id;
+					var self = this;
+					// Track deltas from the grab point (window-level listeners
+					// so fast drags never lose the card). A small dead-zone
+					// keeps plain clicks from jittering the card, and
+					// pointerup/pointercancel always detach the listeners so
+					// the card can never stick to the cursor.
+					var sx = ev.clientX, sy = ev.clientY, ox = node.x, oy = node.y;
+					var move = function (e) {
+						var n = self.nodeById(node.id);
+						if (!n) { return; }
+						if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) < 4) { return; }
+						n.x = Math.max(0, Math.round(ox + (e.clientX - sx) / self.zoom));
+						n.y = Math.max(0, Math.round(oy + (e.clientY - sy) / self.zoom));
+					};
+					var stop = function () {
+						window.removeEventListener('pointermove', move);
+						window.removeEventListener('pointerup', stop);
+						window.removeEventListener('pointercancel', stop);
+					};
+					window.addEventListener('pointermove', move);
+					window.addEventListener('pointerup', stop);
+					window.addEventListener('pointercancel', stop);
+					if (ev.preventDefault) { ev.preventDefault(); }
+				},
+				argsError(node) {
+					if (!node) { return ''; }
+					try { JSON.parse(node.arguments || '{}'); return ''; } catch (e) { return String(e.message || e); }
+				},
+				formatArgs(node) {
+					if (!node) { return; }
+					try { node.arguments = JSON.stringify(JSON.parse(node.arguments || '{}'), null, 2); } catch (e) {}
+				},
+				argsPreview(node) {
+					try {
+						var o = JSON.parse(node.arguments || '{}');
+						var keys = Object.keys(o);
+						if (!keys.length) { return 'no arguments'; }
+						return keys.slice(0, 3).join(', ') + (keys.length > 3 ? ' +' + (keys.length - 3) : '');
+					} catch (e) { return 'invalid JSON'; }
+				},
+				validateAll() {
+					if (!this.nodes.length) { this.formError = 'Add at least one node before saving.'; return false; }
+					var hasTrigger = this.nodes.some(function (n) { return n.action_type === 'trigger'; });
+					if (!hasTrigger) { this.formError = 'Every workflow needs at least one trigger node.'; return false; }
+					for (var i = 0; i < this.nodes.length; i++) {
+						try { JSON.parse(this.nodes[i].arguments || '{}'); } catch (e) {
+							this.formError = 'Node "' + this.nodes[i].name + '" has invalid arguments JSON.';
+							this.selectedId = this.nodes[i].id;
+							return false;
+						}
+					}
+					this.formError = '';
+					return true;
+				},
+				// ---- visual graph -> workflow JSON ----
+				// Edges drawn on the canvas (parent.nexts) are the source of
+				// truth: conditions.entries carry them forward and
+				// dependencies are recomputed from incoming edges, so the
+				// saved JSON always matches the picture.
+				getJSON() {
+					var self = this;
+					var obj = {
+						id: this.workflowId, name: this.name, tenant_id: this.tenantId,
+						default_client: this.defaultClient || '',
+						default_client_tags: designerSplitList(this.defaultClientTags),
+						nodes: {}
+					};
+					this.nodes.forEach(function (n) {
+						var args = {};
+						try { args = JSON.parse(n.arguments || '{}'); } catch (e) {}
+						var nexts = (n.nexts || []).filter(function (t) { return !!self.nodeById(t); });
+						var deps = [];
+						self.nodes.forEach(function (m) { if ((m.nexts || []).indexOf(n.id) !== -1) { deps.push(m.id); } });
+						var conditions = { entries: {} };
+						if (nexts.length > 0) {
+							conditions.entries['entry1'] = {
+								condition: { leftOperand: true, operator: '', rightOperand: null },
+								nexts: nexts
+							};
+						}
+						obj.nodes[n.id] = {
+							id: n.id, name: n.name, description: n.description || '',
+							action_type: n.action_type, action_name: n.action_name,
+							arguments: args, conditions: conditions, dependencies: deps,
+							client: n.client || '', client_tags: designerSplitList(n.client_tags),
+							credential_ref: (n.credential_ref || '').trim(),
+							merge_input: n.action_type === 'action' ? !!n.merge_input : false
+						};
+					});
+					return JSON.stringify(obj, null, 2);
+				}
+			};
+		}
+		</script>
+		<div x-data="designerGraph()" x-init="init()" @keydown.escape.window="connectFrom = null; closePicker()" class="mx-auto w-full max-w-[1400px] px-1 pb-10">
+			if data.EditWorkflowID != "" {
+				@pageTitle("Edit Workflow")
+			} else {
+				@pageTitle("Workflow Designer")
+			}
+			<p class="mb-4 text-sm text-muted-foreground">Draw the graph, pick actions per node, then save — the canvas is translated to workflow JSON automatically. Drag cards to arrange, click <span class="font-mono">﹢</span> on a node to append an action, click a red dot then another card to connect.</p>
+			if data.Error != "" {
+				<p class="mb-4 rounded-xl border border-red-500/50 p-4 text-red-500">{ data.Error }</p>
+			}
+			<p x-show="formError" x-text="formError" class="mb-4 hidden rounded-xl border border-red-500/50 p-4 text-red-500" :class="formError ? '' : 'hidden'" style="display:none" x-bind:style="formError ? 'display:block' : 'display:none'"></p>
+			<div x-show="connectFrom" class="mb-4 flex items-center justify-between gap-3 rounded-xl border border-amber-500/50 bg-amber-500/10 px-4 py-2.5 text-sm" style="display:none" x-bind:style="connectFrom ? 'display:flex' : 'display:none'">
+				<span>Connecting from <code class="font-mono font-semibold" x-text="connectFrom"></code> — click any other card to draw the edge.</span>
+				<button type="button" @click="connectFrom = null" class="rounded-lg border border-border px-2.5 py-1 text-xs hover:border-red-500">Cancel (Esc)</button>
+			</div>
+			<form method="post" action="/designer/save" @submit="if (!validateAll()) { $event.preventDefault(); window.scrollTo({top: 0, behavior: 'smooth'}); }" class="space-y-4">
+				<input type="hidden" name="workflow_json" :value="getJSON()"/>
+				<!-- workflow meta -->
+				<div class="grid gap-3 rounded-2xl border border-border bg-card p-4 md:grid-cols-5">
+					<div class="md:col-span-2">
+						<label class="mb-1 block text-xs font-medium">Workflow name</label>
+						<input type="text" x-model="name" class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"/>
+					</div>
+					<div>
+						<label class="mb-1 block text-xs font-medium">Workflow ID</label>
+						<input type="text" x-model="workflowId" class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs"/>
+					</div>
+					<div>
+						<label class="mb-1 block text-xs font-medium">Tenant ID</label>
+						<input type="text" x-model="tenantId" class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs"/>
+					</div>
+					<div>
+						<label class="mb-1 block text-xs font-medium">Default client <span class="font-normal text-muted-foreground">(optional)</span></label>
+						<input type="text" x-model="defaultClient" placeholder="empty = broadcast" class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs"/>
+					</div>
+					<div class="md:col-span-3">
+						<label class="mb-1 block text-xs font-medium">Default client tags <span class="font-normal text-muted-foreground">(comma separated)</span></label>
+						<input type="text" x-model="defaultClientTags" placeholder="gpu, tenant-a" class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"/>
+					</div>
+					<div class="flex items-end gap-2 md:col-span-2">
+						<div class="flex gap-2 rounded-lg bg-muted px-3 py-2 font-mono text-xs text-muted-foreground"><span><span x-text="nodes.filter(function(n){return n.action_type==='trigger'}).length"></span> triggers</span><span>·</span><span><span x-text="nodes.filter(function(n){return n.action_type==='action'}).length"></span> actions</span><span>·</span><span><span x-text="edgeCount()"></span> edges</span></div>
+						if data.EditWorkflowID != "" {
+							<button type="submit" class="flex-1 rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600">Save Changes</button>
+						} else {
+							<button type="submit" class="flex-1 rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600">Save Workflow</button>
+						}
+					</div>
+				</div>
+				<!-- toolbar -->
+				<div class="flex flex-wrap items-center gap-2">
+					<button type="button" @click="openPicker(null)" class="rounded-xl border border-border bg-card px-3 py-2 text-sm hover:border-red-500">＋ Add node</button>
+					<button type="button" @click="autoLayout()" class="rounded-xl border border-border bg-card px-3 py-2 text-sm hover:border-red-500">🧭 Auto-layout</button>
+					<div class="flex items-center gap-1 rounded-xl border border-border bg-card px-2 py-1.5 text-sm">
+						<button type="button" @click="zoom = Math.max(0.4, Math.round((zoom - 0.1) * 10) / 10)" class="rounded-lg px-2 hover:bg-muted">−</button>
+						<span class="w-12 text-center font-mono text-xs" x-text="Math.round(zoom * 100) + '%'"></span>
+						<button type="button" @click="zoom = Math.min(1.5, Math.round((zoom + 0.1) * 10) / 10)" class="rounded-lg px-2 hover:bg-muted">＋</button>
+					</div>
+					<button type="button" @click="showJson = !showJson" class="rounded-xl border border-border bg-card px-3 py-2 text-sm hover:border-red-500"><span x-text="showJson ? 'Hide JSON' : 'Show JSON'"></span></button>
+					if data.EditWorkflowID != "" {
+						<span class="text-xs text-muted-foreground">Editing <code class="font-mono">{ data.EditWorkflowID }</code> · <a href="/designer" class="text-red-500 hover:underline">new workflow</a></span>
+					} else if len(data.Workflows) > 0 {
+						<details class="text-sm">
+							<summary class="cursor-pointer text-muted-foreground hover:text-foreground">Open existing…</summary>
+							<div class="mt-2 flex max-w-3xl flex-wrap gap-2">
+								for _, wf := range data.Workflows {
+									<a href={ templ.URL("/designer/" + wf.ID) } class="rounded-lg border border-border bg-card px-3 py-1 font-mono text-xs hover:border-red-500">{ workflowName(wf) }</a>
+								}
+							</div>
+						</details>
+					}
+				</div>
+				<!-- canvas + inspector -->
+				<div class="grid gap-4 xl:grid-cols-[1fr_340px]">
+					<div>
+						<div class="nj-canvas h-[560px] w-full border border-border shadow-sm" @click.self="selectedId = null">
+							<div id="nj-canvas-inner" class="nj-canvas-inner" :style="'transform: scale(' + zoom + '); width: ' + canvasW() + 'px; height: ' + canvasH() + 'px;'">
+								<svg :width="canvasW()" :height="canvasH()" class="absolute inset-0 h-full w-full">
+									<defs>
+										<marker id="nj-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+											<path d="M 0 1 L 9 5 L 0 9 z" fill="hsl(0 72.2% 50.6%)"></path>
+										</marker>
+									</defs>
+									<g x-html="edgeSVG()"></g>
+								</svg>
+								<template x-for="node in nodes" :key="node.id">
+									<div
+										class="nj-node nj-fade-in"
+										:class="{ 'nj-node-selected': selectedId === node.id, 'nj-node-trigger': node.action_type === 'trigger', 'nj-node-action': node.action_type !== 'trigger' }"
+										:style="'left: ' + node.x + 'px; top: ' + node.y + 'px;'"
+										@click.stop="select(node.id)"
+										@pointerdown="startDrag($event, node)"
+									>
+										<div class="flex items-start gap-2 px-3 pt-2.5">
+											<span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-base" x-text="designerIcon(node.action_type, node.action_name)"></span>
+											<div class="min-w-0 flex-1">
+												<p class="truncate text-sm font-semibold leading-tight" x-text="node.name"></p>
+												<p class="truncate font-mono text-[11px] text-muted-foreground"><span x-text="node.action_type"></span> · <span x-text="node.action_name"></span></p>
+											</div>
+											<button type="button" title="Delete node" @click.stop="removeNode(node.id)" class="rounded-md px-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500">×</button>
+										</div>
+										<div class="px-3 py-2">
+											<p class="truncate rounded-md bg-muted/70 px-2 py-1 font-mono text-[11px] text-muted-foreground" x-text="argsPreview(node)"></p>
+											<p class="mt-1 truncate font-mono text-[10px] text-muted-foreground" x-text="node.id"></p>
+										</div>
+										<div class="flex items-center justify-between border-t border-border px-2 py-1.5">
+											<span class="nj-port ml-1 bg-emerald-500" title="input"></span>
+											<button type="button" @click.stop="openPicker(node.id)" class="rounded-lg bg-red-500 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-600" title="Add an action after this node">＋ Add action</button>
+											<button
+												type="button"
+												@click.stop="startConnect(node.id)"
+												:title="connectFrom === node.id ? 'Cancel connection' : 'Connect: then click another card'"
+												:class="connectFrom === node.id ? 'bg-amber-500' : 'bg-red-500'"
+												class="nj-port mr-1 cursor-pointer border-0 p-0 hover:scale-125"
+											></button>
+										</div>
+									</div>
+								</template>
+							</div>
+							<div class="absolute bottom-3 left-3 flex flex-col gap-1 rounded-xl border border-border bg-card/90 p-1 text-sm backdrop-blur">
+								<button type="button" @click="zoom = Math.min(1.5, Math.round((zoom + 0.1) * 10) / 10)" class="rounded-lg px-2.5 py-1 hover:bg-muted">＋</button>
+								<button type="button" @click="zoom = Math.max(0.4, Math.round((zoom - 0.1) * 10) / 10)" class="rounded-lg px-2.5 py-1 hover:bg-muted">−</button>
+								<button type="button" @click="zoom = 1" class="rounded-lg px-2.5 py-1 hover:bg-muted" title="Reset zoom">⛶</button>
+							</div>
+						</div>
+						<div x-show="showJson" class="mt-3 rounded-2xl border border-border bg-card p-4" style="display:none" x-bind:style="showJson ? 'display:block' : 'display:none'">
+							<div class="mb-2 flex items-center justify-between">
+								<h3 class="text-sm font-medium">Workflow JSON preview <span class="font-normal text-muted-foreground">(what Save sends)</span></h3>
+								<button type="button" @click="navigator.clipboard && navigator.clipboard.writeText(getJSON())" class="rounded-lg border border-border px-2.5 py-1 text-xs hover:border-red-500">Copy</button>
+							</div>
+							<pre class="max-h-96 overflow-auto rounded-xl bg-muted p-3 font-mono text-xs" x-text="getJSON()"></pre>
+						</div>
+					</div>
+					<!-- inspector -->
+					<aside class="h-fit rounded-2xl border border-border bg-card p-4 xl:sticky xl:top-16">
+						<template x-if="selected()">
+							<div class="space-y-3" :key="selectedId">
+								<div class="flex items-center justify-between">
+									<h3 class="font-semibold">Node inspector</h3>
+									<div class="flex gap-1">
+										<button type="button" @click="duplicateNode(selectedId)" title="Duplicate node" class="rounded-lg border border-border px-2 py-1 text-xs hover:border-red-500">⧉</button>
+										<button type="button" @click="removeNode(selectedId)" title="Delete node" class="rounded-lg border border-border px-2 py-1 text-xs hover:border-red-500">🗑</button>
+									</div>
+								</div>
+								<div>
+									<label class="mb-1 block text-xs font-medium">Name</label>
+									<input type="text" x-model="selected().name" class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"/>
+								</div>
+								<div class="grid grid-cols-2 gap-2">
+									<div>
+										<label class="mb-1 block text-xs font-medium">Type</label>
+										<select x-model="selected().action_type" class="w-full rounded-lg border border-border bg-background px-2 py-2 text-sm">
+											<option value="trigger">trigger</option>
+											<option value="action">action</option>
+										</select>
+									</div>
+									<div>
+										<label class="mb-1 block text-xs font-medium">Action</label>
+										<select x-model="selected().action_name" class="w-full rounded-lg border border-border bg-background px-2 py-2 font-mono text-sm">
+											<option value="filechange">filechange</option>
+											<option value="file">file</option>
+											<option value="datetime">datetime</option>
+											<option value="wait">wait</option>
+											<option value="transfer">transfer</option>
+											<option value="set">set</option>
+										</select>
+									</div>
+								</div>
+								<div>
+									<label class="mb-1 block text-xs font-medium">Description</label>
+									<input type="text" x-model="selected().description" placeholder="What does this node do?" class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"/>
+								</div>
+								<div>
+									<div class="mb-1 flex items-center justify-between">
+										<label class="block text-xs font-medium">Arguments (JSON)</label>
+										<button type="button" @click="formatArgs(selected())" class="text-xs text-red-500 hover:underline">Format</button>
+									</div>
+									<textarea x-model="selected().arguments" rows="6" spellcheck="false" class="w-full rounded-lg border border-border bg-background p-2.5 font-mono text-xs"></textarea>
+									<p x-show="argsError(selected())" class="mt-1 font-mono text-xs text-red-500" x-text="argsError(selected())"></p>
+								</div>
+								<div class="grid grid-cols-2 gap-2">
+									<div>
+										<label class="mb-1 block text-xs font-medium">Client</label>
+										<input type="text" x-model="selected().client" placeholder="empty = broadcast" class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs"/>
+									</div>
+									<div>
+										<label class="mb-1 block text-xs font-medium">Client tags</label>
+										<input type="text" x-model="selected().client_tags" placeholder="gpu, cpu" class="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"/>
+									</div>
+								</div>
+								<div>
+									<label class="mb-1 block text-xs font-medium">Credential ref</label>
+									<input type="text" x-model="selected().credential_ref" placeholder="name or credential_ id" class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs"/>
+								</div>
+								<div x-show="selected().action_type === 'action'">
+									<label class="flex items-center gap-2 text-xs font-medium"><input type="checkbox" x-model="selected().merge_input" class="rounded border border-border"/> Merge $input into $result</label>
+								</div>
+								<div>
+									<label class="mb-1 block text-xs font-medium">Downstream (edges from the canvas)</label>
+									<div class="flex flex-wrap gap-1.5">
+										<template x-for="tid in (selected().nexts || [])" :key="tid">
+											<span class="flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-1 font-mono text-[11px]">
+												<span x-text="(nodeById(tid) ? nodeById(tid).name : tid)"></span>
+												<button type="button" @click="disconnect(selectedId, tid)" class="hover:text-red-500">×</button>
+											</span>
+										</template>
+										<span x-show="!(selected().nexts || []).length" class="text-xs text-muted-foreground">none — use ＋ or the red dot</span>
+									</div>
+								</div>
+								<div>
+									<label class="mb-1 block text-xs font-medium">Upstream (auto)</label>
+									<div class="flex flex-wrap gap-1.5">
+										<template x-for="p in incoming(selectedId)" :key="p.id">
+											<span class="rounded-full bg-muted px-2 py-1 font-mono text-[11px]" x-text="p.name"></span>
+										</template>
+										<span x-show="!incoming(selectedId).length" class="text-xs text-muted-foreground">root node</span>
+									</div>
+								</div>
+								<button type="button" @click="openPicker(selectedId)" class="w-full rounded-xl bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-600">＋ Add action after this node</button>
+							</div>
+						</template>
+						<template x-if="!selected()">
+							<p class="text-sm text-muted-foreground">Click a card on the canvas to inspect and edit it.</p>
+						</template>
+					</aside>
+				</div>
+				<!-- action picker modal -->
+				<div x-show="pickerFor !== null && pickerFor !== undefined" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" style="display:none" x-bind:style="(pickerFor !== null && pickerFor !== undefined) ? 'display:flex' : 'display:none'" @click.self="closePicker()">
+					<div class="nj-fade-in max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl">
+						<div class="mb-1 flex items-start justify-between gap-3">
+							<div>
+								<h3 class="text-lg font-bold">Add action</h3>
+								<p class="text-sm text-muted-foreground"><span x-show="pickerParent()">After <strong x-text="pickerParent() ? pickerParent().name : ''"></strong> — a new card appears on the canvas, already connected.</span><span x-show="!pickerParent()">As a new root card on the canvas.</span></p>
+							</div>
+							<button type="button" @click="closePicker()" class="rounded-lg border border-border px-2.5 py-1 hover:border-red-500">✕</button>
+						</div>
+						<input type="text" x-model="pickerQuery" placeholder="Filter actions… (file, wait, timer…)" class="mb-4 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"/>
+						<div class="grid gap-3 sm:grid-cols-2">
+							<template x-for="entry in filteredCatalog()" :key="entry.action_type + ':' + entry.action_name">
+								<button type="button" @click="addFromCatalog(entry)" class="rounded-xl border border-border p-4 text-left transition hover:-translate-y-0.5 hover:border-red-500 hover:shadow-lg">
+									<div class="flex items-center gap-2">
+										<span class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-lg" x-text="entry.icon"></span>
+										<div>
+											<p class="font-semibold leading-tight" x-text="entry.label"></p>
+											<p class="font-mono text-[11px] text-muted-foreground"><span x-text="entry.action_type"></span> · <span x-text="entry.action_name"></span></p>
+										</div>
+									</div>
+									<p class="mt-2 text-xs text-muted-foreground" x-text="entry.desc"></p>
+								</button>
+							</template>
+						</div>
+						<p x-show="!filteredCatalog().length" class="mt-2 text-sm text-muted-foreground">No actions match that filter.</p>
+					</div>
+				</div>
+				<div class="flex flex-col gap-2 sm:flex-row">
+					if data.EditWorkflowID != "" {
+						<button type="submit" class="flex-1 rounded-xl bg-red-500 px-4 py-3 font-semibold text-white hover:bg-red-600">Save Changes</button>
+					} else {
+						<button type="submit" class="flex-1 rounded-xl bg-red-500 px-4 py-3 font-semibold text-white hover:bg-red-600">Save & Import Workflow</button>
+					}
+					<a href="/" class="rounded-xl border border-border px-4 py-3 text-center text-sm hover:border-red-500">Cancel</a>
+				</div>
+			</form>
+		</div>
+	}
 }
