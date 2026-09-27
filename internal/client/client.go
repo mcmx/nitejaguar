@@ -30,6 +30,7 @@ import (
 type Config struct {
 	Server, ClientID, Name, Token string
 	EnrollmentToken               string
+	StateFile                   string
 	PollInterval, RetryInitial    time.Duration
 }
 type RegisterRequest struct {
@@ -70,12 +71,21 @@ type API struct {
 type clientState struct {
 	ClientID string `json:"client_id"`
 	Token    string `json:"token"`
+	Server   string `json:"server,omitempty"`
+	Name     string `json:"name,omitempty"`
 }
 
-const stateFileName = "client_state.json"
+const defaultStateFileName = "client_state.json"
 
-func loadClientState() clientState {
-	b, err := os.ReadFile(stateFileName)
+func resolveStateFile(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return defaultStateFileName
+	}
+	return path
+}
+
+func loadClientState(path string) clientState {
+	b, err := os.ReadFile(resolveStateFile(path))
 	if err != nil {
 		return clientState{}
 	}
@@ -84,9 +94,42 @@ func loadClientState() clientState {
 	return state
 }
 
-func saveClientState(state clientState) {
+func saveClientState(path string, state clientState) {
 	b, _ := json.MarshalIndent(state, "", "  ")
-	_ = os.WriteFile(stateFileName, b, 0600)
+	_ = os.WriteFile(resolveStateFile(path), b, 0600)
+}
+
+// restoreIdentity reuses the saved client_id/token when the caller did not
+// pass explicit credentials. It returns the effective config, the (possibly
+// cleared) state, and a warning when --server/--name drift from the saved
+// registration. Server drift discards the saved identity so the client
+// re-registers against the new server; name drift keeps the existing
+// registration and ignores the flag.
+func restoreIdentity(cfg Config, state clientState) (Config, clientState, string) {
+	if cfg.ClientID == "" && cfg.Token == "" {
+		if state.ClientID != "" && state.Token != "" {
+			if state.Server != "" && state.Server != cfg.Server {
+				return cfg, clientState{}, "server changed since last registration; discarding saved identity and re-registering"
+			}
+			var warn string
+			if state.Name != "" && state.Name != cfg.Name {
+				warn = "name flag differs from registered client name; ignoring flag and keeping existing registration (delete the state file to register as a new client)"
+			}
+			cfg.ClientID = state.ClientID
+			cfg.Token = state.Token
+			return cfg, state, warn
+		}
+		return cfg, state, ""
+	}
+	if cfg.ClientID != "" && cfg.Token == "" {
+		if state.ClientID == cfg.ClientID && state.Token != "" {
+			if state.Server != "" && state.Server != cfg.Server {
+				return cfg, state, "server changed since last registration; saved token does not apply to the new server"
+			}
+			cfg.Token = state.Token
+		}
+	}
+	return cfg, state, ""
 }
 
 func (c Config) normalized() Config {
@@ -97,6 +140,7 @@ func (c Config) normalized() Config {
 		c.RetryInitial = 500 * time.Millisecond
 	}
 	c.Server = strings.TrimRight(c.Server, "/")
+	c.StateFile = resolveStateFile(c.StateFile)
 	return c
 }
 func (a API) client() *http.Client {
@@ -603,16 +647,23 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		logger = slog.Default()
 	}
 
-	state := loadClientState()
-	if cfg.ClientID == "" && cfg.Token == "" {
-		if state.ClientID != "" && state.Token != "" {
-			cfg.ClientID = state.ClientID
-			cfg.Token = state.Token
+	stateFile := resolveStateFile(cfg.StateFile)
+	state := loadClientState(stateFile)
+	var warn string
+	oldServer, oldName, oldClientID := state.Server, state.Name, state.ClientID
+	cfg, state, warn = restoreIdentity(cfg, state)
+	if warn != "" {
+		attrs := []any{"server", cfg.Server, "state_file", stateFile}
+		if oldClientID != "" {
+			attrs = append(attrs, "client_id", oldClientID)
 		}
-	} else if cfg.ClientID != "" && cfg.Token == "" {
-		if state.ClientID == cfg.ClientID && state.Token != "" {
-			cfg.Token = state.Token
+		if oldServer != "" {
+			attrs = append(attrs, "old_server", oldServer)
 		}
+		if oldName != "" {
+			attrs = append(attrs, "registered_name", oldName, "name", cfg.Name)
+		}
+		logger.Warn(warn, attrs...)
 	}
 
 	api := API{BaseURL: cfg.Server, Token: cfg.Token}
@@ -634,7 +685,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 			id = reg.ClientID
 			api.Token = reg.Token
 			r.api.Token = reg.Token
-			saveClientState(clientState{ClientID: id, Token: reg.Token})
+			saveClientState(stateFile, clientState{ClientID: id, Token: reg.Token, Server: cfg.Server, Name: cfg.Name})
 			backoff = cfg.RetryInitial
 			logger.Info("client registered", "server", cfg.Server, "client_id", id, "name", cfg.Name)
 		}
@@ -646,7 +697,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 			id = ""
 			api.Token = ""
 			r.api.Token = ""
-			saveClientState(clientState{})
+			saveClientState(stateFile, clientState{Server: cfg.Server, Name: cfg.Name})
 			if !wait(ctx, backoff) {
 				return ctx.Err()
 			}
@@ -659,7 +710,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 			id = ""
 			api.Token = ""
 			r.api.Token = ""
-			saveClientState(clientState{})
+			saveClientState(stateFile, clientState{Server: cfg.Server, Name: cfg.Name})
 			if !wait(ctx, backoff) {
 				return ctx.Err()
 			}

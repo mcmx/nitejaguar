@@ -13,10 +13,34 @@ The `nitejaguar` binary is the client-only build. Nitejaguar supports distribute
 | Flag | Env Variable | Default | Description |
 |---|---|---|---|
 | `--server` | `NITEJAGUAR_SERVER` | `http://127.0.0.1:8080` | URL of the Nitejaguar server |
-| `--name` | `NITEJAGUAR_CLIENT_NAME` | `default` | Human-readable client name |
+| `--name` | `NITEJAGUAR_CLIENT_NAME` | `nitejaguar-client` | Human-readable client name |
 | `--client-id` | `NITEJAGUAR_CLIENT_ID` | (auto-generated) | Persistent client ID for reconnection |
 | `--token` | `NITEJAGUAR_TOKEN` | `""` | Authentication token for secured servers |
 | `--enrollment-token` | `NITEJAGUAR_ENROLLMENT_TOKEN` | `""` | Tenant enrollment/join token for self-registration (required on first register; tenant comes from the token) |
+| `--state-file` | `NITEJAGUAR_STATE_FILE` | `client_state.json` | Path to the client identity state file (use one file per client when running several clients from the same directory) |
+
+## Client State File
+
+After the first registration the client stores its identity in the state file
+(`client_state.json` in the working directory by default, `0600` permissions):
+
+```json
+{ "client_id": "client_...", "token": "...", "server": "http://127.0.0.1:8080", "name": "worker-node-1" }
+```
+
+- `server` and `name` record the registration they belong to; flags/env stay
+  authoritative for configuration.
+- Restarting with a different `--server` discards the saved identity (the old
+  token cannot work against the new server) and re-registers. This needs a
+  valid `--enrollment-token`, otherwise registration retries with backoff.
+- Restarting with a different `--name` keeps the existing registration and
+  logs a warning — the name is only sent on first registration. To register
+  as a new named client, stop the client, delete (or point `--state-file` at
+  a fresh path), and restart with an enrollment token. The old server-side
+  client entry remains until revoked.
+- Passing explicit `--client-id` reuses the saved token only when the id
+  matches; a `--server` mismatch is warned about and the saved token is not
+  reused.
 
 ## Execution Lifecycle
 

@@ -181,6 +181,44 @@ func TestConfigDefaults(t *testing.T) {
 	if c.Server != "http://x" || c.PollInterval != 2*time.Second || c.RetryInitial != 500*time.Millisecond {
 		t.Fatalf("defaults: %#v", c)
 	}
+	if c.StateFile != defaultStateFileName {
+		t.Fatalf("default state file: %#v", c)
+	}
+}
+
+func TestClientStateRoundTrip(t *testing.T) {
+	path := t.TempDir() + "/client_state.json"
+	saveClientState(path, clientState{ClientID: "client_1", Token: "tok", Server: "http://s:8080", Name: "worker-1"})
+	got := loadClientState(path)
+	if got.ClientID != "client_1" || got.Token != "tok" || got.Server != "http://s:8080" || got.Name != "worker-1" {
+		t.Fatalf("round trip: %#v", got)
+	}
+	if resolveStateFile("") != defaultStateFileName {
+		t.Fatalf("empty state file should resolve to default")
+	}
+}
+
+func TestRestoreIdentity(t *testing.T) {
+	base := Config{Server: "http://a:8080", Name: "worker-1"}
+	saved := clientState{ClientID: "client_1", Token: "tok", Server: "http://a:8080", Name: "worker-1"}
+
+	// Same server+name: reuse, no warning.
+	cfg, _, warn := restoreIdentity(base, saved)
+	if warn != "" || cfg.ClientID != "client_1" || cfg.Token != "tok" {
+		t.Fatalf("reuse: %#v %q", cfg, warn)
+	}
+
+	// Name drift: keep existing registration, warn.
+	cfg, _, warn = restoreIdentity(Config{Server: "http://a:8080", Name: "worker-2"}, saved)
+	if warn == "" || cfg.ClientID != "client_1" || cfg.Token != "tok" {
+		t.Fatalf("name drift: %#v %q", cfg, warn)
+	}
+
+	// Server drift: discard identity, warn, re-register path.
+	cfg, st, warn := restoreIdentity(Config{Server: "http://b:8080", Name: "worker-1"}, saved)
+	if warn == "" || cfg.ClientID != "" || cfg.Token != "" || st.ClientID != "" {
+		t.Fatalf("server drift: %#v %#v %q", cfg, st, warn)
+	}
 }
 
 // The runner (not the action) applies merge_input before reporting:

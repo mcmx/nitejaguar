@@ -27,12 +27,13 @@ var (
 	clientName            string
 	clientToken           string
 	clientEnrollmentToken string
+	clientStateFile       string
 )
 
 func runClient(cmd *cobra.Command, _ []string) error {
 	return njclient.Run(cmd.Context(), njclient.Config{
 		Server: clientServer, ClientID: clientID, Name: clientName, Token: clientToken,
-		EnrollmentToken: clientEnrollmentToken,
+		EnrollmentToken: clientEnrollmentToken, StateFile: clientStateFile,
 	}, nil)
 }
 
@@ -86,6 +87,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&clientName, "name", envOr("NITEJAGUAR_CLIENT_NAME", "nitejaguar-client"), "client name used during registration")
 	rootCmd.PersistentFlags().StringVar(&clientToken, "token", os.Getenv("NITEJAGUAR_TOKEN"), "API token")
 	rootCmd.PersistentFlags().StringVar(&clientEnrollmentToken, "enrollment-token", os.Getenv("NITEJAGUAR_ENROLLMENT_TOKEN"), "tenant enrollment/join token for self-registration")
+	rootCmd.PersistentFlags().StringVar(&clientStateFile, "state-file", envOr("NITEJAGUAR_STATE_FILE", "client_state.json"), "path to the client identity state file")
 
 	// `nitejaguar client` stays working as an alias for the root command so
 	// scripts written against the old monolith keep functioning.
