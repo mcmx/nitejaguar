@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -180,6 +181,104 @@ func TestConfigDefaults(t *testing.T) {
 	c := (Config{Server: "http://x/"}).normalized()
 	if c.Server != "http://x" || c.PollInterval != 2*time.Second || c.RetryInitial != 500*time.Millisecond {
 		t.Fatalf("defaults: %#v", c)
+	}
+	if c.StateFile != defaultStateFileName {
+		t.Fatalf("default state file: %#v", c)
+	}
+}
+
+func TestClientStateRoundTrip(t *testing.T) {
+	path := t.TempDir() + "/client_state.json"
+	saveClientState(path, clientState{ClientID: "client_1", Token: "tok", Server: "http://s:8080", Name: "worker-1"})
+	got := loadClientState(path)
+	if got.ClientID != "client_1" || got.Token != "tok" || got.Server != "http://s:8080" || got.Name != "worker-1" {
+		t.Fatalf("round trip: %#v", got)
+	}
+	if resolveStateFile("") != defaultStateFileName {
+		t.Fatalf("empty state file should resolve to default")
+	}
+}
+
+func TestRestoreIdentity(t *testing.T) {
+	base := Config{Server: "http://a:8080", Name: "worker-1"}
+	saved := clientState{ClientID: "client_1", Token: "tok", Server: "http://a:8080", Name: "worker-1"}
+
+	// Same server+name: reuse, no warning.
+	cfg, _, warn := restoreIdentity(base, saved)
+	if warn != "" || cfg.ClientID != "client_1" || cfg.Token != "tok" {
+		t.Fatalf("reuse: %#v %q", cfg, warn)
+	}
+
+	// Name drift: keep existing registration, warn.
+	cfg, _, warn = restoreIdentity(Config{Server: "http://a:8080", Name: "worker-2"}, saved)
+	if warn == "" || cfg.ClientID != "client_1" || cfg.Token != "tok" {
+		t.Fatalf("name drift: %#v %q", cfg, warn)
+	}
+
+	// Server drift: discard identity, warn, re-register path.
+	cfg, st, warn := restoreIdentity(Config{Server: "http://b:8080", Name: "worker-1"}, saved)
+	if warn == "" || cfg.ClientID != "" || cfg.Token != "" || st.ClientID != "" {
+		t.Fatalf("server drift: %#v %#v %q", cfg, st, warn)
+	}
+}
+
+func TestApplyStateDefaultsAdoptsSavedRegistration(t *testing.T) {
+	// Bare restart (no flag/env): saved server+name win silently.
+	saved := clientState{ClientID: "client_1", Token: "tok", Server: "http://127.0.0.1:8083", Name: "ceres"}
+	cfg := applyStateDefaults(Config{}, saved)
+	if cfg.Server != "http://127.0.0.1:8083" || cfg.Name != "ceres" {
+		t.Fatalf("adopt state: %#v", cfg)
+	}
+	cfg, _, warn := restoreIdentity(cfg, saved)
+	if warn != "" || cfg.ClientID != "client_1" || cfg.Token != "tok" {
+		t.Fatalf("reuse after adopt: %#v %q", cfg, warn)
+	}
+
+	// Explicit values are never overwritten by state.
+	cfg = applyStateDefaults(Config{Server: "http://127.0.0.1:8080", Name: "other"}, saved)
+	if cfg.Server != "http://127.0.0.1:8080" || cfg.Name != "other" {
+		t.Fatalf("explicit kept: %#v", cfg)
+	}
+
+	// First run (no state): built-in defaults.
+	cfg = applyStateDefaults(Config{}, clientState{})
+	if cfg.Server != defaultServerURL || cfg.Name != defaultClientName {
+		t.Fatalf("first-run defaults: %#v", cfg)
+	}
+}
+
+func TestDropIdentityOnlyOnUnauthorized(t *testing.T) {
+	// 401 from the server means the registration is dead.
+	srv401 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"title":"Unauthorized"}`))
+	}))
+	defer srv401.Close()
+	a401 := API{BaseURL: srv401.URL, Token: "stale", HTTPClient: srv401.Client()}
+	if err := a401.Heartbeat(context.Background(), "client_dead"); !dropIdentity(err) {
+		t.Fatalf("401 should drop identity: %v", err)
+	}
+	if !errors.Is(a401.Heartbeat(context.Background(), "client_dead"), ErrUnauthorized) {
+		t.Fatal("401 should wrap ErrUnauthorized")
+	}
+
+	// 500 is transient: keep identity.
+	srv500 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv500.Close()
+	a500 := API{BaseURL: srv500.URL, Token: "tok", HTTPClient: srv500.Client()}
+	if err := a500.Heartbeat(context.Background(), "client_1"); dropIdentity(err) {
+		t.Fatalf("500 must keep identity: %v", err)
+	}
+
+	// Connection refused (server down) is transient: keep identity.
+	closed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	deadURL := closed.URL
+	closed.Close()
+	adead := API{BaseURL: deadURL, Token: "tok", HTTPClient: http.DefaultClient}
+	if err := adead.Heartbeat(context.Background(), "client_1"); dropIdentity(err) {
+		t.Fatalf("connection refused must keep identity: %v", err)
 	}
 }
 

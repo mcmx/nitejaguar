@@ -30,6 +30,7 @@ import (
 type Config struct {
 	Server, ClientID, Name, Token string
 	EnrollmentToken               string
+	StateFile                   string
 	PollInterval, RetryInitial    time.Duration
 }
 type RegisterRequest struct {
@@ -70,12 +71,27 @@ type API struct {
 type clientState struct {
 	ClientID string `json:"client_id"`
 	Token    string `json:"token"`
+	Server   string `json:"server,omitempty"`
+	Name     string `json:"name,omitempty"`
 }
 
-const stateFileName = "client_state.json"
+const defaultStateFileName = "client_state.json"
 
-func loadClientState() clientState {
-	b, err := os.ReadFile(stateFileName)
+// defaultServerURL and defaultClientName apply only when neither the
+// flag/env nor the state file provides a value, so a bare restart reuses
+// the saved registration instead of fighting it.
+const defaultServerURL = "http://127.0.0.1:8080"
+const defaultClientName = "nitejaguar-client"
+
+func resolveStateFile(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return defaultStateFileName
+	}
+	return path
+}
+
+func loadClientState(path string) clientState {
+	b, err := os.ReadFile(resolveStateFile(path))
 	if err != nil {
 		return clientState{}
 	}
@@ -84,9 +100,63 @@ func loadClientState() clientState {
 	return state
 }
 
-func saveClientState(state clientState) {
+func saveClientState(path string, state clientState) {
 	b, _ := json.MarshalIndent(state, "", "  ")
-	_ = os.WriteFile(stateFileName, b, 0600)
+	_ = os.WriteFile(resolveStateFile(path), b, 0600)
+}
+
+// applyStateDefaults fills blank Server/Name from the saved registration
+// (or built-in defaults when the state file has none). Blank means the
+// caller passed neither flag nor env, so the saved values win silently and
+// must not be reported as drift by restoreIdentity.
+func applyStateDefaults(cfg Config, state clientState) Config {
+	if strings.TrimSpace(cfg.Server) == "" {
+		if state.Server != "" {
+			cfg.Server = state.Server
+		} else {
+			cfg.Server = defaultServerURL
+		}
+	}
+	if strings.TrimSpace(cfg.Name) == "" {
+		if state.Name != "" {
+			cfg.Name = state.Name
+		} else {
+			cfg.Name = defaultClientName
+		}
+	}
+	return cfg
+}
+// restoreIdentity reuses the saved client_id/token when the caller did not
+// pass explicit credentials. It returns the effective config, the (possibly
+// cleared) state, and a warning when --server/--name drift from the saved
+// registration. Server drift discards the saved identity so the client
+// re-registers against the new server; name drift keeps the existing
+// registration and ignores the flag.
+func restoreIdentity(cfg Config, state clientState) (Config, clientState, string) {
+	if cfg.ClientID == "" && cfg.Token == "" {
+		if state.ClientID != "" && state.Token != "" {
+			if state.Server != "" && state.Server != cfg.Server {
+				return cfg, clientState{}, "server changed since last registration; discarding saved identity and re-registering"
+			}
+			var warn string
+			if state.Name != "" && state.Name != cfg.Name {
+				warn = "name flag differs from registered client name; ignoring flag and keeping existing registration (delete the state file to register as a new client)"
+			}
+			cfg.ClientID = state.ClientID
+			cfg.Token = state.Token
+			return cfg, state, warn
+		}
+		return cfg, state, ""
+	}
+	if cfg.ClientID != "" && cfg.Token == "" {
+		if state.ClientID == cfg.ClientID && state.Token != "" {
+			if state.Server != "" && state.Server != cfg.Server {
+				return cfg, state, "server changed since last registration; saved token does not apply to the new server"
+			}
+			cfg.Token = state.Token
+		}
+	}
+	return cfg, state, ""
 }
 
 func (c Config) normalized() Config {
@@ -97,6 +167,7 @@ func (c Config) normalized() Config {
 		c.RetryInitial = 500 * time.Millisecond
 	}
 	c.Server = strings.TrimRight(c.Server, "/")
+	c.StateFile = resolveStateFile(c.StateFile)
 	return c
 }
 func (a API) client() *http.Client {
@@ -104,6 +175,21 @@ func (a API) client() *http.Client {
 		return a.HTTPClient
 	}
 	return http.DefaultClient
+}
+
+// ErrUnauthorized marks a 401 from the server: the client's token was
+// rejected (unknown, revoked, or missing). Unlike transport/5xx failures it
+// means the saved registration is dead and the client must re-register.
+var ErrUnauthorized = errors.New("unauthorized")
+
+// dropIdentity reports whether a heartbeat/assignments failure invalidates
+// the saved registration. Transient failures (server down, network, 5xx)
+// must keep the identity and retry; only rejection of the token discards it.
+// Wiping the state file on a transient failure would burn the credentials
+// and brick the client, since re-registration needs an enrollment token the
+// client does not have.
+func dropIdentity(err error) bool {
+	return errors.Is(err, ErrUnauthorized)
 }
 func (a API) request(ctx context.Context, method, path string, body, out any) error {
 	var reader io.Reader
@@ -130,6 +216,10 @@ func (a API) request(ctx context.Context, method, path string, body, out any) er
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusUnauthorized {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("%w: server returned %s: %s", ErrUnauthorized, resp.Status, strings.TrimSpace(string(b)))
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return fmt.Errorf("server returned %s: %s", resp.Status, strings.TrimSpace(string(b)))
@@ -595,24 +685,36 @@ func (r *runner) close() {
 }
 
 func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
-	cfg = cfg.normalized()
-	if cfg.Server == "" {
-		return errors.New("server is required")
-	}
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	state := loadClientState()
-	if cfg.ClientID == "" && cfg.Token == "" {
-		if state.ClientID != "" && state.Token != "" {
-			cfg.ClientID = state.ClientID
-			cfg.Token = state.Token
+	stateFile := resolveStateFile(cfg.StateFile)
+	state := loadClientState(stateFile)
+	// Blank Server/Name means neither flag nor env was given: adopt the
+	// saved registration (or built-in defaults on first run) so a bare
+	// restart never looks like drift.
+	cfg = applyStateDefaults(cfg, state)
+	cfg = cfg.normalized()
+	if cfg.Server == "" {
+		return errors.New("server is required")
+	}
+
+	var warn string
+	oldServer, oldName, oldClientID := state.Server, state.Name, state.ClientID
+	cfg, state, warn = restoreIdentity(cfg, state)
+	if warn != "" {
+		attrs := []any{"server", cfg.Server, "state_file", stateFile}
+		if oldClientID != "" {
+			attrs = append(attrs, "client_id", oldClientID)
 		}
-	} else if cfg.ClientID != "" && cfg.Token == "" {
-		if state.ClientID == cfg.ClientID && state.Token != "" {
-			cfg.Token = state.Token
+		if oldServer != "" {
+			attrs = append(attrs, "old_server", oldServer)
 		}
+		if oldName != "" {
+			attrs = append(attrs, "registered_name", oldName, "name", cfg.Name)
+		}
+		logger.Warn(warn, attrs...)
 	}
 
 	api := API{BaseURL: cfg.Server, Token: cfg.Token}
@@ -624,7 +726,11 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		if id == "" {
 			reg, err := api.RegisterWithToken(ctx, cfg.Name, cfg.EnrollmentToken)
 			if err != nil {
-				logger.Warn("client registration failed; retrying", "server", cfg.Server, "error", err, "after", backoff)
+				attrs := []any{"server", cfg.Server, "error", err, "after", backoff}
+				if cfg.EnrollmentToken == "" {
+					attrs = append(attrs, "hint", "provide --enrollment-token to register a new client")
+				}
+				logger.Warn("client registration failed; retrying", attrs...)
 				if !wait(ctx, backoff) {
 					return ctx.Err()
 				}
@@ -634,7 +740,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 			id = reg.ClientID
 			api.Token = reg.Token
 			r.api.Token = reg.Token
-			saveClientState(clientState{ClientID: id, Token: reg.Token})
+			saveClientState(stateFile, clientState{ClientID: id, Token: reg.Token, Server: cfg.Server, Name: cfg.Name})
 			backoff = cfg.RetryInitial
 			logger.Info("client registered", "server", cfg.Server, "client_id", id, "name", cfg.Name)
 		}
@@ -642,11 +748,17 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		r.selfID = id
 		r.mu.Unlock()
 		if err := r.api.HeartbeatWithDial(ctx, id, transferDialInfo); err != nil {
-			logger.Warn("client heartbeat failed; retrying", "client_id", id, "error", err, "after", backoff)
-			id = ""
-			api.Token = ""
-			r.api.Token = ""
-			saveClientState(clientState{})
+			if dropIdentity(err) {
+				logger.Warn("server rejected client token; discarding saved identity and re-registering (needs enrollment token)",
+					"client_id", id, "error", err, "after", backoff)
+				id = ""
+				api.Token = ""
+				r.api.Token = ""
+				saveClientState(stateFile, clientState{Server: cfg.Server, Name: cfg.Name})
+			} else {
+				logger.Warn("client heartbeat failed; keeping identity and retrying",
+					"client_id", id, "error", err, "after", backoff)
+			}
 			if !wait(ctx, backoff) {
 				return ctx.Err()
 			}
@@ -655,11 +767,17 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		}
 		assignments, err := api.Assignments(ctx, id)
 		if err != nil {
-			logger.Warn("client assignment poll failed; retrying", "client_id", id, "error", err, "after", backoff)
-			id = ""
-			api.Token = ""
-			r.api.Token = ""
-			saveClientState(clientState{})
+			if dropIdentity(err) {
+				logger.Warn("server rejected client token; discarding saved identity and re-registering (needs enrollment token)",
+					"client_id", id, "error", err, "after", backoff)
+				id = ""
+				api.Token = ""
+				r.api.Token = ""
+				saveClientState(stateFile, clientState{Server: cfg.Server, Name: cfg.Name})
+			} else {
+				logger.Warn("client assignment poll failed; keeping identity and retrying",
+					"client_id", id, "error", err, "after", backoff)
+			}
 			if !wait(ctx, backoff) {
 				return ctx.Err()
 			}
