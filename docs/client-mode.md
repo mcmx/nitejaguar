@@ -12,8 +12,8 @@ The `nitejaguar` binary is the client-only build. Nitejaguar supports distribute
 
 | Flag | Env Variable | Default | Description |
 |---|---|---|---|
-| `--server` | `NITEJAGUAR_SERVER` | `http://127.0.0.1:8080` | URL of the Nitejaguar server |
-| `--name` | `NITEJAGUAR_CLIENT_NAME` | `nitejaguar-client` | Human-readable client name |
+| `--server` | `NITEJAGUAR_SERVER` | state file, then `http://127.0.0.1:8080` | URL of the Nitejaguar server |
+| `--name` | `NITEJAGUAR_CLIENT_NAME` | state file, then `nitejaguar-client` | Human-readable client name |
 | `--client-id` | `NITEJAGUAR_CLIENT_ID` | (auto-generated) | Persistent client ID for reconnection |
 | `--token` | `NITEJAGUAR_TOKEN` | `""` | Authentication token for secured servers |
 | `--enrollment-token` | `NITEJAGUAR_ENROLLMENT_TOKEN` | `""` | Tenant enrollment/join token for self-registration (required on first register; tenant comes from the token) |
@@ -28,8 +28,11 @@ After the first registration the client stores its identity in the state file
 { "client_id": "client_...", "token": "...", "server": "http://127.0.0.1:8080", "name": "worker-node-1" }
 ```
 
-- `server` and `name` record the registration they belong to; flags/env stay
-  authoritative for configuration.
+- `server` and `name` record the registration they belong to. When the
+  corresponding flag/env is absent, the saved values are reused silently — a
+  bare `./nitejaguar` restart reconnects with the same identity. Only an
+  explicitly passed flag/env that differs from the saved value counts as
+  drift.
 - Restarting with a different `--server` discards the saved identity (the old
   token cannot work against the new server) and re-registers. This needs a
   valid `--enrollment-token`, otherwise registration retries with backoff.

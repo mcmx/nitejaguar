@@ -47,7 +47,7 @@ func runClientWorkflowFileOp(path string, clone bool) error {
 		return fmt.Errorf("invalid workflow JSON in %q: %w", path, err)
 	}
 
-	api := njclient.API{BaseURL: clientServer, Token: clientToken}
+	api := njclient.API{BaseURL: workflowServer(), Token: clientToken}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -60,7 +60,7 @@ func runClientWorkflowFileOp(path string, clone bool) error {
 		res, err = api.ImportWorkflow(ctx, wf)
 	}
 	if err != nil {
-		return fmt.Errorf("%s workflow %q via server %s: %w", op, path, clientServer, err)
+		return fmt.Errorf("%s workflow %q via server %s: %w", op, path, workflowServer(), err)
 	}
 	fmt.Printf("%s of %q succeeded (workflow_id=%s)\n", op, path, res.WorkflowID)
 	return nil
@@ -73,6 +73,15 @@ func envOr(name, fallback string) string {
 	return fallback
 }
 
+// workflowServer resolves the server for one-shot workflow commands, which
+// have no state file to fall back to.
+func workflowServer() string {
+	if clientServer != "" {
+		return clientServer
+	}
+	return "http://127.0.0.1:8080"
+}
+
 func main() {
 	rootCmd := &cobra.Command{
 		Use:     "nitejaguar",
@@ -82,9 +91,9 @@ func main() {
 		RunE:    runClient,
 	}
 
-	rootCmd.PersistentFlags().StringVar(&clientServer, "server", envOr("NITEJAGUAR_SERVER", "http://127.0.0.1:8080"), "NiteJaguar server URL")
+	rootCmd.PersistentFlags().StringVar(&clientServer, "server", os.Getenv("NITEJAGUAR_SERVER"), "NiteJaguar server URL (defaults to the state file, then http://127.0.0.1:8080)")
 	rootCmd.PersistentFlags().StringVar(&clientID, "client-id", os.Getenv("NITEJAGUAR_CLIENT_ID"), "existing registered client ID")
-	rootCmd.PersistentFlags().StringVar(&clientName, "name", envOr("NITEJAGUAR_CLIENT_NAME", "nitejaguar-client"), "client name used during registration")
+	rootCmd.PersistentFlags().StringVar(&clientName, "name", os.Getenv("NITEJAGUAR_CLIENT_NAME"), "client name used during registration (defaults to the state file, then nitejaguar-client)")
 	rootCmd.PersistentFlags().StringVar(&clientToken, "token", os.Getenv("NITEJAGUAR_TOKEN"), "API token")
 	rootCmd.PersistentFlags().StringVar(&clientEnrollmentToken, "enrollment-token", os.Getenv("NITEJAGUAR_ENROLLMENT_TOKEN"), "tenant enrollment/join token for self-registration")
 	rootCmd.PersistentFlags().StringVar(&clientStateFile, "state-file", envOr("NITEJAGUAR_STATE_FILE", "client_state.json"), "path to the client identity state file")

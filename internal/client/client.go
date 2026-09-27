@@ -77,6 +77,12 @@ type clientState struct {
 
 const defaultStateFileName = "client_state.json"
 
+// defaultServerURL and defaultClientName apply only when neither the
+// flag/env nor the state file provides a value, so a bare restart reuses
+// the saved registration instead of fighting it.
+const defaultServerURL = "http://127.0.0.1:8080"
+const defaultClientName = "nitejaguar-client"
+
 func resolveStateFile(path string) string {
 	if strings.TrimSpace(path) == "" {
 		return defaultStateFileName
@@ -99,6 +105,27 @@ func saveClientState(path string, state clientState) {
 	_ = os.WriteFile(resolveStateFile(path), b, 0600)
 }
 
+// applyStateDefaults fills blank Server/Name from the saved registration
+// (or built-in defaults when the state file has none). Blank means the
+// caller passed neither flag nor env, so the saved values win silently and
+// must not be reported as drift by restoreIdentity.
+func applyStateDefaults(cfg Config, state clientState) Config {
+	if strings.TrimSpace(cfg.Server) == "" {
+		if state.Server != "" {
+			cfg.Server = state.Server
+		} else {
+			cfg.Server = defaultServerURL
+		}
+	}
+	if strings.TrimSpace(cfg.Name) == "" {
+		if state.Name != "" {
+			cfg.Name = state.Name
+		} else {
+			cfg.Name = defaultClientName
+		}
+	}
+	return cfg
+}
 // restoreIdentity reuses the saved client_id/token when the caller did not
 // pass explicit credentials. It returns the effective config, the (possibly
 // cleared) state, and a warning when --server/--name drift from the saved
@@ -639,16 +666,21 @@ func (r *runner) close() {
 }
 
 func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
-	cfg = cfg.normalized()
-	if cfg.Server == "" {
-		return errors.New("server is required")
-	}
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	stateFile := resolveStateFile(cfg.StateFile)
 	state := loadClientState(stateFile)
+	// Blank Server/Name means neither flag nor env was given: adopt the
+	// saved registration (or built-in defaults on first run) so a bare
+	// restart never looks like drift.
+	cfg = applyStateDefaults(cfg, state)
+	cfg = cfg.normalized()
+	if cfg.Server == "" {
+		return errors.New("server is required")
+	}
+
 	var warn string
 	oldServer, oldName, oldClientID := state.Server, state.Name, state.ClientID
 	cfg, state, warn = restoreIdentity(cfg, state)

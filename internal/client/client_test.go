@@ -221,6 +221,31 @@ func TestRestoreIdentity(t *testing.T) {
 	}
 }
 
+func TestApplyStateDefaultsAdoptsSavedRegistration(t *testing.T) {
+	// Bare restart (no flag/env): saved server+name win silently.
+	saved := clientState{ClientID: "client_1", Token: "tok", Server: "http://127.0.0.1:8083", Name: "ceres"}
+	cfg := applyStateDefaults(Config{}, saved)
+	if cfg.Server != "http://127.0.0.1:8083" || cfg.Name != "ceres" {
+		t.Fatalf("adopt state: %#v", cfg)
+	}
+	cfg, _, warn := restoreIdentity(cfg, saved)
+	if warn != "" || cfg.ClientID != "client_1" || cfg.Token != "tok" {
+		t.Fatalf("reuse after adopt: %#v %q", cfg, warn)
+	}
+
+	// Explicit values are never overwritten by state.
+	cfg = applyStateDefaults(Config{Server: "http://127.0.0.1:8080", Name: "other"}, saved)
+	if cfg.Server != "http://127.0.0.1:8080" || cfg.Name != "other" {
+		t.Fatalf("explicit kept: %#v", cfg)
+	}
+
+	// First run (no state): built-in defaults.
+	cfg = applyStateDefaults(Config{}, clientState{})
+	if cfg.Server != defaultServerURL || cfg.Name != defaultClientName {
+		t.Fatalf("first-run defaults: %#v", cfg)
+	}
+}
+
 // The runner (not the action) applies merge_input before reporting:
 // upstream payload keys flow into the result, the result wins.
 func TestRunnerAppliesMergeInput(t *testing.T) {
