@@ -20,6 +20,7 @@ import (
 	"github.com/mcmx/nitejaguar/internal/actions/datetime"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
 	"github.com/mcmx/nitejaguar/internal/actions/filechange"
+	"github.com/mcmx/nitejaguar/internal/actions/set"
 	transferaction "github.com/mcmx/nitejaguar/internal/actions/transfer"
 	waitaction "github.com/mcmx/nitejaguar/internal/actions/wait"
 	"github.com/mcmx/nitejaguar/internal/workflow"
@@ -406,7 +407,7 @@ func (r *runner) registerWorkflowIndices(mw *managedWorkflow) {
 }
 
 // newClientAction dispatches action construction by action_name so remote
-// clients can run any server-side action (e.g. file, datetime, wait, transfer).
+// clients can run any server-side action (e.g. file, datetime, wait, transfer, set).
 func newClientAction(events chan common.ResultData, args common.ActionArgs) (common.Action, error) {
 	switch args.ActionName {
 	case "file":
@@ -417,6 +418,8 @@ func newClientAction(events chan common.ResultData, args common.ActionArgs) (com
 		return waitaction.New(events, args)
 	case "transfer":
 		return transferaction.New(events, args)
+	case "set":
+		return set.New(events, args)
 	default:
 		return nil, fmt.Errorf("unknown action_name: %q", args.ActionName)
 	}

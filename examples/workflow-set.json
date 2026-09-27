@@ -1,0 +1,47 @@
+{
+    "id": "workflow_set_example",
+    "name": "Example Workflow: shape trigger data with set",
+    "nodes": {
+      "trigger_01jr12v81gfk6t359nvqg86t9g": {
+        "id": "trigger_01jr12v81gfk6t359nvqg86t9g",
+      "name": "Trigger: filechange",
+        "description": "Trigger: on /tmp",
+        "action_type": "trigger",
+      "action_name": "filechange",
+        "arguments": {
+          "path": "/tmp",
+          "event_type": "create"
+        },
+        "conditions": {
+          "entries": {
+            "entry1": {
+                "condition": {
+                    "leftOperand": true,
+                    "operator": "",
+                    "rightOperand": null
+                },
+                "nexts": ["action_01set01example00000001"]
+            }
+          }
+        },
+        "dependencies": null
+      },
+    "action_01set01example00000001": {
+      "id": "action_01set01example00000001",
+      "name": "Action: set",
+      "description": "Action: keep the trigger file plus a label",
+      "action_type": "action",
+      "action_name": "set",
+      "arguments": {
+        "mode": "manual",
+        "fields": "{\"source_file\": \"$input.file\"}",
+        "field.kind": "incoming",
+        "keep_only_set": "false"
+      },
+      "conditions": {
+        "entries": {}
+      },
+      "dependencies": ["trigger_01jr12v81gfk6t359nvqg86t9g"]
+    }
+  }
+}
