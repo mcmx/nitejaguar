@@ -176,6 +176,21 @@ func (a API) client() *http.Client {
 	}
 	return http.DefaultClient
 }
+
+// ErrUnauthorized marks a 401 from the server: the client's token was
+// rejected (unknown, revoked, or missing). Unlike transport/5xx failures it
+// means the saved registration is dead and the client must re-register.
+var ErrUnauthorized = errors.New("unauthorized")
+
+// dropIdentity reports whether a heartbeat/assignments failure invalidates
+// the saved registration. Transient failures (server down, network, 5xx)
+// must keep the identity and retry; only rejection of the token discards it.
+// Wiping the state file on a transient failure would burn the credentials
+// and brick the client, since re-registration needs an enrollment token the
+// client does not have.
+func dropIdentity(err error) bool {
+	return errors.Is(err, ErrUnauthorized)
+}
 func (a API) request(ctx context.Context, method, path string, body, out any) error {
 	var reader io.Reader
 	if body != nil {
@@ -201,6 +216,10 @@ func (a API) request(ctx context.Context, method, path string, body, out any) er
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusUnauthorized {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("%w: server returned %s: %s", ErrUnauthorized, resp.Status, strings.TrimSpace(string(b)))
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return fmt.Errorf("server returned %s: %s", resp.Status, strings.TrimSpace(string(b)))
@@ -707,7 +726,11 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		if id == "" {
 			reg, err := api.RegisterWithToken(ctx, cfg.Name, cfg.EnrollmentToken)
 			if err != nil {
-				logger.Warn("client registration failed; retrying", "server", cfg.Server, "error", err, "after", backoff)
+				attrs := []any{"server", cfg.Server, "error", err, "after", backoff}
+				if cfg.EnrollmentToken == "" {
+					attrs = append(attrs, "hint", "provide --enrollment-token to register a new client")
+				}
+				logger.Warn("client registration failed; retrying", attrs...)
 				if !wait(ctx, backoff) {
 					return ctx.Err()
 				}
@@ -725,11 +748,17 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		r.selfID = id
 		r.mu.Unlock()
 		if err := r.api.HeartbeatWithDial(ctx, id, transferDialInfo); err != nil {
-			logger.Warn("client heartbeat failed; retrying", "client_id", id, "error", err, "after", backoff)
-			id = ""
-			api.Token = ""
-			r.api.Token = ""
-			saveClientState(stateFile, clientState{Server: cfg.Server, Name: cfg.Name})
+			if dropIdentity(err) {
+				logger.Warn("server rejected client token; discarding saved identity and re-registering (needs enrollment token)",
+					"client_id", id, "error", err, "after", backoff)
+				id = ""
+				api.Token = ""
+				r.api.Token = ""
+				saveClientState(stateFile, clientState{Server: cfg.Server, Name: cfg.Name})
+			} else {
+				logger.Warn("client heartbeat failed; keeping identity and retrying",
+					"client_id", id, "error", err, "after", backoff)
+			}
 			if !wait(ctx, backoff) {
 				return ctx.Err()
 			}
@@ -738,11 +767,17 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		}
 		assignments, err := api.Assignments(ctx, id)
 		if err != nil {
-			logger.Warn("client assignment poll failed; retrying", "client_id", id, "error", err, "after", backoff)
-			id = ""
-			api.Token = ""
-			r.api.Token = ""
-			saveClientState(stateFile, clientState{Server: cfg.Server, Name: cfg.Name})
+			if dropIdentity(err) {
+				logger.Warn("server rejected client token; discarding saved identity and re-registering (needs enrollment token)",
+					"client_id", id, "error", err, "after", backoff)
+				id = ""
+				api.Token = ""
+				r.api.Token = ""
+				saveClientState(stateFile, clientState{Server: cfg.Server, Name: cfg.Name})
+			} else {
+				logger.Warn("client assignment poll failed; keeping identity and retrying",
+					"client_id", id, "error", err, "after", backoff)
+			}
 			if !wait(ctx, backoff) {
 				return ctx.Err()
 			}

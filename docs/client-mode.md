@@ -44,6 +44,12 @@ After the first registration the client stores its identity in the state file
 - Passing explicit `--client-id` reuses the saved token only when the id
   matches; a `--server` mismatch is warned about and the saved token is not
   reused.
+- The saved identity survives transient failures: if heartbeats or polls fail
+  (server down, network, 5xx) the client keeps its `client_id`/`token`,
+  leaves the state file untouched, and retries with backoff. Only a `401`
+  (unknown/revoked token) discards the identity and re-registers — which
+  needs a valid `--enrollment-token`, otherwise registration retries with a
+  hint to provide one.
 
 ## Execution Lifecycle
 

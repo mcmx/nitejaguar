@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -243,6 +244,41 @@ func TestApplyStateDefaultsAdoptsSavedRegistration(t *testing.T) {
 	cfg = applyStateDefaults(Config{}, clientState{})
 	if cfg.Server != defaultServerURL || cfg.Name != defaultClientName {
 		t.Fatalf("first-run defaults: %#v", cfg)
+	}
+}
+
+func TestDropIdentityOnlyOnUnauthorized(t *testing.T) {
+	// 401 from the server means the registration is dead.
+	srv401 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"title":"Unauthorized"}`))
+	}))
+	defer srv401.Close()
+	a401 := API{BaseURL: srv401.URL, Token: "stale", HTTPClient: srv401.Client()}
+	if err := a401.Heartbeat(context.Background(), "client_dead"); !dropIdentity(err) {
+		t.Fatalf("401 should drop identity: %v", err)
+	}
+	if !errors.Is(a401.Heartbeat(context.Background(), "client_dead"), ErrUnauthorized) {
+		t.Fatal("401 should wrap ErrUnauthorized")
+	}
+
+	// 500 is transient: keep identity.
+	srv500 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv500.Close()
+	a500 := API{BaseURL: srv500.URL, Token: "tok", HTTPClient: srv500.Client()}
+	if err := a500.Heartbeat(context.Background(), "client_1"); dropIdentity(err) {
+		t.Fatalf("500 must keep identity: %v", err)
+	}
+
+	// Connection refused (server down) is transient: keep identity.
+	closed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	deadURL := closed.URL
+	closed.Close()
+	adead := API{BaseURL: deadURL, Token: "tok", HTTPClient: http.DefaultClient}
+	if err := adead.Heartbeat(context.Background(), "client_1"); dropIdentity(err) {
+		t.Fatalf("connection refused must keep identity: %v", err)
 	}
 }
 
