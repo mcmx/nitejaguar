@@ -152,7 +152,7 @@ func (s *Server) auditPage(c echo.Context) error {
 		data.Error = "Unable to load audit trail"
 	} else {
 		for _, l := range logs {
-			if !open && user != nil && user.Role != database.RoleAdmin && l.TenantID != user.TenantID {
+			if !open && user != nil && !database.IsSuperUser(user) && l.TenantID != user.TenantID {
 				continue
 			}
 			data.Entries = append(data.Entries, web.AuditView{

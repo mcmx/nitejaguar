@@ -153,7 +153,7 @@ func TestDeleteWorkflowAPI(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("admin delete status = %v, body = %s", resp.Code, resp.Body.String())
 	}
-	resp = api.Get("/api/workflows/workflow_01kwfdelete00000001")
+	resp = api.Get("/api/workflows/workflow_01kwfdelete00000001", adminAuth)
 	if resp.Code != http.StatusNotFound {
 		t.Fatalf("get after delete status = %v, want 404", resp.Code)
 	}

@@ -13,7 +13,8 @@ Welcome to the official documentation for **Nitejaguar**, a lightweight and powe
 - [Development Guide](./development.md) — Building, codegen (`templ` & `ent`), testing (`make test`), and linting (`make lint`).
 - [Credentials](./credentials.md) — Credential storage (encrypted at rest), scopes & resolution (`user > group > tenant`), just-in-time fetch, and `credential_ref` workflow usage.
 - [Providers](./providers.md) — Provider collections, the shared-credential-type rule, and the registry.
-- [RBAC & Auth](./rbac.md) — Users, roles (`admin > operator > viewer`), login sessions, gated management endpoints, website login, and the audit trail.
+ - [RBAC & Auth](./rbac.md) — Users, roles (`admin > operator > viewer`), login sessions, gated management endpoints, website login, and the audit trail.
+ - [Tenants & Superusers](./tenants.md) — Tenant registry, superusers (default-tenant admins), provisioning (name + admin email → tenant admin user), suspension, and tenant isolation rules.
 
 ### Actions & Triggers Reference
 - [File Change Trigger (`filechange`)](./actions/filechange-trigger.md)

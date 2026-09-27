@@ -145,7 +145,10 @@ func TestClientAssignmentFlow(t *testing.T) {
 	}
 
 	// client status lists registration metadata without exposing credentials.
-	resp = api.Get("/api/clients")
+	// The endpoint is viewer-gated and tenant-scoped; a default-tenant
+	// viewer sees this test's default client.
+	clientReaderAuth := ensureRoleToken(t, db, "default", database.RoleViewer)
+	resp = api.Get("/api/clients", clientReaderAuth)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("clients status = %v, body = %s", resp.Code, resp.Body.String())
 	}
@@ -470,7 +473,7 @@ func TestTenantEnrollmentLifecycle(t *testing.T) {
 	}
 	decodeBody(t, strings.NewReader(resp.Body.String()), &registered)
 
-	resp = api.Get("/api/clients")
+	resp = api.Get("/api/clients", adminAuth)
 	var clients struct {
 		Clients []struct {
 			ID       string `json:"client_id"`

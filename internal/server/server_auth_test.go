@@ -137,6 +137,7 @@ func TestRBACRoleGating(t *testing.T) {
 	adminAuth := ensureRoleToken(t, db, tenant, database.RoleAdmin)
 	operatorAuth := ensureRoleToken(t, db, tenant, database.RoleOperator)
 	viewerAuth := ensureRoleToken(t, db, tenant, database.RoleViewer)
+	superAuth := ensureRoleToken(t, db, "default", database.RoleAdmin)
 
 	// Unauthenticated token issuance is rejected once users exist.
 	resp := api.Post("/api/enrollment/tokens", map[string]any{"tenant_id": tenant})
@@ -159,14 +160,18 @@ func TestRBACRoleGating(t *testing.T) {
 	}
 	decodeBody(t, strings.NewReader(resp.Body.String()), &opTok)
 
-	// Cross-tenant: operator denied, admin allowed.
+	// Cross-tenant: operator denied, tenant-local admin denied, superuser allowed.
 	resp = api.Post("/api/enrollment/tokens", operatorAuth, map[string]any{"tenant_id": "other-tenant-x"})
 	if resp.Code != http.StatusForbidden {
 		t.Fatalf("operator cross-tenant status = %v, want 403", resp.Code)
 	}
 	resp = api.Post("/api/enrollment/tokens", adminAuth, map[string]any{"tenant_id": "other-tenant-x"})
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("tenant-admin cross-tenant status = %v, want 403", resp.Code)
+	}
+	resp = api.Post("/api/enrollment/tokens", superAuth, map[string]any{"tenant_id": "other-tenant-x"})
 	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
-		t.Fatalf("admin cross-tenant status = %v, body = %s", resp.Code, resp.Body.String())
+		t.Fatalf("super cross-tenant status = %v, body = %s", resp.Code, resp.Body.String())
 	}
 
 	// Client revoke is operator+: viewer denied. Register a client via the

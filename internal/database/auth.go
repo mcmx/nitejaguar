@@ -216,9 +216,13 @@ func (s *service) ChangePassword(userID, currentPassword, newPassword string) er
 }
 
 // VerifyUser checks a username/password within a tenant. It returns the user
-// row on success; revoked users never authenticate.
+// row on success; revoked users never authenticate. Users in suspended
+// tenants never authenticate either (same error, no tenant-oracle).
 func (s *service) VerifyUser(tenantID, username, password string) (*ent.AppUser, error) {
 	tenantID = normalizeTenant(tenantID)
+	if s.IsTenantSuspended(tenantID) {
+		return nil, fmt.Errorf("invalid credentials")
+	}
 	row, err := s.client.AppUser.Query().
 		Where(appuser.TenantID(tenantID), appuser.Username(username)).
 		Only(context.Background())
@@ -244,6 +248,9 @@ func (s *service) CreateSession(userID string, ttl time.Duration) (*ent.AuthSess
 	}
 	if user.Revoked {
 		return nil, "", fmt.Errorf("user is revoked")
+	}
+	if s.IsTenantSuspended(user.TenantID) {
+		return nil, "", fmt.Errorf("tenant is suspended")
 	}
 	if ttl <= 0 {
 		ttl = SessionTTL
@@ -294,6 +301,9 @@ func (s *service) AuthenticateSession(token string) (*ent.AppUser, *ent.AuthSess
 	if user.Revoked {
 		return nil, nil, fmt.Errorf("invalid session")
 	}
+	if s.IsTenantSuspended(user.TenantID) {
+		return nil, nil, fmt.Errorf("invalid session")
+	}
 	// Tenant drift guard: the session tenant must still match the user.
 	if user.TenantID != sess.TenantID {
 		return nil, nil, fmt.Errorf("invalid session")
@@ -327,6 +337,9 @@ func (s *service) RevokeSession(token string) error {
 // newly created. ADMIN_PASSWORD (min 8 chars) pins the password; otherwise a
 // random one is generated and must be rotated after first login.
 func (s *service) EnsureDefaultAdmin() (username, plaintext string, created bool, err error) {
+	if _, terr := s.EnsureDefaultTenant(); terr != nil {
+		return "", "", false, terr
+	}
 	n, err := s.CountUsers()
 	if err != nil {
 		return "", "", false, err

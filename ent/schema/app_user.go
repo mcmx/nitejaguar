@@ -33,6 +33,9 @@ func (AppUser) Fields() []ent.Field {
 		field.String("username").
 			NotEmpty().
 			Comment("unique per tenant"),
+		field.String("email").
+			Default("").
+			Comment("contact email; required for tenant admins created with a tenant"),
 		field.String("password_hash").
 			NotEmpty().
 			Sensitive(),

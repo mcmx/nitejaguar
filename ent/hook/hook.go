@@ -93,6 +93,18 @@ func (f RemoteClientFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.RemoteClientMutation", m)
 }
 
+// The TenantFunc type is an adapter to allow the use of ordinary
+// function as Tenant mutator.
+type TenantFunc func(context.Context, *ent.TenantMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TenantFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TenantMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TenantMutation", m)
+}
+
 // The TransferChunkFunc type is an adapter to allow the use of ordinary
 // function as TransferChunk mutator.
 type TransferChunkFunc func(context.Context, *ent.TransferChunkMutation) (ent.Value, error)

@@ -3,30 +3,45 @@
 Role-based access control for the website and API. Users belong to a
 tenant, carry a role (`admin` > `operator` > `viewer`), and may hold
 group memberships used by [credential resolution](./credentials.md)
-(`user > group > tenant`).
+(`user > group > tenant`). See [Tenants & Superusers](./tenants.md)
+for the tenant registry.
+
+## Superusers
+
+Admins of the `default` tenant are **superusers** (the bootstrap admin
+is the first one). Only superusers manage tenants and operate
+cross-tenant; tenant-local admins have full admin powers **inside their
+own tenant only**.
 
 ## Roles & permissions
 
-| Capability | viewer | operator | admin |
-|---|---|---|---|
-| Read workflows, clients, results, credential metadata | ✅* | ✅ | ✅ |
-| Read audit trail (own tenant; admin sees all) | ✅ | ✅ | ✅ |
-| Mint / list / revoke enrollment tokens | ❌ | ✅ (own tenant) | ✅ (any tenant) |
-| Revoke clients | ❌ | ✅ (own tenant) | ✅ (any tenant) |
-| Create / delete credentials | ❌ | ✅ (own tenant) | ✅ (any tenant) |
-| Import / clone / enable workflows | ❌ | ✅ | ✅ |
-| Delete workflows | ❌ | ✅ (own tenant) | ✅ (any tenant) |
-| Change own password | ✅ | ✅ | ✅ |
-| Reset another user's password | ❌ | ❌ | ✅ |
-| Create / revoke users | ❌ | ❌ | ✅ |
-| List users | ❌ | ✅ (own tenant) | ✅ (all) |
+| Capability | viewer | operator | tenant admin | superuser |
+|---|---|---|---|---|
+| Read workflows, clients, results, credential metadata | ✅ (own tenant) | ✅ (own tenant) | ✅ (own tenant) | ✅ (all) |
+| Read audit trail | ✅ (own tenant) | ✅ (own tenant) | ✅ (own tenant) | ✅ (all) |
+| Mint / list / revoke enrollment tokens | ❌ | ✅ (own tenant) | ✅ (own tenant) | ✅ (any tenant) |
+| Revoke clients | ❌ | ✅ (own tenant) | ✅ (own tenant) | ✅ (any tenant) |
+| Create / delete credentials | ❌ | ✅ (own tenant) | ✅ (own tenant) | ✅ (any tenant) |
+| Import / clone / enable workflows | ❌ | ✅ | ✅ (own tenant) | ✅ |
+| Delete workflows | ❌ | ✅ (own tenant) | ✅ (own tenant) | ✅ (any tenant) |
+| Change own password | ✅ | ✅ | ✅ | ✅ |
+| Reset another user's password | ❌ | ❌ | ✅ (own tenant) | ✅ (any tenant) |
+| Create / revoke users | ❌ | ❌ | ✅ (own tenant) | ✅ (any tenant) |
+| List users | ❌ | ✅ (own tenant) | ✅ (own tenant) | ✅ (all) |
+| Create / suspend / activate / delete tenants | ❌ | ❌ | ❌ | ✅ |
 
-Reads marked ✅* stay open without login for dashboard polling
-(workflows, clients); every mutating endpoint requires a session once
-any user exists.
+Every endpoint requires a session once any user exists (before that,
+open-bootstrap mode allows the very first admin to be created).
+Single-object reads from another tenant return `404` (existence is
+hidden); collection reads silently omit foreign rows; cross-tenant
+writes are `403`. Everyone defaults to their own tenant when the
+request omits `tenant_id`.
 
-Cross-tenant operations always require `admin`. Non-admins default to
-their own tenant when the request omits `tenant_id`.
+Cross-tenant operations always require a **superuser**. Client-plane
+endpoints (assignments, results, transfers, credential fetch) take the
+tenant from the authenticated client token — a client-supplied
+`tenant_id` is ignored and never honored — and the reported
+workflow/action must belong to the client's own tenant.
 
 ## Bootstrap
 
@@ -60,9 +75,21 @@ same token.
 - `POST /api/auth/logout` — revokes the current session. Audited as
   `auth.logout`.
 - `GET /api/auth/me` — current user profile.
-- `POST /api/users` — admin only: `{username, password (≥8),
-  tenant_id?, role?, groups?}`. Usernames are unique per tenant.
-  Audited as `user.create`.
+- `POST /api/users` — admin only (tenant admins: own tenant only):
+  `{username, password (≥8), tenant_id?, email?, role?, groups?}`.
+  Usernames are unique per tenant. Audited as `user.create`.
+- `POST /api/tenants` — superuser only: `{name, admin_email,
+  slug?, contact_email?, admin_username?, admin_password?}` provisions
+  a tenant plus its admin user (password generated when omitted,
+  returned once). See [Tenants & Superusers](./tenants.md).
+- `GET /api/tenants`, `GET /api/tenants/{id}` — viewer+ (superusers see
+  all; others see their own tenant only).
+- `GET /api/workflows`, `GET /api/workflows/{id}`, `GET /api/events`,
+  `GET /api/clients`, `GET /api/credentials`,
+  `GET /api/credentials/{id}` — viewer+ (superusers see all; others
+  see their own tenant only; foreign single objects are `404`).
+- `POST /api/tenants/{id}/suspend|/activate`, `DELETE
+  /api/tenants/{id}` — superuser only.
 - `GET /api/users` — operator+: non-admins see their own tenant only.
 - `POST /api/users/{id}/revoke` — admin only; revokes the user and all
   its sessions. Audited as `user.revoke`. Self-revoke is rejected.
@@ -105,10 +132,14 @@ curl -s localhost:8080/api/enrollment/tokens -H "$AUTH" \
   cookie, audits `auth.logout`.
 - `GET /audit` — audit trail (newest 200; non-admins see their own
   tenant). Navbar: **Audit**.
-- `GET /users` — user roster (operator+; non-admins see their own
-  tenant). Navbar: **Users**. Admins get a create-user form (username,
-  password ≥8, role, groups, tenant) and per-user revoke buttons
-  (self-revoke refused, mirroring the API).
+- `GET /users` — user roster (operator+; non-superusers see their
+  own tenant). Navbar: **Users**. Admins get a create-user form
+  (username, password ≥8, role, groups, tenant) and per-user revoke
+  buttons (self-revoke refused, mirroring the API).
+- `GET /tenants` — tenant registry (viewer+; non-superusers see their
+  own tenant). Navbar: **Tenants**. Superusers get a create-tenant
+  form (name + admin email) plus suspend/activate buttons; generated
+  admin passwords are shown once.
 - `GET /profile` — your own profile plus a change-password form
   (current + new + confirm). Navbar shows your username linking here.
 - `POST /profile/password` — form password change; wrong current
@@ -132,10 +163,12 @@ user create/revoke require admin; anonymous posts redirect to `/login`.
 ## Audit trail
 
 `GET /api/audit?limit=100` requires any authenticated role (viewer+);
-non-admins see their own tenant only. New actions in this slice:
+non-superusers see their own tenant only. New actions in this slice:
 
 - `auth.login`, `auth.logout`
 - `user.create`, `user.revoke`, `user.password_change`
+- `tenant.create`, `tenant.suspend`, `tenant.activate`,
+  `tenant.delete`
 - `workflow.import`, `workflow.clone`, `workflow.enable`,
   `workflow.delete`
 

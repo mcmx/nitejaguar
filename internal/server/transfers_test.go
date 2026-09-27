@@ -264,7 +264,9 @@ func TestHeartbeatDialInfo(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("heartbeat status = %v, body = %s", resp.Code, resp.Body.String())
 	}
-	resp = api.Get("/api/clients")
+	// The clients endpoint is viewer-gated and tenant-scoped.
+	readerAuth := ensureRoleToken(t, db, "default", database.RoleViewer)
+	resp = api.Get("/api/clients", readerAuth)
 	var clients struct {
 		Clients []struct {
 			ID       string `json:"client_id"`

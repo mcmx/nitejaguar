@@ -61,7 +61,9 @@ type CreateCredentialOutput struct {
 }
 
 type ListCredentialsInput struct {
-	TenantID string `query:"tenant_id"`
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+	TenantID      string `query:"tenant_id"`
 }
 
 type ListCredentialsOutput struct {
@@ -71,7 +73,9 @@ type ListCredentialsOutput struct {
 }
 
 type GetCredentialInput struct {
-	ID string `path:"id"`
+	Authorization string `header:"Authorization"`
+	SessionToken  string `header:"X-Auth-Token"`
+	ID            string `path:"id"`
 }
 
 type GetCredentialOutput struct {
@@ -159,14 +163,32 @@ func (s *Server) CreateCredential(_ context.Context, input *CreateCredentialInpu
 	return out, nil
 }
 
-// ListCredentials returns credential metadata (never secrets).
+// ListCredentials returns credential metadata (never secrets). Requires
+// viewer+; non-superusers only see their own tenant (a requested tenant_id
+// outside it is rejected; open-bootstrap mode lists everything).
 func (s *Server) ListCredentials(_ context.Context, input *ListCredentialsInput) (*ListCredentialsOutput, error) {
-	rows, err := s.db.ListCredentials(input.TenantID)
+	caller, _, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleViewer)
+	if err != nil {
+		return nil, err
+	}
+	tenant := input.TenantID
+	if caller != nil {
+		if !database.CanCrossTenant(caller) {
+			if tenant != "" && tenant != caller.TenantID {
+				return nil, huma.Error403Forbidden("cross-tenant operation requires a superuser")
+			}
+			tenant = caller.TenantID
+		}
+	}
+	rows, err := s.db.ListCredentials(tenant)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(err.Error())
 	}
 	out := &ListCredentialsOutput{}
 	for _, row := range rows {
+		if caller != nil && !database.CanCrossTenant(caller) && row.TenantID != caller.TenantID {
+			continue
+		}
 		out.Body.Credentials = append(out.Body.Credentials, toCredentialView(row.ID, row.TenantID, row.Name, row.Type, row.Scope, row.OwnerID, row.Description, row.CreatedAt.String(), row.UpdatedAt.String()))
 	}
 	if out.Body.Credentials == nil {
@@ -176,13 +198,22 @@ func (s *Server) ListCredentials(_ context.Context, input *ListCredentialsInput)
 }
 
 // GetCredential returns a single credential's metadata (never the secret).
+// Requires viewer+; cross-tenant reads need a superuser (404 hides
+// existence from other tenants).
 func (s *Server) GetCredential(_ context.Context, input *GetCredentialInput) (*GetCredentialOutput, error) {
+	caller, _, err := s.requireRole(input.Authorization, input.SessionToken, database.RoleViewer)
+	if err != nil {
+		return nil, err
+	}
 	if input.ID == "" {
 		return nil, huma.Error400BadRequest("id is required")
 	}
 	row, err := s.db.GetCredential(input.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound(err.Error())
+	}
+	if caller != nil && !database.CanCrossTenant(caller) && row.TenantID != caller.TenantID {
+		return nil, huma.Error404NotFound("credential not found")
 	}
 	out := &GetCredentialOutput{}
 	out.Body.CredentialView = toCredentialView(row.ID, row.TenantID, row.Name, row.Type, row.Scope, row.OwnerID, row.Description, row.CreatedAt.String(), row.UpdatedAt.String())
@@ -202,8 +233,8 @@ func (s *Server) DeleteCredential(_ context.Context, input *DeleteCredentialInpu
 	if err != nil {
 		return nil, huma.Error404NotFound(err.Error())
 	}
-	if caller != nil && caller.Role != database.RoleAdmin && row.TenantID != caller.TenantID {
-		return nil, huma.Error403Forbidden("cross-tenant operation requires admin")
+	if caller != nil && !database.CanCrossTenant(caller) && row.TenantID != caller.TenantID {
+		return nil, huma.Error403Forbidden("cross-tenant operation requires a superuser")
 	}
 	if err := s.db.DeleteCredential(input.ID); err != nil {
 		return nil, huma.Error404NotFound(err.Error())
@@ -253,6 +284,17 @@ func (s *Server) FetchCredential(_ context.Context, input *FetchCredentialInput)
 	// clients fetch without node context.
 	if input.WorkflowID != "" && input.NodeID != "" {
 		if wfRow, werr := s.db.GetWorkflow(input.WorkflowID); werr == nil {
+			// The workflow context must belong to the client's tenant:
+			// tenant A clients cannot probe tenant B workflow definitions
+			// through the type-enforcement path.
+			var wfDef workflow.Workflow
+			wfTenant := wfRow.TenantID
+			if jerr := json.Unmarshal([]byte(wfRow.JSONDefinition), &wfDef); jerr == nil && wfDef.TenantID != "" {
+				wfTenant = wfDef.TenantID
+			}
+			if wfTenant != "" && wfTenant != client.TenantID {
+				return nil, huma.Error404NotFound("workflow not found")
+			}
 			var def workflow.Workflow
 			if jerr := json.Unmarshal([]byte(wfRow.JSONDefinition), &def); jerr == nil {
 				var node *workflow.Node

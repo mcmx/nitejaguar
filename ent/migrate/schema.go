@@ -13,6 +13,7 @@ var (
 		{Name: "id", Type: field.TypeString, Unique: true},
 		{Name: "tenant_id", Type: field.TypeString, Default: "default"},
 		{Name: "username", Type: field.TypeString},
+		{Name: "email", Type: field.TypeString, Default: ""},
 		{Name: "password_hash", Type: field.TypeString},
 		{Name: "role", Type: field.TypeString, Default: "viewer"},
 		{Name: "groups", Type: field.TypeJSON, Nullable: true},
@@ -133,6 +134,23 @@ var (
 		Name:       "remote_clients",
 		Columns:    RemoteClientsColumns,
 		PrimaryKey: []*schema.Column{RemoteClientsColumns[0]},
+	}
+	// TenantsColumns holds the columns for the "tenants" table.
+	TenantsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "slug", Type: field.TypeString, Unique: true},
+		{Name: "name", Type: field.TypeString},
+		{Name: "contact_email", Type: field.TypeString, Default: ""},
+		{Name: "admin_user_id", Type: field.TypeString, Default: ""},
+		{Name: "status", Type: field.TypeString, Default: "active"},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// TenantsTable holds the schema information for the "tenants" table.
+	TenantsTable = &schema.Table{
+		Name:       "tenants",
+		Columns:    TenantsColumns,
+		PrimaryKey: []*schema.Column{TenantsColumns[0]},
 	}
 	// TransferChunksColumns holds the columns for the "transfer_chunks" table.
 	TransferChunksColumns = []*schema.Column{
@@ -274,6 +292,7 @@ var (
 		EnrollmentTokensTable,
 		NodeAssignmentsTable,
 		RemoteClientsTable,
+		TenantsTable,
 		TransferChunksTable,
 		TransferSessionsTable,
 		TransferSignalsTable,

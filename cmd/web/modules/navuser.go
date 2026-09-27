@@ -19,3 +19,9 @@ func (u *NavUser) IsAdmin() bool {
 func (u *NavUser) IsOperator() bool {
 	return u != nil && u.LoggedIn && (u.Role == "admin" || u.Role == "operator")
 }
+
+// IsSuperuser reports whether the nav user is a superuser: an admin of the
+// default tenant. Only superusers manage the tenant registry.
+func (u *NavUser) IsSuperuser() bool {
+	return u != nil && u.LoggedIn && u.Role == "admin" && u.TenantID == "default"
+}

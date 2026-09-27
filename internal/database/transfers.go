@@ -26,9 +26,11 @@ const (
 )
 
 // Transfer participant checks live here so every caller (server routes,
-// tests) gets identical tenant isolation.
+// tests) gets identical tenant isolation. Tenants match strictly
+// (empty normalizes to default): the default tenant is NOT a wildcard,
+// so tenant A can never see tenant B's sessions and vice versa.
 func transferVisibleTo(row *ent.TransferSession, clientID string, tags []string, tenantID string) bool {
-	if row.TenantID != "" && row.TenantID != "default" && tenantID != "" && tenantID != "default" && row.TenantID != tenantID {
+	if normalizeTenant(row.TenantID) != normalizeTenant(tenantID) {
 		return false
 	}
 	if row.SenderClientID == clientID || row.ReceiverClientID == clientID {

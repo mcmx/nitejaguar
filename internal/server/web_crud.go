@@ -24,7 +24,7 @@ func (s *Server) clientsPageData(c echo.Context) *web.ClientsPageData {
 	user, open := s.webCurrentUser(c)
 	data := &web.ClientsPageData{CurrentUser: s.navUser(c)}
 	for _, client := range s.registry().list() {
-		if !open && user != nil && user.Role != database.RoleAdmin && client.TenantID != "" && client.TenantID != user.TenantID {
+		if !open && user != nil && !database.IsSuperUser(user) && client.TenantID != "" && client.TenantID != user.TenantID {
 			continue
 		}
 		data.Clients = append(data.Clients, web.ClientView{
@@ -39,7 +39,7 @@ func (s *Server) clientsPageData(c echo.Context) *web.ClientsPageData {
 	sort.Slice(data.Clients, func(i, j int) bool { return data.Clients[i].Name < data.Clients[j].Name })
 	if toks, err := s.db.ListEnrollmentTokens(); err == nil {
 		for _, tok := range toks {
-			if !open && user != nil && user.Role != database.RoleAdmin && tok.TenantID != user.TenantID {
+			if !open && user != nil && !database.IsSuperUser(user) && tok.TenantID != user.TenantID {
 				continue
 			}
 			exp := "never"
@@ -71,7 +71,7 @@ func (s *Server) usersPageData(c echo.Context) *web.UsersPageData {
 		return data
 	}
 	for _, row := range rows {
-		if !open && user != nil && user.Role != database.RoleAdmin && row.TenantID != user.TenantID {
+		if !open && user != nil && !database.IsSuperUser(user) && row.TenantID != user.TenantID {
 			continue
 		}
 		data.Users = append(data.Users, web.UserView{
@@ -94,7 +94,7 @@ func (s *Server) credentialsPageData(c echo.Context) *web.CredentialsPageData {
 	user, open := s.webCurrentUser(c)
 	data := &web.CredentialsPageData{CurrentUser: s.navUser(c), Defs: common.CredentialTypeDefs()}
 	tenant := ""
-	if !open && user != nil && user.Role != database.RoleAdmin {
+	if !open && user != nil && !database.IsSuperUser(user) {
 		tenant = user.TenantID
 	}
 	rows, err := s.db.ListCredentials(tenant)
@@ -219,8 +219,8 @@ func (s *Server) deleteCredentialWeb(c echo.Context) error {
 		templ.Handler(web.CredentialsPage(data)).ServeHTTP(c.Response(), c.Request())
 		return nil
 	}
-	if caller != nil && caller.Role != database.RoleAdmin && row.TenantID != caller.TenantID {
-		return c.String(http.StatusForbidden, "cross-tenant operation requires admin")
+	if caller != nil && !database.CanCrossTenant(caller) && row.TenantID != caller.TenantID {
+		return c.String(http.StatusForbidden, "cross-tenant operation requires a superuser")
 	}
 	if err := s.db.DeleteCredential(id); err != nil {
 		data := s.credentialsPageData(c)
@@ -325,8 +325,8 @@ func (s *Server) revokeEnrollmentTokenWeb(c echo.Context) error {
 			}
 		}
 	}
-	if caller != nil && caller.Role != database.RoleAdmin && tenantID != caller.TenantID {
-		return c.String(http.StatusForbidden, "cross-tenant operation requires admin")
+	if caller != nil && !database.CanCrossTenant(caller) && tenantID != caller.TenantID {
+		return c.String(http.StatusForbidden, "cross-tenant operation requires a superuser")
 	}
 	if err := s.db.RevokeEnrollmentToken(id); err != nil {
 		data := s.clientsPageData(c)
@@ -354,8 +354,8 @@ func (s *Server) revokeClientWeb(c echo.Context) error {
 	if cl, ok := s.registry().getClient(id); ok {
 		tenantID = cl.TenantID
 	}
-	if caller != nil && caller.Role != database.RoleAdmin && tenantID != caller.TenantID {
-		return c.String(http.StatusForbidden, "cross-tenant operation requires admin")
+	if caller != nil && !database.CanCrossTenant(caller) && tenantID != caller.TenantID {
+		return c.String(http.StatusForbidden, "cross-tenant operation requires a superuser")
 	}
 	if err := s.db.RevokeClient(id); err != nil {
 		data := s.clientsPageData(c)
@@ -406,7 +406,7 @@ func (s *Server) createUserWeb(c echo.Context) error {
 		tenantID = caller.TenantID
 	}
 	if requested := strings.TrimSpace(c.FormValue("tenant_id")); requested != "" {
-		if caller != nil && caller.Role != database.RoleAdmin && requested != caller.TenantID {
+		if caller != nil && !database.CanCrossTenant(caller) && requested != caller.TenantID {
 			data.Error = "Cross-tenant user creation requires admin."
 			return s.renderUsers(c, data)
 		}
@@ -443,6 +443,11 @@ func (s *Server) revokeUserWeb(c echo.Context) error {
 	if err != nil {
 		data := s.usersPageData(c)
 		data.Error = "User not found."
+		return s.renderUsers(c, data)
+	}
+	if caller != nil && !database.CanCrossTenant(caller) && row.TenantID != caller.TenantID {
+		data := s.usersPageData(c)
+		data.Error = "Cross-tenant user revoke requires a superuser."
 		return s.renderUsers(c, data)
 	}
 	if err := s.db.RevokeUser(id); err != nil {
@@ -543,8 +548,8 @@ func (s *Server) deleteWorkflowWeb(c echo.Context) error {
 		return c.String(http.StatusNotFound, "workflow not found")
 	}
 	tenantID := workflowTenant(row.TenantID, row.JSONDefinition)
-	if caller != nil && caller.Role != database.RoleAdmin && tenantID != caller.TenantID {
-		return c.String(http.StatusForbidden, "cross-tenant operation requires admin")
+	if caller != nil && !database.CanCrossTenant(caller) && tenantID != caller.TenantID {
+		return c.String(http.StatusForbidden, "cross-tenant operation requires a superuser")
 	}
 	if err := s.db.DeleteWorkflow(id); err != nil {
 		return c.String(http.StatusNotFound, err.Error())
@@ -570,8 +575,8 @@ func (s *Server) cloneWorkflowWeb(c echo.Context) error {
 		return c.String(http.StatusNotFound, "workflow not found")
 	}
 	tenantID := workflowTenant(row.TenantID, row.JSONDefinition)
-	if caller != nil && caller.Role != database.RoleAdmin && tenantID != caller.TenantID {
-		return c.String(http.StatusForbidden, "cross-tenant operation requires admin")
+	if caller != nil && !database.CanCrossTenant(caller) && tenantID != caller.TenantID {
+		return c.String(http.StatusForbidden, "cross-tenant operation requires a superuser")
 	}
 	newID, err := s.wm.CloneWorkflowJSON(row.JSONDefinition)
 	if err != nil {

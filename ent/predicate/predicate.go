@@ -27,6 +27,9 @@ type NodeAssignment func(*sql.Selector)
 // RemoteClient is the predicate function for remoteclient builders.
 type RemoteClient func(*sql.Selector)
 
+// Tenant is the predicate function for tenant builders.
+type Tenant func(*sql.Selector)
+
 // TransferChunk is the predicate function for transferchunk builders.
 type TransferChunk func(*sql.Selector)
 
