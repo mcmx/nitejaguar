@@ -75,7 +75,13 @@ func (r *runner) executeNode(nodeID, executionID string, inputs []any) {
 	if a == nil {
 		return
 	}
+	// Debug-only execution trace. Actions themselves are mostly silent,
+	// so without this the client shows nothing for e.g. datetime/wait
+	// nodes and it looks like they never ran. Kept at debug so a normal
+	// run stays quiet.
+	r.log.Debug("executing node", "action_id", nodeID, "action_name", cfg.actionName, "execution_id", executionID)
 	if cfg.actionName == "transfer" && isRemoteTransfer(cfg.transferDest, self) {
+		r.log.Debug("executing node as remote transfer sender", "action_id", nodeID, "execution_id", executionID)
 		go r.runTransferSender(nodeID, executionID, inputs)
 		return
 	}

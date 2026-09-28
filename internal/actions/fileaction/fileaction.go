@@ -41,7 +41,6 @@ type payload struct {
 }
 
 func (f *fileaction) Execute(executionId string, inputs []any) {
-	fmt.Println("Executing File Action with id:", f.data.Id)
 	trigger := findTriggerResult(inputs)
 	rawArgs, err := common.ArgsToStringMap(f.data.Args)
 	if err != nil {

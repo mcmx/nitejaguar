@@ -28,13 +28,18 @@ var (
 	clientToken           string
 	clientEnrollmentToken string
 	clientStateFile       string
+	clientLogLevel        string
 )
 
 func runClient(cmd *cobra.Command, _ []string) error {
+	logger, err := njclient.NewLogger(clientLogLevel)
+	if err != nil {
+		return err
+	}
 	return njclient.Run(cmd.Context(), njclient.Config{
 		Server: clientServer, ClientID: clientID, Name: clientName, Token: clientToken,
 		EnrollmentToken: clientEnrollmentToken, StateFile: clientStateFile,
-	}, nil)
+	}, logger)
 }
 
 func runClientWorkflowFileOp(path string, clone bool) error {
@@ -97,6 +102,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&clientToken, "token", os.Getenv("NITEJAGUAR_TOKEN"), "API token")
 	rootCmd.PersistentFlags().StringVar(&clientEnrollmentToken, "enrollment-token", os.Getenv("NITEJAGUAR_ENROLLMENT_TOKEN"), "tenant enrollment/join token for self-registration")
 	rootCmd.PersistentFlags().StringVar(&clientStateFile, "state-file", envOr("NITEJAGUAR_STATE_FILE", "client_state.json"), "path to the client identity state file")
+	rootCmd.PersistentFlags().StringVar(&clientLogLevel, "log-level", envOr("NITEJAGUAR_LOG_LEVEL", "info"), "log level: debug, info, warn or error (debug adds the per-node execution trace)")
 
 	// `nitejaguar client` stays working as an alias for the root command so
 	// scripts written against the old monolith keep functioning.
