@@ -1,0 +1,12 @@
+# golangci-lint v2 configuration.
+#
+# Keep the default linter set (errcheck, govet, ineffassign, staticcheck,
+# unused) by not listing them under `linters.enable`; the entry below only
+# adds formatters on top of that. gofmt used to be unchecked, so whitespace
+# drift accumulated across cmd/, common/ and internal/ until it was fixed by
+# hand -- `make lint` mirrors CI and now fails on it.
+version: "2"
+
+formatters:
+  enable:
+    - gofmt
