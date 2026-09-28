@@ -1,12 +1,14 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -363,5 +365,67 @@ func TestRunnerDrainsPendingOnce(t *testing.T) {
 	}
 	if got := r.history["exec_pending"]["trigger_pending"]; got == nil {
 		t.Fatalf("expected parent payload seeded for merge_input, got %v", r.history["exec_pending"])
+	}
+}
+
+func TestNewLoggerHonorsLevel(t *testing.T) {
+	ctx := context.Background()
+	debug, err := NewLogger("debug")
+	if err != nil {
+		t.Fatalf("NewLogger(debug): %v", err)
+	}
+	if !debug.Enabled(ctx, slog.LevelDebug) {
+		t.Fatal("debug level should enable debug records")
+	}
+	info, err := NewLogger("info")
+	if err != nil {
+		t.Fatalf("NewLogger(info): %v", err)
+	}
+	if info.Enabled(ctx, slog.LevelDebug) {
+		t.Fatal("info level must drop the debug-only execution trace")
+	}
+	if !info.Enabled(ctx, slog.LevelInfo) {
+		t.Fatal("info level should still emit info records")
+	}
+	if _, err := NewLogger(""); err != nil {
+		t.Fatalf("empty level should default to info, got %v", err)
+	}
+	if _, err := NewLogger("chatty"); err == nil {
+		t.Fatal("expected an error for an unknown level")
+	}
+}
+
+// The per-node execution trace is debug-only: it must be emitted when the
+// level allows it and dropped otherwise, so a normal run stays quiet.
+func TestExecuteNodeTraceIsDebugOnly(t *testing.T) {
+	capture := func(level slog.Level) string {
+		var buf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: level}))
+		r := newRunner(API{BaseURL: "http://localhost", HTTPClient: http.DefaultClient}, logger)
+		defer r.close()
+		r.install(Workflow{ID: "workflow_trace", Name: "trace", Nodes: map[string]workflow.Node{
+			"action_trace": {
+				Id: "action_trace", Name: "Action", ActionType: "action", ActionName: "datetime",
+				Arguments: map[string]string{"operation": "getCurrentDate", "format": "20060102"},
+			},
+		}})
+		r.executeNode("action_trace", "exec_trace", nil)
+		// The action runs in a goroutine; the trace is emitted before it.
+		deadline := time.Now().Add(2 * time.Second)
+		for !strings.Contains(buf.String(), "executing node") && time.Now().Before(deadline) {
+			time.Sleep(5 * time.Millisecond)
+		}
+		return buf.String()
+	}
+
+	debugOut := capture(slog.LevelDebug)
+	if !strings.Contains(debugOut, "executing node") {
+		t.Fatalf("debug run missing execution trace: %q", debugOut)
+	}
+	if !strings.Contains(debugOut, "action_trace") || !strings.Contains(debugOut, "datetime") {
+		t.Fatalf("trace should name the node and its action: %q", debugOut)
+	}
+	if infoOut := capture(slog.LevelInfo); strings.Contains(infoOut, "executing node") {
+		t.Fatalf("info run must not emit the debug trace: %q", infoOut)
 	}
 }

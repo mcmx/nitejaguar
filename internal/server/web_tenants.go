@@ -37,7 +37,7 @@ func (s *Server) tenantsPageData(c echo.Context) *web.TenantsPageData {
 		data.Tenants = append(data.Tenants, web.TenantView{
 			ID: row.ID, Slug: row.Slug, Name: row.Name,
 			ContactEmail: contact, AdminUserID: row.AdminUserID,
-			Status: row.Status,
+			Status:    row.Status,
 			CreatedAt: row.CreatedAt.Format("2006-01-02 15:04:05 MST"),
 		})
 	}

@@ -128,14 +128,23 @@ is ignored).
   nodes override with `client`/`client_tags`. Empty means broadcast.
   `GET /api/clients/{id}/assignments` filters definitions with the same
   override-or-default resolution and tenant isolation.
-- **Pending handoffs**: every ingested result enqueues one pending
-  assignment per downstream `next` (idempotent per
-  workflow/execution/node, `assign_` ids) and marks the reporting node
-  done. `GET .../assignments` returns owned pending items in `pending`
-  with the parent payload as `$input`.
-- **Handoff fix**: `POST /api/results` returns only caller-owned `nexts`;
-  foreign edges are never executed locally — they are routed via pending
-  assignments. Audited as `assignment.enqueue` and `assignment.complete`.
+- **Pending handoffs**: an ingested result enqueues one pending assignment
+  per downstream `next` **that the reporting client does not own**
+  (idempotent per workflow/execution/node, `assign_` ids) and marks the
+  reporting node done. `GET .../assignments` returns owned pending items
+  in `pending` with the parent payload as `$input`.
+- **Single-owner dispatch**: the server decides the executor for every
+  downstream node. A node the reporting client owns (explicit `client`,
+  matching `client_tags`, or broadcast) is returned in the response
+  `nexts` and is *not* enqueued; any other node is enqueued and *not*
+  returned. The two sets are disjoint, so a node can never be both
+  executed locally and polled as pending — which previously made clients
+  run the same node two or three times (e.g. a rename reporting
+  `destination already exists` right after its own success). Audited as
+  `assignment.enqueue` and `assignment.complete`.
+- **Server-local results**: results produced by the server's own
+  triggers are not handoffs; the server executes those downstream nodes
+  in process when started with `-e`.
 - **Condition evaluation & results**: every result records its routing
   decision — per-entry booleans (`condition_results`), derived downstream
   nodes (`nexts`), and the first evaluation error (`condition_error`,

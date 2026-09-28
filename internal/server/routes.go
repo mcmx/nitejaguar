@@ -954,11 +954,11 @@ func (s *Server) PostResult(_ context.Context, input *PostResultInput) (*PostRes
 	if err != nil {
 		return nil, huma.Error404NotFound(err.Error())
 	}
-	// Cross-client handoff fix: route foreign nexts via persisted
-	// assignments instead of direct local execution. Return only the
-	// nexts owned by the reporting client; the rest are picked up via
-	// assignment polling. Local server execution (best-effort in
-	// IngestResult) is unchanged.
+	// Dispatch is decided server-side in IngestResult: it already split
+	// the nexts into the ones this client owns (returned here) and the
+	// ones routed to other clients through persisted assignments, so a
+	// node is never both returned and enqueued. The filter below is a
+	// second, ownership-based guard on the response body.
 	owned := s.filterNextsForExecutor(stored.WorkflowID, nexts, executorID)
 	_ = s.db.LogAudit("assignment.complete", stored.TenantID, executorID, stored.ActionID, "execution="+stored.ExecutionID+" workflow="+stored.WorkflowID)
 	s.results[result.ResultID] = postResultRecord{stored.WorkflowID, stored.ExecutionID, append([]string(nil), owned...), stored.ConditionResults, stored.ConditionError}

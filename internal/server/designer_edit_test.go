@@ -162,6 +162,7 @@ func TestDesignerInitPreservesConditions(t *testing.T) {
 		t.Errorf("designer init JSON drops conditions: %s", raw)
 	}
 }
+
 // TestDesignerGraphClientLogic guards the visual-designer
 // regressions: drag listeners that never detached (cards stuck to the
 // cursor) and edges rendered via <template x-for> inside <svg> (template

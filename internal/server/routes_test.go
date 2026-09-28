@@ -813,3 +813,163 @@ func TestWorkflowDefaultTargeting(t *testing.T) {
 		}
 	}
 }
+
+const singleOwnerDispatchWorkflow = `{
+  "id": "workflow_01ksingleownerdispatch01",
+  "name": "Single owner dispatch workflow",
+  "nodes": {
+    "trigger_01ksingleownertrigger001": {
+      "id": "trigger_01ksingleownertrigger001",
+      "name": "Broadcast trigger",
+      "action_type": "trigger",
+      "action_name": "filechange",
+      "arguments": {"path": "/tmp", "event_type": "create"},
+      "conditions": {
+        "entries": {
+          "entry1": {
+            "condition": {"leftOperand": true, "operator": "", "rightOperand": null},
+            "nexts": ["action_01ksingleownerlocal0001", "action_01ksingleownergpu00001"]
+          }
+        }
+      },
+      "dependencies": null
+    },
+    "action_01ksingleownerlocal0001": {
+      "id": "action_01ksingleownerlocal0001",
+      "name": "Local follow-up",
+      "action_type": "action",
+      "action_name": "file",
+      "arguments": {"action": "create", "file": "/tmp/local.txt"},
+      "conditions": {"entries": {}},
+      "dependencies": ["trigger_01ksingleownertrigger001"]
+    },
+    "action_01ksingleownergpu00001": {
+      "id": "action_01ksingleownergpu00001",
+      "name": "GPU follow-up",
+      "action_type": "action",
+      "action_name": "file",
+      "arguments": {"action": "create", "file": "/tmp/gpu.txt"},
+      "conditions": {"entries": {}},
+      "dependencies": ["trigger_01ksingleownertrigger001"],
+      "client_tags": ["gpu"]
+    }
+  }
+}`
+
+// The server owns the dispatch decision: a node the reporting client owns
+// is returned to it and must NOT also be persisted as a pending
+// assignment, otherwise the client executes it twice (once from the
+// response, once from assignment polling). Foreign nodes are routed the
+// other way round: persisted, never returned.
+func TestDispatchGivesEachNodeOneOwner(t *testing.T) {
+	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
+	wm := workflow.NewWorkflowManager(false, db)
+	s := &Server{db: db, wm: wm}
+	_, api := newTestAPI(t)
+	addApiRoutes(api, s)
+
+	if _, err := wm.ImportWorkflowJSON(singleOwnerDispatchWorkflow); err != nil {
+		t.Fatalf("seed workflow: %v", err)
+	}
+	register := func(name string, tags []string) string {
+		t.Helper()
+		resp := api.Post("/api/clients/register", map[string]any{
+			"name": name, "tags": tags, "enrollment_token": mintEnrollmentToken(t, db, "default", 0),
+		})
+		if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+			t.Fatalf("register %s status = %v, body = %s", name, resp.Code, resp.Body.String())
+		}
+		var reg struct {
+			Token string `json:"token"`
+		}
+		decodeBody(t, strings.NewReader(resp.Body.String()), &reg)
+		return reg.Token
+	}
+	gpuToken := register("gpu-dispatch", []string{"gpu"})
+	cpuToken := register("cpu-dispatch", []string{"cpu"})
+
+	// The GPU client reports the broadcast trigger. It owns both nexts
+	// (the untargeted one and the gpu-tagged one), so both come back to
+	// it and neither may also be enqueued.
+	resp := api.Post("/api/results", "Authorization: Bearer "+gpuToken, map[string]any{
+		"action_id":   "trigger_01ksingleownertrigger001",
+		"action_type": "trigger",
+		"action_name": "filechange",
+		"payload":     map[string]any{"file": "/tmp/x"},
+	})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("gpu post result status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	var gpuOut struct {
+		WorkflowID  string   `json:"workflow_id"`
+		ExecutionID string   `json:"execution_id"`
+		Nexts       []string `json:"nexts"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &gpuOut)
+
+	returnedLocal, returnedGPU := false, false
+	for _, n := range gpuOut.Nexts {
+		switch n {
+		case "action_01ksingleownerlocal0001":
+			returnedLocal = true
+		case "action_01ksingleownergpu00001":
+			returnedGPU = true
+		}
+	}
+	if !returnedLocal || !returnedGPU {
+		t.Fatalf("gpu client owns both nexts, got %v", gpuOut.Nexts)
+	}
+
+	pending, err := db.ListPendingAssignments()
+	if err != nil {
+		t.Fatalf("list pending: %v", err)
+	}
+	for _, p := range pending {
+		if p.WorkflowID == "workflow_01ksingleownerdispatch01" && p.ExecutionID == gpuOut.ExecutionID {
+			t.Fatalf("node owned by the reporting client must not also be enqueued: it would run twice (%+v)", p)
+		}
+	}
+
+	// A client that does not own the untargeted next still does not get
+	// it back; the same single-owner rule applies symmetrically.
+	resp = api.Post("/api/results", "Authorization: Bearer "+cpuToken, map[string]any{
+		"action_id":   "trigger_01ksingleownertrigger001",
+		"action_type": "trigger",
+		"action_name": "filechange",
+		"payload":     map[string]any{"file": "/tmp/y"},
+	})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("cpu post result status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	var cpuOut struct {
+		ExecutionID string   `json:"execution_id"`
+		Nexts       []string `json:"nexts"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &cpuOut)
+	if len(cpuOut.Nexts) != 1 || cpuOut.Nexts[0] != "action_01ksingleownerlocal0001" {
+		t.Fatalf("cpu should own only the untargeted next, got %v", cpuOut.Nexts)
+	}
+	pending, err = db.ListPendingAssignments()
+	if err != nil {
+		t.Fatalf("list pending after cpu: %v", err)
+	}
+	cpuRoutedGPU := false
+	for _, p := range pending {
+		if p.WorkflowID != "workflow_01ksingleownerdispatch01" || p.ExecutionID != cpuOut.ExecutionID {
+			continue
+		}
+		switch p.NodeID {
+		case "action_01ksingleownerlocal0001":
+			t.Fatal("cpu-owned node must not be enqueued as well")
+		case "action_01ksingleownergpu00001":
+			cpuRoutedGPU = true
+		}
+	}
+	if !cpuRoutedGPU {
+		t.Fatalf("gpu-owned node should be routed to the gpu client via pending assignment: %+v", pending)
+	}
+}

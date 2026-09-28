@@ -398,6 +398,22 @@ func (s *service) PollClient(id string) error {
 	return nil
 }
 
+// ClientTags implements common.ClientTargetLookup: it returns the tag set
+// of a registered client so the workflow engine can evaluate node
+// targeting when deciding which executor owns a downstream node. Unknown
+// ids report ok=false rather than an empty tag set, so the engine treats
+// them as "not a resolvable client" and routes conservatively.
+func (s *service) ClientTags(clientID string) ([]string, bool) {
+	if clientID == "" {
+		return nil, false
+	}
+	c, err := s.client.RemoteClient.Get(context.Background(), clientID)
+	if err != nil {
+		return nil, false
+	}
+	return c.Tags, true
+}
+
 func (s *service) GetClients() ([]*ent.RemoteClient, error) {
 	cs, err := s.client.RemoteClient.Query().All(context.Background())
 	if err != nil {

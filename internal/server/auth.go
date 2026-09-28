@@ -181,7 +181,7 @@ func (s *Server) requireRole(authorization, compat, minimum string) (*ent.AppUse
 		return nil, "api", nil
 	}
 	if !database.HasRole(user.Role, minimum) {
-		return nil, "", huma.Error403Forbidden("role "+user.Role+" cannot perform this action (requires "+minimum+")")
+		return nil, "", huma.Error403Forbidden("role " + user.Role + " cannot perform this action (requires " + minimum + ")")
 	}
 	return user, user.ID, nil
 }

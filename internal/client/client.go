@@ -30,7 +30,7 @@ import (
 type Config struct {
 	Server, ClientID, Name, Token string
 	EnrollmentToken               string
-	StateFile                   string
+	StateFile                     string
 	PollInterval, RetryInitial    time.Duration
 }
 type RegisterRequest struct {
@@ -126,6 +126,7 @@ func applyStateDefaults(cfg Config, state clientState) Config {
 	}
 	return cfg
 }
+
 // restoreIdentity reuses the saved client_id/token when the caller did not
 // pass explicit credentials. It returns the effective config, the (possibly
 // cleared) state, and a warning when --server/--name drift from the saved
@@ -682,6 +683,22 @@ func (r *runner) close() {
 			}
 		}
 	}
+}
+
+// NewLogger builds the client's structured logger for the named level
+// ("debug", "info", "warn", "error"; empty means info). It exists so
+// debug-only diagnostics -- such as the per-node "executing node" trace --
+// are one flag away instead of always-on stdout noise. Output goes to
+// stderr, matching slog's default, so it interleaves with the stdlib log
+// lines the triggers and actions still emit.
+func NewLogger(level string) (*slog.Logger, error) {
+	var lvl slog.Level
+	if trimmed := strings.TrimSpace(level); trimmed != "" {
+		if err := lvl.UnmarshalText([]byte(trimmed)); err != nil {
+			return nil, fmt.Errorf("invalid log level %q (use debug, info, warn or error)", level)
+		}
+	}
+	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl})), nil
 }
 
 func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
