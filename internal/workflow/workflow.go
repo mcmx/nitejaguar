@@ -16,12 +16,12 @@ import (
 )
 
 type Workflow struct {
-	Id               string          `json:"id"`
-	Name             string          `json:"name"`
-	TenantID         string          `json:"tenant_id,omitempty"`
-	DefaultClient    string          `json:"default_client,omitempty"`
-	DefaultClientTags []string       `json:"default_client_tags,omitempty"`
-	Nodes            map[string]Node `json:"nodes"`
+	Id                string          `json:"id"`
+	Name              string          `json:"name"`
+	TenantID          string          `json:"tenant_id,omitempty"`
+	DefaultClient     string          `json:"default_client,omitempty"`
+	DefaultClientTags []string        `json:"default_client_tags,omitempty"`
+	Nodes             map[string]Node `json:"nodes"`
 }
 
 type WorkflowInt struct {

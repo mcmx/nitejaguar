@@ -39,12 +39,12 @@ type CreateCredentialInput struct {
 	Authorization string `header:"Authorization"`
 	SessionToken  string `header:"X-Auth-Token"`
 	Body          struct {
-		TenantID    string `json:"tenant_id,omitempty"`
-		Name        string `json:"name"`
-		Type        string `json:"type,omitempty"`
-		Scope       string `json:"scope,omitempty"`
-		OwnerID     string `json:"owner_id,omitempty"`
-		Secret      string `json:"secret,omitempty"`
+		TenantID string `json:"tenant_id,omitempty"`
+		Name     string `json:"name"`
+		Type     string `json:"type,omitempty"`
+		Scope    string `json:"scope,omitempty"`
+		OwnerID  string `json:"owner_id,omitempty"`
+		Secret   string `json:"secret,omitempty"`
 		// SecretFields is the structured alternative to Secret: per-type
 		// field name -> value (see common.CredentialTypeDefs). When
 		// present it is validated and encoded server-side into the

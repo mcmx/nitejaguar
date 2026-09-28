@@ -30,7 +30,7 @@ import (
 type Config struct {
 	Server, ClientID, Name, Token string
 	EnrollmentToken               string
-	StateFile                   string
+	StateFile                     string
 	PollInterval, RetryInitial    time.Duration
 }
 type RegisterRequest struct {
@@ -126,6 +126,7 @@ func applyStateDefaults(cfg Config, state clientState) Config {
 	}
 	return cfg
 }
+
 // restoreIdentity reuses the saved client_id/token when the caller did not
 // pass explicit credentials. It returns the effective config, the (possibly
 // cleared) state, and a warning when --server/--name drift from the saved

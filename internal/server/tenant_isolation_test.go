@@ -17,24 +17,24 @@ import (
 // viewer, workflow (trigger + action), credential, client, and user each.
 // It returns the tenant slugs and session header values.
 type isoSetup struct {
-	tenantA, tenantB       string
-	adminA, operatorA      string
-	adminB, operatorB      string
-	viewerB                string
-	workflowA, triggerA    string
-	actionA                string
-	credentialAID          string
-	clientAID, clientATok  string
-	clientBID, clientBTok  string
-	userAID                string
+	tenantA, tenantB      string
+	adminA, operatorA     string
+	adminB, operatorB     string
+	viewerB               string
+	workflowA, triggerA   string
+	actionA               string
+	credentialAID         string
+	clientAID, clientATok string
+	clientBID, clientBTok string
+	userAID               string
 }
 
 func seedIsolation(t *testing.T, db database.Service, api humatest.TestAPI) *isoSetup {
 	t.Helper()
 	n := testAdminSeq.Add(1)
 	s := &isoSetup{
-		tenantA:  fmt.Sprintf("isoA%d", n),
-		tenantB:  fmt.Sprintf("isoB%d", n),
+		tenantA:   fmt.Sprintf("isoA%d", n),
+		tenantB:   fmt.Sprintf("isoB%d", n),
 		workflowA: fmt.Sprintf("workflow_01kisoA%06d0001", n),
 		triggerA:  fmt.Sprintf("trigger_01kisoA%06d0001", n),
 		actionA:   fmt.Sprintf("action_01kisoA%06d0001", n),

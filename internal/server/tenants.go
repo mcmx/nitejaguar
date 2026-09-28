@@ -28,7 +28,7 @@ func toTenantView(row *ent.Tenant) TenantView {
 	return TenantView{
 		ID: row.ID, Slug: row.Slug, Name: row.Name,
 		ContactEmail: row.ContactEmail, AdminUserID: row.AdminUserID,
-		Status: row.Status,
+		Status:    row.Status,
 		CreatedAt: row.CreatedAt.String(), UpdatedAt: row.UpdatedAt.String(),
 	}
 }
