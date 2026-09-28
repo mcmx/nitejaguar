@@ -208,7 +208,13 @@ templ pageTitle(title string) {
 templ WorkflowsPage(data *WorkflowPageData, _ string) {
     @Base(data.CurrentUser) {
         <main class="container mx-auto max-w-6xl px-4 py-8">
-            @pageTitle("Workflows")
+            <div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <p class="text-sm font-medium text-red-500">Nite Jaguar</p>
+                    <h1 class="text-3xl font-bold tracking-tight">Workflows</h1>
+                </div>
+                <a href="/designer" class="inline-flex items-center justify-center gap-2 rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">＋ Create</a>
+            </div>
             if data.Error != "" {
                 <p class="rounded-lg border border-red-500/50 p-6 text-red-500">{ data.Error }</p>
             }
