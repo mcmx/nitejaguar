@@ -22,7 +22,7 @@ assignment payloads.
   `generic`, `token`, `username_password`, `aws`, `ssh_key`.
   The legacy `s3` type is rejected at creation — S3 lives inside the
    AWS collection and uses the `aws` type. The built-ins (`file`,
-   `datetime`, `wait`, `transfer`, `filechange` trigger) form the `core` collection
+   `datetime`, `wait`, `transfer`, `filechange` and `cron` triggers) form the `core` collection
   and need no credential. The collection registry
   (`Provider{Name, CredentialType, Actions[]}` in `common/providers.go`;
   `SupportedCredentialTypes` / `RequiredCredentialTypes` in

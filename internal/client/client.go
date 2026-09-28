@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/mcmx/nitejaguar/common"
+	"github.com/mcmx/nitejaguar/internal/actions/cron"
 	"github.com/mcmx/nitejaguar/internal/actions/datetime"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
 	"github.com/mcmx/nitejaguar/internal/actions/filechange"
@@ -472,7 +473,7 @@ func (r *runner) buildManagedWorkflow(w Workflow) *managedWorkflow {
 				r.log.Error("failed to create client action", "action_id", id, "error", err)
 			}
 		case "trigger":
-			t, err := filechange.New(r.events, common.ActionArgs{Id: n.Id, Name: n.Name, ActionType: n.ActionType, ActionName: n.ActionName, Args: n.Arguments})
+			t, err := newClientTrigger(r.events, common.ActionArgs{Id: n.Id, Name: n.Name, ActionType: n.ActionType, ActionName: n.ActionName, Args: n.Arguments})
 			if err == nil {
 				mw.actions[id] = t
 				mw.triggers[id] = t
@@ -494,6 +495,19 @@ func (r *runner) registerWorkflowIndices(mw *managedWorkflow) {
 			r.nodeMeta[id] = cfg
 		}
 		r.nodeAction[id] = a
+	}
+}
+
+// newClientTrigger dispatches trigger construction by action_name so remote
+// clients can run any server-side trigger locally (e.g. filechange, cron).
+func newClientTrigger(events chan common.ResultData, args common.ActionArgs) (common.Action, error) {
+	switch args.ActionName {
+	case "filechange":
+		return filechange.New(events, args)
+	case "cron":
+		return cron.New(events, args)
+	default:
+		return nil, fmt.Errorf("unknown trigger action_name: %q", args.ActionName)
 	}
 }
 

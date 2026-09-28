@@ -4,7 +4,7 @@ Workflows in Nitejaguar are defined as JSON structures containing metadata and a
 
 ## Node naming
 
-The `action_name` field uses one concise, lowercase, category-free identifier for each node implementation. For example, use `file`, `datetime`, `wait`, `set`, and `transfer` for actions and `filechange` for a trigger. Do not append `Action` or `Trigger`; the `action_type` field already distinguishes those categories. New implementations must use the same canonical identifier in server dispatch, client dispatch, examples, tests, and their dedicated reference document.
+The `action_name` field uses one concise, lowercase, category-free identifier for each node implementation. For example, use `file`, `datetime`, `wait`, `set`, and `transfer` for actions and `filechange` / `cron` for triggers. Do not append `Action` or `Trigger`; the `action_type` field already distinguishes those categories. New implementations must use the same canonical identifier in server dispatch, client dispatch, examples, tests, and their dedicated reference document.
 
 ## Workflow JSON Structure
 
@@ -77,7 +77,7 @@ The designer is a node-graph canvas, not a form list:
 - Each workflow node is a draggable card showing its icon, name,
   `action_type`/`action_name`, an argument summary, and its id.
 - Every card has a **→+ arrow on its right edge**: it opens the action
-  picker (all six catalog entries with descriptions and a filter box),
+  picker (all seven catalog entries with descriptions and a filter box),
   and the chosen action appears on the canvas as a new card already
   connected downstream of the card you clicked (under its default,
   first condition entry — move it between entries in the inspector).

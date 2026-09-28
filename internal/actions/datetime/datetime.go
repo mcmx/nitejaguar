@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -146,7 +145,7 @@ func (d *datetimeAction) Execute(executionID string, inputs []any) {
 		"datetime":     formatted,
 		"timestamp":    now.Unix(),
 		"timestamp_ms": now.UnixMilli(),
-		"format":       effectiveFormat(format),
+		"format":       common.EffectiveTimestampFormat(format),
 		"timezone":     tzName,
 		"output_field": outField,
 	}
@@ -189,25 +188,10 @@ func errorPayload(operation, msg string) map[string]any {
 }
 
 // opGetCurrentDate formats now using format (Go layout, "" => RFC3339,
-// "unix"/"unix_ms" => epoch strings).
+// "unix"/"unix_ms" => epoch strings) through the shared timestamp formatter,
+// so the cron trigger produces byte-identical values for the same spec.
 func opGetCurrentDate(now time.Time, args map[string]string) (string, map[string]any, error) {
-	switch strings.ToLower(strings.TrimSpace(args["format"])) {
-	case "", "iso8601", "rfc3339":
-		return now.Format(time.RFC3339), nil, nil
-	case "unix":
-		return strconv.FormatInt(now.Unix(), 10), nil, nil
-	case "unix_ms", "unixms", "unix_milli":
-		return strconv.FormatInt(now.UnixMilli(), 10), nil, nil
-	default:
-		return now.Format(args["format"]), nil, nil
-	}
-}
-
-func effectiveFormat(format string) string {
-	if format == "" {
-		return time.RFC3339
-	}
-	return format
+	return common.FormatTimestamp(now, args["format"]), nil, nil
 }
 
 func supportedList() string {

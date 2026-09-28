@@ -17,6 +17,7 @@ require (
 	github.com/axzilla/templui v0.64.0
 	github.com/danielgtaylor/huma/v2 v2.39.1
 	github.com/pion/webrtc/v4 v4.2.20
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
 	go.jetify.com/typeid v1.3.0
 )

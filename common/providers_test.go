@@ -15,6 +15,7 @@ func TestProviderForAction(t *testing.T) {
 		{"datetime", "core", "", true},
 		{"wait", "core", "", true},
 		{"filechange", "core", "", true},
+		{"cron", "core", "", true},
 		{"ec2", "aws", "aws", true},
 		{"s3", "aws", "aws", true},
 		{"nope", "", "", false},

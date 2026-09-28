@@ -1,0 +1,47 @@
+{
+  "id": "workflow_cron_example",
+  "name": "Example Workflow: cron stamp file",
+  "nodes": {
+    "trigger_01cron01example00000001": {
+      "id": "trigger_01cron01example00000001",
+      "name": "Trigger: cron",
+      "description": "Trigger: every 5 minutes (UTC)",
+      "action_type": "trigger",
+      "action_name": "cron",
+      "arguments": {
+        "cron": "*/5 * * * *",
+        "format": "20060102-150405",
+        "timezone": "UTC",
+        "run_on_start": "false"
+      },
+      "conditions": {
+        "entries": {
+          "entry1": {
+            "condition": {
+              "leftOperand": true,
+              "operator": "",
+              "rightOperand": null
+            },
+            "nexts": ["action_01cron01example00000001"]
+          }
+        }
+      },
+      "dependencies": null
+    },
+    "action_01cron01example00000001": {
+      "id": "action_01cron01example00000001",
+      "name": "Action: file",
+      "description": "Action: touch a stamp file named after the fire time",
+      "action_type": "action",
+      "action_name": "file",
+      "arguments": {
+        "action": "create",
+        "file": "/tmp/nitejaguar-cron-{{ $input.datetime }}.txt"
+      },
+      "conditions": {
+        "entries": {}
+      },
+      "dependencies": ["trigger_01cron01example00000001"]
+    }
+  }
+}

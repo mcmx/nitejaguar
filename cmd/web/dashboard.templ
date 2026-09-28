@@ -439,6 +439,7 @@ templ DesignerPage(data *DesignerPageData) {
 		// action_name is the canonical lowercase identifier used in JSON.
 		var DESIGNER_CATALOG = [
 			{ action_type: 'trigger', action_name: 'filechange', icon: '📁', label: 'File Change', desc: 'Watch a directory for creates, writes, renames…', args: { path: '/tmp', event_type: 'create' } },
+			{ action_type: 'trigger', action_name: 'cron', icon: '⏰', label: 'Cron', desc: 'Run on a cron schedule or interval, emitting now() each time it fires.', args: { cron: '*/5 * * * *', format: '2006-01-02 15:04:05', run_on_start: 'false' } },
 			{ action_type: 'action', action_name: 'file', icon: '📄', label: 'File', desc: 'Create, remove or rename files.', args: { action: 'create', file: '/tmp/out.txt' } },
 			{ action_type: 'action', action_name: 'datetime', icon: '🕒', label: 'Datetime', desc: 'Current timestamp, formatted for downstream use.', args: { operation: 'getCurrentDate', format: '2006-01-02', timezone: 'UTC', output_field: 'current_date' } },
 			{ action_type: 'action', action_name: 'wait', icon: '⏳', label: 'Wait', desc: 'Pause the execution before continuing.', args: { duration: '1.5 minutes' } },
