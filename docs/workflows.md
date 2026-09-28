@@ -117,12 +117,18 @@ Each workflow selects a default client target; each node can override it.
 - **Resolution**: `NodeAssignedTo` applies the override-or-default rule;
   the designer, `GET /api/clients/{id}/assignments`, and
   `POST /api/results` filtering all use the same resolution.
-- **Cross-client handoff**: `POST /api/results` returns only the `nexts`
-  owned by the reporting client. Foreign downstream nodes are persisted
-  as pending assignments (`assign_` rows) and delivered via the
-  `pending` array in assignment polling — never via direct local
-  execution. The owner executes the pending node with the parent payload
-  as `$input` and reports back; the pending row is marked `done`.
+- **Cross-client handoff**: the server decides who executes each downstream
+  node, and every node gets exactly one owner. Nodes the reporting client
+  owns are returned in the `POST /api/results` `nexts` and executed
+  locally; they are **not** persisted as pending assignments. Foreign
+  nodes are never returned — they are persisted as pending assignments
+  (`assign_` rows) and delivered via the `pending` array in assignment
+  polling. The owner executes the pending node with the parent payload as
+  `$input` and reports back; the pending row is marked `done`. A node is
+  never both returned and enqueued, so it cannot run twice.
+- **Results originating on the server** (its own triggers) are not
+  handoffs: the server executes its downstream nodes in process, subject
+  to `nitejaguar-server -e`.
 
 ```json
 {

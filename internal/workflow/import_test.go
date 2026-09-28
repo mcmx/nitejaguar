@@ -354,6 +354,11 @@ func TestWorkflowImportAndClone(t *testing.T) {
 			ActionID:   "trigger_01routingresultstest01",
 			ActionType: "trigger",
 			ActionName: "filechange",
+			// Reported by a client: the untargeted downstream node is the
+			// reporting client's to run, so it comes back in nexts. A
+			// result originating on the server would instead be executed
+			// in process (see TestDispatchNextsServerOwnedResultsStayLocal).
+			ExecutorID: "client_01routingresultstest01",
 			Payload:    map[string]any{"file": "statement-jan.pdf"},
 		})
 		if err != nil {

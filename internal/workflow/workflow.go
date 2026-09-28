@@ -487,13 +487,24 @@ func (wm *workflowManager) CloneWorkflowJSON(jsonDef string) (string, error) {
 
 // IngestResult ingests a remotely reported ResultData (POST /api/results path).
 // It mirrors what the Run loop does for local results: resolve the workflow,
-// mint an ExecutionID for trigger roots, persist via saveResult, compute the
-// next nodes and kick off downstream actions. It returns the next node IDs.
+// mint an ExecutionID for trigger roots, persist via saveResult and compute the
+// next nodes. It returns the next node IDs the reporting client owns.
 //
-// Distributed dispatch: every computed next is persisted as a pending node
-// assignment (idempotent per workflow/execution/node) so foreign owners can
-// pick it up via assignment polling. The reporting node's own pending
-// assignment, if any, is marked done. Local ExecuteAction stays best-effort.
+// Distributed dispatch is decided here, on the server, and every downstream
+// node gets exactly one owner:
+//   - nodes the reporting client owns (explicit client, matching client tags,
+//     or broadcast with no targeting) are returned to it, which executes them
+//     locally; they are NOT persisted as pending assignments, so the client
+//     never runs the same node twice (once from this response, once from
+//     assignment polling);
+//   - every other node is persisted as a pending assignment (idempotent per
+//     workflow/execution/node) for its owner to pick up via polling, and is
+//     not returned;
+//   - results originating in this server process are not handoffs at all: the
+//     server keeps executing its own downstream nodes locally (gated by
+//     enableActions, as before).
+//
+// The reporting node's own pending assignment, if any, is marked done.
 func (wm *workflowManager) IngestResult(result common.ResultData) (common.ResultData, []string, error) {
 	if result.ActionID == "" {
 		return result, nil, errors.New("action_id is required")
@@ -517,11 +528,13 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 	}
 	var node Node
 	var nodeFound bool
+	var def Workflow
 	var defTenantID string
 	if workflowID != "" {
 		if wf, ok := wm.Workflows[workflowID]; ok {
 			if n, ok := wf.Definition.Nodes[result.ActionID]; ok {
 				node = n
+				def = wf.Definition
 				nodeFound = true
 				defTenantID = wf.Definition.TenantID
 			}
@@ -531,6 +544,7 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 		for id, wf := range wm.Workflows {
 			if n, ok := wf.Definition.Nodes[result.ActionID]; ok {
 				node = n
+				def = wf.Definition
 				nodeFound = true
 				workflowID = id
 				defTenantID = wf.Definition.TenantID
@@ -542,18 +556,19 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 		rows, err := wm.db.ListWorkflowRecords(true, true)
 		if err == nil {
 			for _, row := range rows {
-				var def Workflow
-				if err := json.Unmarshal([]byte(row.JSONDefinition), &def); err != nil {
+				var candidate Workflow
+				if err := json.Unmarshal([]byte(row.JSONDefinition), &candidate); err != nil {
 					continue
 				}
-				if n, ok := def.Nodes[result.ActionID]; ok {
+				if n, ok := candidate.Nodes[result.ActionID]; ok {
 					node = n
+					def = candidate
 					nodeFound = true
-					workflowID = def.Id
+					workflowID = candidate.Id
 					if workflowID == "" {
 						workflowID = row.ID
 					}
-					defTenantID = def.TenantID
+					defTenantID = candidate.TenantID
 					if defTenantID == "" {
 						defTenantID = row.TenantID
 					}
@@ -587,16 +602,18 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 	wm.rememberResult(result)
 
 	nexts := decision.Nexts
-	// Persist dispatch state: the reporting node is done, every downstream
-	// next becomes a pending assignment for its owner to poll. Enqueue is
-	// idempotent, so re-ingested (replayed) results are safe.
+	clientOwned, serverOwned, routed := wm.dispatchNexts(def, nexts, result.ExecutorID)
+	// Persist dispatch state: the reporting node is done, and every
+	// downstream next that this client does not own becomes a pending
+	// assignment for its owner to poll. Enqueue is idempotent, so
+	// re-ingested (replayed) results are safe.
 	if wm.db != nil && result.ExecutionID != "" {
 		tenantID := result.TenantID
 		if tenantID == "" {
 			tenantID = defTenantID
 		}
 		_ = wm.db.CompleteNodeAssignment(workflowID, result.ExecutionID, result.ActionID)
-		for _, next := range nexts {
+		for _, next := range routed {
 			if err := wm.db.EnqueueNodeAssignmentRecord(tenantID, workflowID, result.ExecutionID, next, result.ActionID, result.Payload); err != nil {
 				log.Printf("IngestResult: failed to enqueue assignment for %s: %s", next, err)
 				continue
@@ -604,7 +621,10 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 			_ = wm.db.LogAudit("assignment.enqueue", tenantID, result.ExecutorID, next, "execution="+result.ExecutionID+" workflow="+workflowID)
 		}
 	}
-	for _, next := range nexts {
+	// Only nodes this server owns are executed in-process; a client-owned
+	// node is the client's to run, and a routed node waits for its owner
+	// to poll it.
+	for _, next := range serverOwned {
 		if !wm.enableActions {
 			continue
 		}
@@ -614,10 +634,53 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 			log.Printf("IngestResult: skipping local execute of %s: %s", next, err)
 		}
 	}
-	if nexts == nil {
-		nexts = []string{}
+	if clientOwned == nil {
+		clientOwned = []string{}
 	}
-	return result, nexts, nil
+	return result, clientOwned, nil
+}
+
+// dispatchNexts buckets the downstream nodes of a reported result by owner
+// so that every node is executed exactly once, by exactly one executor.
+// clientOwned is handed back to the reporting client, serverOwned is run in
+// process, and routed is persisted for another client to poll.
+func (wm *workflowManager) dispatchNexts(def Workflow, nexts []string, executorID string) (clientOwned, serverOwned, routed []string) {
+	// A result this server produced (local trigger) is not a handoff: the
+	// server runs its own downstream nodes, subject to enableActions.
+	if executorID == "" || executorID == wm.executorID {
+		return nil, append([]string(nil), nexts...), nil
+	}
+	tags, _ := wm.clientTags(executorID)
+	for _, id := range nexts {
+		n, ok := def.Nodes[id]
+		if !ok {
+			// Node missing from the definition: route it so assignment
+			// polling retires it as stale instead of running it here.
+			routed = append(routed, id)
+			continue
+		}
+		// Targeting is per-node first, then workflow defaults; untargeted
+		// nodes broadcast, so the client that reported here owns them.
+		if def.NodeAssignedTo(n, executorID, tags) {
+			clientOwned = append(clientOwned, id)
+			continue
+		}
+		routed = append(routed, id)
+	}
+	return clientOwned, serverOwned, routed
+}
+
+// clientTags resolves the tag set of a reporting client through the store's
+// optional ClientTargetLookup capability. ok is false when the store does not
+// implement it or the id is unknown, which makes tag-targeted nodes route
+// through assignments rather than being handed back — conservative, and still
+// single-owner.
+func (wm *workflowManager) clientTags(clientID string) ([]string, bool) {
+	lookup, ok := wm.db.(common.ClientTargetLookup)
+	if !ok {
+		return nil, false
+	}
+	return lookup.ClientTags(clientID)
 }
 
 func (wm *workflowManager) saveWorkflow(data Workflow) error {

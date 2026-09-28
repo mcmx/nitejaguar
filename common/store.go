@@ -30,3 +30,19 @@ type WorkflowStore interface {
 	// LogAudit appends an audit trail entry.
 	LogAudit(action, tenantID, actor, target, detail string) error
 }
+
+// ClientTargetLookup is an optional WorkflowStore capability: it resolves
+// the tag set of a registered client so the engine can evaluate node
+// targeting when deciding which executor owns a downstream node.
+//
+// It is deliberately separate from WorkflowStore so client-side fakes and
+// the client binary keep working unchanged. A store that does not
+// implement it is treated as "tags unknown": tag-targeted nodes are then
+// routed through persisted assignments rather than handed back to the
+// reporting client. Dispatch stays single-owner either way — a node is
+// never both returned and enqueued.
+type ClientTargetLookup interface {
+	// ClientTags returns the tags of a registered client. ok is false
+	// when the id is unknown or the store cannot answer.
+	ClientTags(clientID string) (tags []string, ok bool)
+}
