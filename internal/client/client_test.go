@@ -429,3 +429,43 @@ func TestExecuteNodeTraceIsDebugOnly(t *testing.T) {
 		t.Fatalf("info run must not emit the debug trace: %q", infoOut)
 	}
 }
+
+// The client builds triggers by action_name, so a remote runner can host the
+// same trigger set as the server instead of forcing everything through
+// filechange.
+func TestNewClientTriggerDispatch(t *testing.T) {
+	events := make(chan common.ResultData, 1)
+
+	cronTrigger, err := newClientTrigger(events, common.ActionArgs{
+		ActionType: "trigger", ActionName: "cron",
+		Args: map[string]string{"interval": "1h"},
+	})
+	if err != nil {
+		t.Fatalf("newClientTrigger(cron) error: %v", err)
+	}
+	defer func() {
+		if err := cronTrigger.Stop(); err != nil {
+			t.Errorf("cron trigger Stop error: %v", err)
+		}
+	}()
+	if cronTrigger.GetArgs().ActionName != "cron" || cronTrigger.GetArgs().ActionType != "trigger" {
+		t.Errorf("cron trigger args = %+v", cronTrigger.GetArgs())
+	}
+
+	filechangeTrigger, err := newClientTrigger(events, common.ActionArgs{
+		ActionType: "trigger", ActionName: "filechange",
+		Args: map[string]string{"path": "/tmp"},
+	})
+	if err != nil {
+		t.Fatalf("newClientTrigger(filechange) error: %v", err)
+	}
+	defer func() {
+		if err := filechangeTrigger.Stop(); err != nil {
+			t.Errorf("filechange trigger Stop error: %v", err)
+		}
+	}()
+
+	if _, err := newClientTrigger(events, common.ActionArgs{ActionType: "trigger", ActionName: "nope"}); err == nil {
+		t.Errorf("newClientTrigger(nope) succeeded, want unknown trigger error")
+	}
+}

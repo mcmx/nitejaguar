@@ -104,14 +104,14 @@ action executables (no EC2/S3 implementations yet).
   the collection shares exactly the collection's credential type, no
   per-action overrides.
 - Code registry: `Provider{Name, CredentialType, Actions[]}` in
-  `common/providers.go` (`core` = `file`/`datetime`/`wait`/`filechange`
+  `common/providers.go` (`core` = `file`/`datetime`/`wait`/`filechange`/`cron`
   with no credential; `aws` = `ec2`/`s3` placeholders with type `aws`);
   `SupportedCredentialTypes` / `RequiredCredentialTypes` in
   `internal/actions/actions.go` and the create-time type check in
   `internal/database/credentials.go` delegate to it. Types are
   provider-declared, not a static list.
-- Built-ins (`file`, `datetime`, `wait`, `filechange` trigger) are the
-  `core` collection with no credential.
+- Built-ins (`file`, `datetime`, `wait`, `filechange` and `cron`
+  triggers) are the `core` collection with no credential.
 - S3 lives **inside the AWS collection** and uses the `aws` credential
   type; the legacy `s3` credential type is rejected at creation.
 - **Full enforcement**: `GET /api/credentials/{ref}/fetch` with

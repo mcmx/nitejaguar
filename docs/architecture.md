@@ -8,7 +8,7 @@ Nitejaguar follows a clean, modular Go architecture designed for standalone depl
 - **`internal/server/`** — HTTP routing, Huma OpenAPI integration, Echo middleware, and REST/WebSocket endpoints.
 - **`internal/database/`** — Ent ORM integration and SQLite database management (`ent/`).
 - **`internal/workflow/`** — Workflow engine handling parsing, graph dependencies, conditions, import, and clone operations.
-- **`internal/actions/`** — Action and trigger execution managers, hosting individual plugin packages (`filechange/`, `fileaction/`, `datetime/`, `set/`).
+- **`internal/actions/`** — Action and trigger execution managers, hosting individual plugin packages (`filechange/`, `cron/`, `fileaction/`, `datetime/`, `set/`).
 - **`internal/client/`** — Remote client registration, polling loop, and task execution runner.
 - **`common/`** — Shared data structures (`Action`, `ActionArgs`, `ResultData`).
 

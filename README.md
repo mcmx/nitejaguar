@@ -47,7 +47,7 @@ http://127.0.0.1:8081/docs
 ### Client mode
 
 The client registers with a NiteJaguar server, polls for assignments, executes assigned
-`filechange` and `file` nodes locally, and reports each result back to the
+`filechange`, `cron`, and `file` nodes locally, and reports each result back to the
 server. The default server is `http://127.0.0.1:8080`:
 
 ```bash

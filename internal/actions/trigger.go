@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mcmx/nitejaguar/common"
+	"github.com/mcmx/nitejaguar/internal/actions/cron"
 	"github.com/mcmx/nitejaguar/internal/actions/filechange"
 
 	"go.jetify.com/typeid"
@@ -36,19 +37,23 @@ func (ts *TriggerManager) AddTrigger(data common.ActionArgs) (common.Action, str
 	}
 
 	// TODO Add a validation that the triger_id doesn't exist in the triggers already
+	var trigger common.Action
+	var err error
 	switch data.ActionName {
 	case "filechange":
-		trigger, err := filechange.New(ts.events, data)
-		if err != nil {
-			return nil, "", err
-		}
-		ts.triggers[data.Id] = trigger
-		// TODO: Add an error handler to the trigger execution
-		go trigger.Execute("", nil)
-		return trigger, data.Id, nil
+		trigger, err = filechange.New(ts.events, data)
+	case "cron":
+		trigger, err = cron.New(ts.events, data)
 	default:
 		return nil, "", fmt.Errorf("unknown action_name: %q", data.ActionName)
 	}
+	if err != nil {
+		return nil, "", err
+	}
+	ts.triggers[data.Id] = trigger
+	// TODO: Add an error handler to the trigger execution
+	go trigger.Execute("", nil)
+	return trigger, data.Id, nil
 }
 
 func (ts *TriggerManager) RemoveTrigger(id string) error {
