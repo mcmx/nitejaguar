@@ -61,12 +61,14 @@ The `action_name` field uses one concise, lowercase, category-free identifier fo
 
 The app shell uses a left sidebar (Overview / Fleet / Admin / Help)
 with a top bar showing the current section and tenant. The workflow
-list (`/`) shows **View**, **Edit** (designer), **Clone**, and
-**Delete** (confirm-guarded) per workflow; the detail page
-(`/workflows/:id`) adds enable/disable plus the same clone/delete
+list (`/`) is headed by a **＋ Create** button that opens a blank
+designer (`/designer`), and each card shows **View**, **Edit**
+(designer), **Clone**, and **Delete** (confirm-guarded); the detail
+page (`/workflows/:id`) adds enable/disable plus the same clone/delete
 actions. Clone lands on the new workflow; delete returns to the list
 with a confirmation notice. Mutating buttons require operator+ and
-are hidden otherwise.
+are hidden otherwise. The designer itself is not a sidebar entry —
+it is only reachable from **＋ Create** (new) and **Edit** (existing).
 
 ### Visual graph designer (`/designer`)
 

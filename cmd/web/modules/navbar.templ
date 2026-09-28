@@ -48,7 +48,6 @@ templ Sidebar(user *NavUser) {
 			if user != nil && user.LoggedIn {
 				@sideSection("Overview")
 				@sideLink("/", "Workflows", "List & detail", "◈")
-				@sideLink("/designer", "Designer", "Visual graph editor", "✦")
 				@sideLink("/results", "Executions", "Results & routing", "▤")
 				@sideSection("Fleet")
 				@sideLink("/clients", "Clients", "Runners & enrollment", "⛁")

@@ -147,8 +147,11 @@ curl -s localhost:8080/api/enrollment/tokens -H "$AUTH" \
 
 The navbar hides every app link for anonymous visitors — only
 **Login** (plus the theme switcher) is shown. Once logged in, the menu
-shows Workflows, Designer, Clients, Credentials, Results, Audit, Users,
-your username (→ `/profile`), and Logout. On a fresh install with no
+shows Workflows, Clients, Credentials, Results, Audit, Users,
+your username (→ `/profile`), and Logout. The visual designer is no
+longer a menu entry: it is reached from the **＋ Create** button on
+the Workflows page (new workflow) and the **Edit** link on each
+workflow card. On a fresh install with no
 users yet (open-bootstrap mode) the full menu stays visible so the
 first admin can be created from the **Users** page; afterwards login
 is required.
