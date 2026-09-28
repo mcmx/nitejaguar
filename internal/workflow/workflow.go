@@ -119,6 +119,14 @@ func (wm *workflowManager) Run(ctx context.Context) {
 			nexts := decision.Nexts
 			fmt.Printf("Current %v and next nodes %v,\n", n, nexts)
 			for _, next := range nexts {
+				// Only announce an execution this process can actually
+				// perform: with actions disabled nothing below runs, and
+				// printing "Executing next node" anyway made a passive
+				// server look like it was running the workflow.
+				if !wm.enableActions {
+					log.Printf("Skipping next node %s: local actions are disabled", next)
+					continue
+				}
 				fmt.Printf("Executing next node %v,\n", next)
 				// Thread the triggering result into downstream actions so
 				// fileaction (and others) can resolve $input. references.
