@@ -105,7 +105,64 @@ func TestDesignerEditShowsRequestedWorkflow(t *testing.T) {
 	}
 }
 
-// TestDesignerGraphClientLogic guards the two visual-designer
+// TestDesignerInitPreservesConditions guards the conditions round-trip:
+// the designer loader must surface every conditions entry (not a
+// flattened nexts list) so the inspector can edit them and save them
+// back verbatim.
+func TestDesignerInitPreservesConditions(t *testing.T) {
+	var def workflow.Workflow
+	if err := json.Unmarshal([]byte(`{
+		"id": "workflow_condtest",
+		"name": "cond test",
+		"nodes": {
+			"trigger_1": {
+				"id": "trigger_1", "name": "t", "action_type": "trigger", "action_name": "filechange",
+				"arguments": {"path": "/tmp"},
+				"conditions": {"entries": {
+					"pdf_file": {"condition": {"leftOperand": "$result.file", "operator": "=~", "rightOperand": ".*\\.pdf$"}, "nexts": ["action_1"]},
+					"always": {"condition": {"leftOperand": true, "operator": "", "rightOperand": null}, "nexts": ["action_2"]}
+				}},
+				"dependencies": []
+			},
+			"action_1": {"id": "action_1", "name": "a1", "action_type": "action", "action_name": "file", "arguments": {}, "conditions": {"entries": {}}, "dependencies": ["trigger_1"]},
+			"action_2": {"id": "action_2", "name": "a2", "action_type": "action", "action_name": "file", "arguments": {}, "conditions": {"entries": {}}, "dependencies": ["trigger_1"]}
+		}
+	}`), &def); err != nil {
+		t.Fatalf("unmarshal fixture: %v", err)
+	}
+	init := web.DesignerInitFromWorkflow(def)
+	if len(init.Nodes) != 3 {
+		t.Fatalf("nodes = %d, want 3", len(init.Nodes))
+	}
+	var trig *web.DesignerNodeInit
+	for i := range init.Nodes {
+		if init.Nodes[i].ID == "trigger_1" {
+			trig = &init.Nodes[i]
+		}
+	}
+	if trig == nil {
+		t.Fatalf("trigger_1 missing from init")
+	}
+	if len(trig.Conditions) != 2 {
+		t.Fatalf("trigger conditions = %+v, want 2 entries", trig.Conditions)
+	}
+	// Sorted by entry id: always, pdf_file.
+	if trig.Conditions[0].ID != "always" || trig.Conditions[1].ID != "pdf_file" {
+		t.Fatalf("condition ids = %q, %q, want always, pdf_file", trig.Conditions[0].ID, trig.Conditions[1].ID)
+	}
+	if trig.Conditions[1].Left != "$result.file" || trig.Conditions[1].Operator != "=~" || trig.Conditions[1].Right != ".*\\.pdf$" {
+		t.Fatalf("pdf_file condition = %+v", trig.Conditions[1])
+	}
+	if trig.Conditions[1].Nexts != "action_1" || trig.Conditions[0].Nexts != "action_2" {
+		t.Fatalf("condition nexts = %q, %q", trig.Conditions[0].Nexts, trig.Conditions[1].Nexts)
+	}
+	// The embedded designer JSON must carry the entries to the browser.
+	raw := web.DesignerInitJSON(init)
+	if !strings.Contains(raw, "pdf_file") || !strings.Contains(raw, "$result.file") {
+		t.Errorf("designer init JSON drops conditions: %s", raw)
+	}
+}
+// TestDesignerGraphClientLogic guards the visual-designer
 // regressions: drag listeners that never detached (cards stuck to the
 // cursor) and edges rendered via <template x-for> inside <svg> (template
 // content parses in the HTML namespace, so <path> never paints).
@@ -122,6 +179,11 @@ func TestDesignerGraphClientLogic(t *testing.T) {
 		"url(#nj-arrow)",
 		"Add action",
 		"designer-initial",
+		"addCondition",
+		"moveChild",
+		"conditionLabel",
+		"#16a34a",
+		"→+",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("designer page missing %q", want)
@@ -129,5 +191,8 @@ func TestDesignerGraphClientLogic(t *testing.T) {
 	}
 	if strings.Contains(body, `x-for="e in edgePaths()"`) {
 		t.Errorf("designer still uses <template x-for> for svg edges (paths would not paint)")
+	}
+	if strings.Contains(body, `stroke="hsl(0 72.2% 50.6%)"`) {
+		t.Errorf("designer edges still use the old red stroke (want green #16a34a)")
 	}
 }

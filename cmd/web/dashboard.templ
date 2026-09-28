@@ -52,19 +52,28 @@ type ClientsPageData struct {
     Success string
 }
 
+type DesignerConditionInit struct {
+	ID string `json:"id"`
+	Left string `json:"left"`
+	Operator string `json:"operator"`
+	Right string `json:"right"`
+	Nexts string `json:"nexts"`
+}
+
 type DesignerNodeInit struct {
-    ID string `json:"id"`
-    Name string `json:"name"`
-    Description string `json:"description"`
-    ActionType string `json:"action_type"`
-    ActionName string `json:"action_name"`
-    Arguments string `json:"arguments"`
-    Client string `json:"client"`
-    ClientTags string `json:"client_tags"`
-    CredentialRef string `json:"credential_ref"`
-    Dependencies string `json:"dependencies"`
-    Nexts string `json:"nexts"`
-    MergeInput bool `json:"merge_input"`
+	ID string `json:"id"`
+	Name string `json:"name"`
+	Description string `json:"description"`
+	ActionType string `json:"action_type"`
+	ActionName string `json:"action_name"`
+	Arguments string `json:"arguments"`
+	Client string `json:"client"`
+	ClientTags string `json:"client_tags"`
+	CredentialRef string `json:"credential_ref"`
+	Dependencies string `json:"dependencies"`
+	Nexts string `json:"nexts"`
+	Conditions []DesignerConditionInit `json:"conditions"`
+	MergeInput bool `json:"merge_input"`
 }
 
 type DesignerInit struct {
@@ -102,30 +111,75 @@ func DesignerInitFromWorkflow(def workflow.Workflow) DesignerInit {
         ids = append(ids, id)
     }
     sort.Strings(ids)
-    for _, id := range ids {
-        n := def.Nodes[id]
-        args := "{}"
-        if len(n.Arguments) > 0 {
-            if data, err := json.MarshalIndent(n.Arguments, "", "  "); err == nil {
-                args = string(data)
-            }
-        }
-        init.Nodes = append(init.Nodes, DesignerNodeInit{
-            ID: n.Id,
-            Name: n.Name,
-            Description: n.Description,
-            ActionType: n.ActionType,
-            ActionName: n.ActionName,
-            Arguments: args,
-            Client: n.Client,
-            ClientTags: strings.Join(n.ClientTags, ", "),
-            CredentialRef: n.CredentialRef,
-            Dependencies: strings.Join(n.Dependencies, ", "),
-            Nexts: strings.Join(n.GetAllNextNodes(), ", "),
-            MergeInput: n.MergeInput,
-        })
-    }
-    return init
+	for _, id := range ids {
+		n := def.Nodes[id]
+		args := "{}"
+		if len(n.Arguments) > 0 {
+			if data, err := json.MarshalIndent(n.Arguments, "", "  "); err == nil {
+				args = string(data)
+			}
+		}
+		conds := []DesignerConditionInit{}
+		if n.Conditions != nil && len(n.Conditions.Entries) > 0 {
+			entryIDs := make([]string, 0, len(n.Conditions.Entries))
+			for eid := range n.Conditions.Entries {
+				entryIDs = append(entryIDs, eid)
+			}
+			sort.Strings(entryIDs)
+			for _, eid := range entryIDs {
+				entry := n.Conditions.Entries[eid]
+				left, op, right := "", "", ""
+				if entry.Condition != nil {
+					left = designerOperandString(entry.Condition.LeftOperand)
+					op = entry.Condition.Operator
+					right = designerOperandString(entry.Condition.RightOperand)
+				}
+				conds = append(conds, DesignerConditionInit{
+					ID: eid,
+					Left: left,
+					Operator: op,
+					Right: right,
+					Nexts: strings.Join(entry.Nexts, ", "),
+				})
+			}
+		}
+		init.Nodes = append(init.Nodes, DesignerNodeInit{
+			ID: n.Id,
+			Name: n.Name,
+			Description: n.Description,
+			ActionType: n.ActionType,
+			ActionName: n.ActionName,
+			Arguments: args,
+			Client: n.Client,
+			ClientTags: strings.Join(n.ClientTags, ", "),
+			CredentialRef: n.CredentialRef,
+			Dependencies: strings.Join(n.Dependencies, ", "),
+			Nexts: strings.Join(n.GetAllNextNodes(), ", "),
+			Conditions: conds,
+			MergeInput: n.MergeInput,
+		})
+	}
+	return init
+}
+
+func designerOperandString(v any) string {
+	if v == nil {
+		return ""
+	}
+	switch t := v.(type) {
+	case string:
+		return t
+	case bool:
+		if t {
+			return "true"
+		}
+		return "false"
+	default:
+		if data, err := json.Marshal(v); err == nil {
+			return string(data)
+		}
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 func DesignerInitJSON(init DesignerInit) string {
@@ -408,6 +462,30 @@ templ DesignerPage(data *DesignerPageData) {
 		function designerUid(prefix) {
 			return prefix + '_' + Math.random().toString(36).substring(2, 9);
 		}
+		function designerParseOperand(v) {
+			if (v === undefined || v === null) { return null; }
+			var s = String(v).trim();
+			if (s === '' || s === 'null') { return null; }
+			if (s === 'true') { return true; }
+			if (s === 'false') { return false; }
+			if (/^-?\d+(\.\d+)?$/.test(s)) { return Number(s); }
+			if ((s.charAt(0) === '"' && s.slice(-1) === '"') || s.charAt(0) === '[' || s.charAt(0) === '{') {
+				try { return JSON.parse(s); } catch (e) {}
+			}
+			return String(v);
+		}
+		function designerSeedConditions(n) {
+			var out = [];
+			if (n.conditions && n.conditions.length) {
+				n.conditions.forEach(function (c) {
+					out.push({ id: c.id || ('entry' + (out.length + 1)), left: c.left || '', operator: c.operator || '', right: c.right || '', nexts: designerSplitList(c.nexts) });
+				});
+				return out;
+			}
+			var flat = designerSplitList(n.nexts);
+			if (flat.length) { out.push({ id: 'entry1', left: 'true', operator: '', right: '', nexts: flat }); }
+			return out;
+		}
 		function designerGraph() {
 			var initial = null;
 			try {
@@ -422,13 +500,13 @@ templ DesignerPage(data *DesignerPageData) {
 						action_type: n.action_type || 'action', action_name: n.action_name || 'file',
 						arguments: n.arguments || '{}', client: n.client || '',
 						client_tags: n.client_tags || '', credential_ref: n.credential_ref || '',
-						merge_input: !!n.merge_input, nexts: designerSplitList(n.nexts), x: 80, y: 80
+						merge_input: !!n.merge_input, conditions: designerSeedConditions(n), x: 80, y: 80
 					};
 				});
 			} else {
 				seedNodes = [
-					{ id: 'trigger_1', name: 'File Trigger', description: '', action_type: 'trigger', action_name: 'filechange', arguments: '{\n  "path": "/tmp",\n  "event_type": "create"\n}', client: '', client_tags: '', credential_ref: '', merge_input: false, nexts: ['action_1'], x: 80, y: 200 },
-					{ id: 'action_1', name: 'File Action', description: '', action_type: 'action', action_name: 'file', arguments: '{\n  "action": "create",\n  "file": "/tmp/out.txt"\n}', client: '', client_tags: '', credential_ref: '', merge_input: false, nexts: [], x: 420, y: 200 }
+					{ id: 'trigger_1', name: 'File Trigger', description: '', action_type: 'trigger', action_name: 'filechange', arguments: '{\n  "path": "/tmp",\n  "event_type": "create"\n}', client: '', client_tags: '', credential_ref: '', merge_input: false, conditions: [{ id: 'entry1', left: 'true', operator: '', right: '', nexts: ['action_1'] }], x: 80, y: 200 },
+					{ id: 'action_1', name: 'File Action', description: '', action_type: 'action', action_name: 'file', arguments: '{\n  "action": "create",\n  "file": "/tmp/out.txt"\n}', client: '', client_tags: '', credential_ref: '', merge_input: false, conditions: [], x: 420, y: 200 }
 				];
 			}
 			return {
@@ -444,22 +522,32 @@ templ DesignerPage(data *DesignerPageData) {
 				init() { this.autoLayout(); },
 				selected() { for (var i = 0; i < this.nodes.length; i++) { if (this.nodes[i].id === this.selectedId) { return this.nodes[i]; } } return null; },
 				nodeById(id) { for (var i = 0; i < this.nodes.length; i++) { if (this.nodes[i].id === id) { return this.nodes[i]; } } return null; },
-				incoming(id) { var out = []; for (var i = 0; i < this.nodes.length; i++) { if ((this.nodes[i].nexts || []).indexOf(id) !== -1) { out.push(this.nodes[i]); } } return out; },
+				incoming(id) { var out = []; for (var i = 0; i < this.nodes.length; i++) { var all = this.allNexts(this.nodes[i]); if (all.indexOf(id) !== -1) { out.push(this.nodes[i]); } } return out; },
 				counts() { var t = 0, a = 0; this.nodes.forEach(function (n) { if (n.action_type === 'trigger') { t++; } else { a++; } }); return { triggers: t, actions: a, edges: 0 }; },
-				edgeCount() { var c = 0; this.nodes.forEach(function (n) { c += (n.nexts || []).length; }); return c; },
+				allNexts(n) { var out = []; (n.conditions || []).forEach(function (c) { (c.nexts || []).forEach(function (t) { if (out.indexOf(t) === -1) { out.push(t); } }); }); return out; },
+				edgeCount() { var c = 0, self = this; this.nodes.forEach(function (n) { c += self.allNexts(n).length; }); return c; },
+				conditionOf(fromId, toId) { var from = this.nodeById(fromId); if (!from) { return null; } for (var i = 0; i < (from.conditions || []).length; i++) { if ((from.conditions[i].nexts || []).indexOf(toId) !== -1) { return from.conditions[i]; } } return null; },
+				ensureConditions(n) { n.conditions = n.conditions || []; return n.conditions; },
+				defaultCondition(n) {
+					var conds = this.ensureConditions(n);
+					if (!conds.length) { conds.push({ id: 'entry1', left: 'true', operator: '', right: '', nexts: [] }); }
+					return conds[0];
+				},
 				canvasW() { var m = 900; this.nodes.forEach(function (n) { m = Math.max(m, (n.x || 0) + 420); }); return m; },
 				canvasH() { var m = 640; this.nodes.forEach(function (n) { m = Math.max(m, (n.y || 0) + 340); }); return m; },
 				edgePaths() {
 					var paths = [], self = this;
 					this.nodes.forEach(function (n) {
 						var from = n;
-						(n.nexts || []).forEach(function (tid) {
-							var to = self.nodeById(tid);
-							if (!to) { return; }
-							var x1 = (from.x || 0) + 248, y1 = (from.y || 0) + 86;
-							var x2 = (to.x || 0), y2 = (to.y || 0) + 86;
-							var dx = Math.max(60, Math.abs(x2 - x1) / 2);
-							paths.push({ key: from.id + '->' + tid, to: tid, d: 'M ' + x1 + ' ' + y1 + ' C ' + (x1 + dx) + ' ' + y1 + ', ' + (x2 - dx) + ' ' + y2 + ', ' + x2 + ' ' + y2 });
+						(n.conditions || []).forEach(function (c) {
+							(c.nexts || []).forEach(function (tid) {
+								var to = self.nodeById(tid);
+								if (!to) { return; }
+								var x1 = (from.x || 0) + 248, y1 = (from.y || 0) + 86;
+								var x2 = (to.x || 0), y2 = (to.y || 0) + 86;
+								var dx = Math.max(60, Math.abs(x2 - x1) / 2);
+								paths.push({ key: from.id + ':' + c.id + '->' + tid, to: tid, cond: c.id, d: 'M ' + x1 + ' ' + y1 + ' C ' + (x1 + dx) + ' ' + y1 + ', ' + (x2 - dx) + ' ' + y2 + ', ' + x2 + ' ' + y2 });
+							});
 						});
 					});
 					return paths;
@@ -473,7 +561,7 @@ templ DesignerPage(data *DesignerPageData) {
 				// during evaluation, so the binding stays live).
 				edgeSVG() {
 					return this.edgePaths().map(function (p) {
-						return '<path d="' + p.d + '" fill="none" stroke="hsl(0 72.2% 50.6%)" stroke-opacity="0.7" stroke-width="2.5" marker-end="url(#nj-arrow)"></path>';
+						return '<path d="' + p.d + '" fill="none" stroke="#16a34a" stroke-opacity="0.85" stroke-width="2.5" marker-end="url(#nj-arrow)"><title>' + p.cond + '</title></path>';
 					}).join('');
 				},
 				autoLayout() {
@@ -511,14 +599,14 @@ templ DesignerPage(data *DesignerPageData) {
 						id: designerUid(prefix), name: entry.label, description: '',
 						action_type: entry.action_type, action_name: entry.action_name,
 						arguments: JSON.stringify(entry.args, null, 2),
-						client: '', client_tags: '', credential_ref: '', merge_input: false, nexts: [], x: 400, y: 120
+						client: '', client_tags: '', credential_ref: '', merge_input: false, conditions: [], x: 400, y: 120
 					};
 					var parent = this.pickerParent();
 					if (parent) {
 						node.x = (parent.x || 0) + 320; node.y = (parent.y || 0) + 40;
 						node.client_tags = parent.client_tags || '';
-						parent.nexts = parent.nexts || [];
-						if (parent.nexts.indexOf(node.id) === -1) { parent.nexts.push(node.id); }
+						var target = this.defaultCondition(parent);
+						if (target.nexts.indexOf(node.id) === -1) { target.nexts.push(node.id); }
 					} else if (this.nodes.length) {
 						node.x = 60 + (this.nodes.length % 4) * 320; node.y = 60 + Math.floor(this.nodes.length / 4) * 250;
 					}
@@ -532,7 +620,7 @@ templ DesignerPage(data *DesignerPageData) {
 				},
 				removeNode(id) {
 					this.nodes = this.nodes.filter(function (n) { return n.id !== id; });
-					this.nodes.forEach(function (n) { n.nexts = (n.nexts || []).filter(function (t) { return t !== id; }); });
+					this.nodes.forEach(function (n) { (n.conditions || []).forEach(function (c) { c.nexts = (c.nexts || []).filter(function (t) { return t !== id; }); }); });
 					if (this.selectedId === id) { this.selectedId = this.nodes.length ? this.nodes[0].id : null; }
 					if (this.connectFrom === id) { this.connectFrom = null; }
 				},
@@ -542,7 +630,7 @@ templ DesignerPage(data *DesignerPageData) {
 					var copy = JSON.parse(JSON.stringify(src));
 					copy.id = designerUid(src.action_type === 'trigger' ? 'trigger' : 'action');
 					copy.name = src.name + ' (copy)';
-					copy.nexts = [];
+					(copy.conditions || []).forEach(function (c) { c.nexts = []; });
 					copy.x = (src.x || 0) + 40; copy.y = (src.y || 0) + 200;
 					this.nodes.push(copy);
 					this.selectedId = copy.id;
@@ -555,14 +643,45 @@ templ DesignerPage(data *DesignerPageData) {
 					if (fromId === toId) { this.connectFrom = null; return; }
 					var from = this.nodeById(fromId);
 					if (!from) { this.connectFrom = null; return; }
-					from.nexts = from.nexts || [];
-					if (from.nexts.indexOf(toId) === -1) { from.nexts.push(toId); }
+					var target = this.defaultCondition(from);
+					if (target.nexts.indexOf(toId) === -1) { target.nexts.push(toId); }
 					this.connectFrom = null;
 					this.selectedId = toId;
 				},
 				disconnect(fromId, toId) {
 					var from = this.nodeById(fromId);
-					if (from) { from.nexts = (from.nexts || []).filter(function (t) { return t !== toId; }); }
+					if (from) { (from.conditions || []).forEach(function (c) { c.nexts = (c.nexts || []).filter(function (t) { return t !== toId; }); }); }
+				},
+				addCondition(nodeId) {
+					var n = this.nodeById(nodeId);
+					if (!n) { return; }
+					var conds = this.ensureConditions(n);
+					var k = conds.length + 1, cid = 'entry' + k;
+					while (conds.some(function (c) { return c.id === cid; })) { k++; cid = 'entry' + k; }
+					conds.push({ id: cid, left: 'true', operator: '', right: '', nexts: [] });
+				},
+				removeCondition(nodeId, condId) {
+					var n = this.nodeById(nodeId);
+					if (!n || !(n.conditions || []).length) { return; }
+					if (n.conditions.length <= 1) { n.conditions[0].nexts = []; n.conditions[0].left = 'true'; n.conditions[0].operator = ''; n.conditions[0].right = ''; return; }
+					n.conditions = n.conditions.filter(function (c) { return c.id !== condId; });
+				},
+				moveChild(nodeId, childId, targetCondId) {
+					var n = this.nodeById(nodeId);
+					if (!n) { return; }
+					var target = null;
+					(n.conditions || []).forEach(function (c) {
+						if (c.id === targetCondId) { target = c; } else { c.nexts = (c.nexts || []).filter(function (t) { return t !== childId; }); }
+					});
+					if (target && target.nexts.indexOf(childId) === -1) { target.nexts.push(childId); }
+				},
+				conditionLabel(c) {
+					if (!c) { return ''; }
+					if (!c.operator) {
+						if (!c.left || c.left === 'true') { return 'always'; }
+						return String(c.left);
+					}
+					return (c.left || '?') + ' ' + c.operator + ' ' + (c.right || '?');
 				},
 				// ---- drag & drop on the canvas ----
 				startDrag(ev, node) {
@@ -619,13 +738,21 @@ templ DesignerPage(data *DesignerPageData) {
 							this.selectedId = this.nodes[i].id;
 							return false;
 						}
+						var seen = {};
+						for (var k = 0; k < (this.nodes[i].conditions || []).length; k++) {
+							var cid = (this.nodes[i].conditions[k].id || '').trim();
+							if (!cid) { this.formError = 'Node "' + this.nodes[i].name + '" has a condition entry with an empty id.'; this.selectedId = this.nodes[i].id; return false; }
+							if (seen[cid]) { this.formError = 'Node "' + this.nodes[i].name + '" has a duplicate condition entry id "' + cid + '".'; this.selectedId = this.nodes[i].id; return false; }
+							seen[cid] = true;
+						}
 					}
 					this.formError = '';
 					return true;
 				},
 				// ---- visual graph -> workflow JSON ----
-				// Edges drawn on the canvas (parent.nexts) are the source of
-				// truth: conditions.entries carry them forward and
+				// Edges drawn on the canvas (per-condition nexts) are the
+				// source of truth: conditions.entries carry each entry's
+				// condition plus its downstream nexts forward, and
 				// dependencies are recomputed from incoming edges, so the
 				// saved JSON always matches the picture.
 				getJSON() {
@@ -639,16 +766,18 @@ templ DesignerPage(data *DesignerPageData) {
 					this.nodes.forEach(function (n) {
 						var args = {};
 						try { args = JSON.parse(n.arguments || '{}'); } catch (e) {}
-						var nexts = (n.nexts || []).filter(function (t) { return !!self.nodeById(t); });
 						var deps = [];
-						self.nodes.forEach(function (m) { if ((m.nexts || []).indexOf(n.id) !== -1) { deps.push(m.id); } });
+						self.nodes.forEach(function (m) { if (self.allNexts(m).indexOf(n.id) !== -1) { deps.push(m.id); } });
 						var conditions = { entries: {} };
-						if (nexts.length > 0) {
-							conditions.entries['entry1'] = {
-								condition: { leftOperand: true, operator: '', rightOperand: null },
+						(n.conditions || []).forEach(function (c) {
+							var nexts = (c.nexts || []).filter(function (t) { return !!self.nodeById(t); });
+							var left = designerParseOperand(c.left);
+							if (!c.operator && (left === null || left === true)) { left = true; }
+							conditions.entries[c.id] = {
+								condition: { leftOperand: left, operator: c.operator || '', rightOperand: c.operator ? designerParseOperand(c.right) : null },
 								nexts: nexts
 							};
-						}
+						});
 						obj.nodes[n.id] = {
 							id: n.id, name: n.name, description: n.description || '',
 							action_type: n.action_type, action_name: n.action_name,
@@ -669,7 +798,7 @@ templ DesignerPage(data *DesignerPageData) {
 			} else {
 				@pageTitle("Workflow Designer")
 			}
-			<p class="mb-4 text-sm text-muted-foreground">Draw the graph, pick actions per node, then save — the canvas is translated to workflow JSON automatically. Drag cards to arrange, click <span class="font-mono">﹢</span> on a node to append an action, click a red dot then another card to connect.</p>
+			<p class="mb-4 text-sm text-muted-foreground">Draw the graph, pick actions per node, then save — the canvas is translated to workflow JSON automatically. Drag cards to arrange, click the <span class="font-mono">→+ </span> arrow on a card edge to append an action, click the green dot then another card to connect. Edit per-entry routing conditions in the inspector; a child can be moved between entries there.</p>
 			if data.Error != "" {
 				<p class="mb-4 rounded-xl border border-red-500/50 p-4 text-red-500">{ data.Error }</p>
 			}
@@ -742,7 +871,7 @@ templ DesignerPage(data *DesignerPageData) {
 								<svg :width="canvasW()" :height="canvasH()" class="absolute inset-0 h-full w-full">
 									<defs>
 										<marker id="nj-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-											<path d="M 0 1 L 9 5 L 0 9 z" fill="hsl(0 72.2% 50.6%)"></path>
+											<path d="M 0 1 L 9 5 L 0 9 z" fill="#16a34a"></path>
 										</marker>
 									</defs>
 									<g x-html="edgeSVG()"></g>
@@ -769,14 +898,16 @@ templ DesignerPage(data *DesignerPageData) {
 										</div>
 										<div class="flex items-center justify-between border-t border-border px-2 py-1.5">
 											<span class="nj-port ml-1 bg-emerald-500" title="input"></span>
-											<button type="button" @click.stop="openPicker(node.id)" class="rounded-lg bg-red-500 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-600" title="Add an action after this node">＋ Add action</button>
-											<button
-												type="button"
-												@click.stop="startConnect(node.id)"
-												:title="connectFrom === node.id ? 'Cancel connection' : 'Connect: then click another card'"
-												:class="connectFrom === node.id ? 'bg-amber-500' : 'bg-red-500'"
-												class="nj-port mr-1 cursor-pointer border-0 p-0 hover:scale-125"
-											></button>
+											<span class="mr-1 flex items-center gap-1.5">
+												<button type="button" @click.stop="openPicker(node.id)" title="Add action after this node" class="flex h-5 min-w-8 items-center justify-center gap-0.5 rounded-full border border-green-600/60 px-1.5 text-[11px] font-bold leading-none text-green-700 hover:bg-green-600 hover:text-white">→+</button>
+												<button
+													type="button"
+													@click.stop="startConnect(node.id)"
+													:title="connectFrom === node.id ? 'Cancel connection' : 'Connect: then click another card'"
+													:class="connectFrom === node.id ? 'bg-amber-500' : 'bg-green-600'"
+													class="nj-port cursor-pointer border-0 p-0 hover:scale-125"
+												></button>
+											</span>
 										</div>
 									</div>
 								</template>
@@ -860,16 +991,52 @@ templ DesignerPage(data *DesignerPageData) {
 									<label class="flex items-center gap-2 text-xs font-medium"><input type="checkbox" x-model="selected().merge_input" class="rounded border border-border"/> Merge $input into $result</label>
 								</div>
 								<div>
-									<label class="mb-1 block text-xs font-medium">Downstream (edges from the canvas)</label>
-									<div class="flex flex-wrap gap-1.5">
-										<template x-for="tid in (selected().nexts || [])" :key="tid">
-											<span class="flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-1 font-mono text-[11px]">
-												<span x-text="(nodeById(tid) ? nodeById(tid).name : tid)"></span>
-												<button type="button" @click="disconnect(selectedId, tid)" class="hover:text-red-500">×</button>
-											</span>
-										</template>
-										<span x-show="!(selected().nexts || []).length" class="text-xs text-muted-foreground">none — use ＋ or the red dot</span>
+									<div class="mb-1 flex items-center justify-between">
+										<label class="block text-xs font-medium">Routing conditions (entries)</label>
+										<button type="button" @click="addCondition(selectedId)" class="text-xs text-green-700 hover:underline">+ Add entry</button>
 									</div>
+									<p class="mb-2 text-[11px] text-muted-foreground">Each entry holds a condition plus the children taken when it matches. Use <span class="font-mono">$result.*</span> / <span class="font-mono">$args.*</span>; empty operator with <span class="font-mono">true</span> means always.</p>
+									<div class="space-y-2">
+										<template x-for="c in (selected().conditions || [])" :key="c.id">
+											<div class="rounded-xl border border-border p-2.5">
+												<div class="mb-1.5 flex items-center justify-between gap-2">
+													<input type="text" x-model="c.id" class="w-24 rounded-md border border-border bg-background px-1.5 py-1 font-mono text-[11px]"/>
+													<span class="flex-1 truncate font-mono text-[10px] text-muted-foreground" x-text="conditionLabel(c)"></span>
+													<button type="button" @click="removeCondition(selectedId, c.id)" title="Remove entry" class="rounded-md px-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500">×</button>
+												</div>
+												<div class="grid grid-cols-[1fr_86px_1fr] gap-1.5">
+													<input type="text" x-model="c.left" placeholder="$result.file" title="Left operand" class="rounded-md border border-border bg-background px-1.5 py-1 font-mono text-[11px]"/>
+													<select x-model="c.operator" title="Operator" class="rounded-md border border-border bg-background px-1 py-1 font-mono text-[11px]">
+														<option value="">always</option>
+														<option value="==">==</option>
+														<option value="!=">!=</option>
+														<option value=">">&gt;</option>
+														<option value=">=">&gt;=</option>
+														<option value="<">&lt;</option>
+														<option value="<=">&lt;=</option>
+														<option value="=~">=~</option>
+														<option value="glob">glob</option>
+													</select>
+													<input type="text" x-model="c.right" placeholder="*.pdf" title="Right operand" class="rounded-md border border-border bg-background px-1.5 py-1 font-mono text-[11px]"/>
+												</div>
+												<div class="mt-1.5 flex flex-wrap gap-1.5">
+													<template x-for="tid in (c.nexts || [])" :key="tid">
+														<span class="flex items-center gap-1 rounded-full bg-green-600/10 px-2 py-1 font-mono text-[11px]">
+															<span x-text="(nodeById(tid) ? nodeById(tid).name : tid)"></span>
+															<select :value="c.id" @change="moveChild(selectedId, tid, $event.target.value)" title="Move child between conditions" class="rounded bg-background px-0.5 text-[10px]">
+																<template x-for="dest in (selected().conditions || [])" :key="dest.id">
+																	<option :value="dest.id" x-text="dest.id"></option>
+																</template>
+															</select>
+															<button type="button" @click="disconnect(selectedId, tid)" class="hover:text-red-500">×</button>
+														</span>
+													</template>
+													<span x-show="!(c.nexts || []).length" class="text-[11px] text-muted-foreground">no children</span>
+												</div>
+											</div>
+										</template>
+									</div>
+									<p x-show="!(selected().conditions || []).length" class="mt-1 text-xs text-muted-foreground">No entries — leaf node. Use + Add entry, the →+ arrow, or the green dot to route onward.</p>
 								</div>
 								<div>
 									<label class="mb-1 block text-xs font-medium">Upstream (auto)</label>
@@ -880,7 +1047,7 @@ templ DesignerPage(data *DesignerPageData) {
 										<span x-show="!incoming(selectedId).length" class="text-xs text-muted-foreground">root node</span>
 									</div>
 								</div>
-								<button type="button" @click="openPicker(selectedId)" class="w-full rounded-xl bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-600">＋ Add action after this node</button>
+								<button type="button" @click="openPicker(selectedId)" class="w-full rounded-xl border border-green-600/50 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-600 hover:text-white">→+ Add action after this node</button>
 							</div>
 						</template>
 						<template x-if="!selected()">
@@ -894,7 +1061,7 @@ templ DesignerPage(data *DesignerPageData) {
 						<div class="mb-1 flex items-start justify-between gap-3">
 							<div>
 								<h3 class="text-lg font-bold">Add action</h3>
-								<p class="text-sm text-muted-foreground"><span x-show="pickerParent()">After <strong x-text="pickerParent() ? pickerParent().name : ''"></strong> — a new card appears on the canvas, already connected.</span><span x-show="!pickerParent()">As a new root card on the canvas.</span></p>
+								<p class="text-sm text-muted-foreground"><span x-show="pickerParent()">After <strong x-text="pickerParent() ? pickerParent().name : ''"></strong> — a new card appears on the canvas, already connected under the default (first) entry; move it between entries in the inspector.</span><span x-show="!pickerParent()">As a new root card on the canvas.</span></p>
 							</div>
 							<button type="button" @click="closePicker()" class="rounded-lg border border-border px-2.5 py-1 hover:border-red-500">✕</button>
 						</div>
