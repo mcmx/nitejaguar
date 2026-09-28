@@ -74,19 +74,30 @@ The designer is a node-graph canvas, not a form list:
 
 - Each workflow node is a draggable card showing its icon, name,
   `action_type`/`action_name`, an argument summary, and its id.
-- Every card has a **＋ Add action** button: it opens the action
+- Every card has a **→+ arrow on its right edge**: it opens the action
   picker (all six catalog entries with descriptions and a filter box),
   and the chosen action appears on the canvas as a new card already
-  connected downstream of the card you clicked.
-- Click a card's **red output dot**, then click another card, to draw
-  an edge; downstream/upstream chips in the inspector remove edges.
+  connected downstream of the card you clicked (under its default,
+  first condition entry — move it between entries in the inspector).
+- Click a card's **green output dot**, then click another card, to draw
+  an edge; edges are green, with the arrowhead matching. The new edge
+  lands in the source card's default (first) condition entry.
 - Clicking a card opens the **inspector** (name, type, action,
   arguments JSON with format + validation, client targeting,
-  `credential_ref`, `merge_input` for actions, duplicate/delete).
+  `credential_ref`, `merge_input` for actions, duplicate/delete) plus
+  a **routing conditions editor**: every `conditions.entries` entry is
+  listed with its id, left operand, operator (`always`, `==`, `!=`,
+  `>`, `>=`, `<`, `<=`, `=~`, `glob`), and right operand. Each entry
+  shows its children as green chips — remove one with × or move it to
+  another entry with the per-chip entry selector. Add entries with
+  **+ Add entry**; saving validates entry ids are non-empty and unique.
 - **Graph → JSON translation happens on save**: the drawn edges are
-  the source of truth — `conditions.entries.entry1.nexts` carry each
-  card's outgoing edges forward and `dependencies` are recomputed from
-  incoming edges — so the saved definition always matches the picture.
+  the source of truth — each entry's edited condition plus its
+  downstream `nexts` are carried forward into `conditions.entries`
+  and `dependencies` are recomputed from incoming edges — so the saved
+  definition always matches the picture. Loading a workflow restores
+  all entries verbatim (e.g. a `=~` filename filter survives an
+  edit round-trip).
   A live JSON preview shows exactly what `Save` sends to
   `POST /designer/save`, and saving validates (at least one node, at
   least one trigger, all arguments parse as JSON) before submitting.
