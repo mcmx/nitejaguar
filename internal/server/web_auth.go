@@ -38,14 +38,15 @@ func (s *Server) webCurrentUser(c echo.Context) (*ent.AppUser, bool) {
 }
 
 // requireWebLogin redirects anonymous browsers to /login once users exist.
-// API, assets, health, docs, websocket, and the login page itself stay open.
+// API, assets, health, docs, websocket, webhooks, and the login page itself
+// stay open.
 func (s *Server) requireWebLogin(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		path := c.Request().URL.Path
 		if path == "/login" || strings.HasPrefix(path, "/assets") ||
 			strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/docs") ||
 			strings.HasPrefix(path, "/openapi") || path == "/health" ||
-			path == "/websocket" {
+			path == "/websocket" || strings.HasPrefix(path, "/webhook") {
 			return next(c)
 		}
 		user, open := s.webCurrentUser(c)

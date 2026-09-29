@@ -24,6 +24,7 @@ import (
 	"github.com/mcmx/nitejaguar/internal/actions/set"
 	transferaction "github.com/mcmx/nitejaguar/internal/actions/transfer"
 	waitaction "github.com/mcmx/nitejaguar/internal/actions/wait"
+	"github.com/mcmx/nitejaguar/internal/actions/webhook"
 	"github.com/mcmx/nitejaguar/internal/workflow"
 	"go.jetify.com/typeid"
 )
@@ -33,6 +34,10 @@ type Config struct {
 	EnrollmentToken               string
 	StateFile                     string
 	PollInterval, RetryInitial    time.Duration
+	// WebhookAddr enables the client-side webhook listener (e.g.
+	// "127.0.0.1:8081"). Empty disables it. When set, the client
+	// answers /webhook/{id} for the webhook triggers assigned to it.
+	WebhookAddr string
 }
 type RegisterRequest struct {
 	Name            string   `json:"name"`
@@ -355,6 +360,10 @@ type nodeConfig struct {
 	credentialRef string
 	actionName    string
 	transferDest  transferTarget
+	// webhookMethod carries the raw `method` argument of webhook trigger
+	// nodes so the client-side webhook listener can enforce it without
+	// reaching into action internals.
+	webhookMethod string
 }
 
 // transferTarget names the receiver of a transfer node. Empty destClient
@@ -462,7 +471,8 @@ func (r *runner) buildManagedWorkflow(w Workflow) *managedWorkflow {
 		mw.meta[id] = nodeConfig{
 			mergeInput: n.MergeInput, dependencies: n.Dependencies,
 			credentialRef: n.CredentialRef, actionName: n.ActionName,
-			transferDest: transferTargetFromArgs(n.ActionName, n.Arguments),
+			transferDest:  transferTargetFromArgs(n.ActionName, n.Arguments),
+			webhookMethod: n.Arguments["method"],
 		}
 		switch n.ActionType {
 		case "action":
@@ -499,13 +509,16 @@ func (r *runner) registerWorkflowIndices(mw *managedWorkflow) {
 }
 
 // newClientTrigger dispatches trigger construction by action_name so remote
-// clients can run any server-side trigger locally (e.g. filechange, cron).
+// clients can run any server-side trigger locally (e.g. filechange, cron,
+// webhook).
 func newClientTrigger(events chan common.ResultData, args common.ActionArgs) (common.Action, error) {
 	switch args.ActionName {
 	case "filechange":
 		return filechange.New(events, args)
 	case "cron":
 		return cron.New(events, args)
+	case "webhook":
+		return webhook.New(events, args)
 	default:
 		return nil, fmt.Errorf("unknown trigger action_name: %q", args.ActionName)
 	}
@@ -751,6 +764,12 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 	api := API{BaseURL: cfg.Server, Token: cfg.Token}
 	r := newRunner(api, logger)
 	defer r.close()
+	// Client-side webhook ingress: answers /webhook/{id} for the triggers
+	// assigned to this client (server assignments already apply workflow
+	// defaults, explicit clients, and tag matching). Disabled by default.
+	if strings.TrimSpace(cfg.WebhookAddr) != "" {
+		go serveWebhooks(ctx, r, strings.TrimSpace(cfg.WebhookAddr), logger)
+	}
 	id := cfg.ClientID
 	backoff := cfg.RetryInitial
 	for {

@@ -38,4 +38,4 @@ This guide covers building, testing, code generation, and extending Nitejaguar.
 
 ### Naming actions and triggers
 
-Workflow `action_name` values are concise, lowercase, category-free identifiers. Use names such as `file`, `datetime`, `wait`, `filechange`, and `cron`; do not add `Action` or `Trigger` suffixes because `action_type` already identifies whether a node is an action or trigger. Each feature should expose one canonical identifier in both the server and client dispatch switches. Internal Go package/type names may use longer names when useful for clarity.
+Workflow `action_name` values are concise, lowercase, category-free identifiers. Use names such as `file`, `datetime`, `wait`, `filechange`, `cron`, and `webhook`; do not add `Action` or `Trigger` suffixes because `action_type` already identifies whether a node is an action or trigger. Each feature should expose one canonical identifier in both the server and client dispatch switches. Internal Go package/type names may use longer names when useful for clarity.

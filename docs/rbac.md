@@ -43,6 +43,10 @@ tenant from the authenticated client token — a client-supplied
 `tenant_id` is ignored and never honored — and the reported
 workflow/action must belong to the client's own tenant.
 
+The only public endpoint is `/webhook/{id}` (all methods): external
+systems deliver without a session, and the tenant comes from the
+trigger's workflow definition. See [Webhook Trigger](./actions/webhook-trigger.md).
+
 ## Bootstrap
 
 The first server run creates both bootstraps and prints each secret
@@ -158,7 +162,8 @@ is required.
 
 Once any user exists, anonymous browsers are redirected to `/login`
 for every HTML page except `/login` itself. API, assets, health, docs,
-and websocket stay open under their own auth. Web form posts enforce
+websocket, and webhooks stay open under their own auth (`/webhook/{id}`
+needs no session by design). Web form posts enforce
 roles too: designer save, workflow enable/clone/delete, client revoke,
 token mint/revoke, and credential store/delete require operator+;
 user create/revoke require admin; anonymous posts redirect to `/login`.

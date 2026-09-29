@@ -29,6 +29,7 @@ var (
 	clientEnrollmentToken string
 	clientStateFile       string
 	clientLogLevel        string
+	clientWebhookAddr     string
 )
 
 func runClient(cmd *cobra.Command, _ []string) error {
@@ -39,6 +40,7 @@ func runClient(cmd *cobra.Command, _ []string) error {
 	return njclient.Run(cmd.Context(), njclient.Config{
 		Server: clientServer, ClientID: clientID, Name: clientName, Token: clientToken,
 		EnrollmentToken: clientEnrollmentToken, StateFile: clientStateFile,
+		WebhookAddr: clientWebhookAddr,
 	}, logger)
 }
 
@@ -103,6 +105,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&clientEnrollmentToken, "enrollment-token", os.Getenv("NITEJAGUAR_ENROLLMENT_TOKEN"), "tenant enrollment/join token for self-registration")
 	rootCmd.PersistentFlags().StringVar(&clientStateFile, "state-file", envOr("NITEJAGUAR_STATE_FILE", "client_state.json"), "path to the client identity state file")
 	rootCmd.PersistentFlags().StringVar(&clientLogLevel, "log-level", envOr("NITEJAGUAR_LOG_LEVEL", "info"), "log level: debug, info, warn or error (debug adds the per-node execution trace)")
+	rootCmd.PersistentFlags().StringVar(&clientWebhookAddr, "webhook-addr", os.Getenv("NITEJAGUAR_WEBHOOK_ADDR"), "listen address for the client webhook listener, e.g. 127.0.0.1:8081 (empty disables /webhook/{id})")
 
 	// `nitejaguar client` stays working as an alias for the root command so
 	// scripts written against the old monolith keep functioning.

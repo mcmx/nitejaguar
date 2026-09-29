@@ -19,6 +19,7 @@ Welcome to the official documentation for **Nitejaguar**, a lightweight and powe
 ### Actions & Triggers Reference
 - [File Change Trigger (`filechange`)](./actions/filechange-trigger.md)
 - [Cron Trigger (`cron`)](./actions/cron-trigger.md)
+- [Webhook Trigger (`webhook`)](./actions/webhook-trigger.md)
 - [File Action (`file`)](./actions/file-action.md)
 - [Datetime Action (`datetime`)](./actions/datetime-action.md)
 - [Wait Action (`wait`)](./actions/wait-action.md)
