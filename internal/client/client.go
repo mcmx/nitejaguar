@@ -487,6 +487,13 @@ func (r *runner) buildManagedWorkflow(w Workflow) *managedWorkflow {
 			if err == nil {
 				mw.actions[id] = t
 				mw.triggers[id] = t
+				if n.ActionName == "webhook" {
+					served := n.Id
+					if served == "" {
+						served = id
+					}
+					r.log.Info("webhook trigger installed; serving deliveries", "trigger_id", served, "path", "/webhook/"+served)
+				}
 				execution, _ := typeid.WithPrefix("execution")
 				go t.Execute(execution.String(), nil)
 			} else {

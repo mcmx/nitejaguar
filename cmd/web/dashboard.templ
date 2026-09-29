@@ -91,6 +91,7 @@ type DesignerPageData struct {
     InitJSON string
     EditWorkflowID string
     Workflows []*ent.Workflow
+    Clients []ClientView
     Error string
 }
 
@@ -286,6 +287,9 @@ templ WorkflowDetailPage(data *WorkflowDetailData) {
                                     <span class="rounded bg-muted px-2 py-1 font-mono text-xs" title="Merges $input into $result ($result wins)">merge_input</span>
                                 }</div></div>
                             <div class="mt-4 grid gap-4 text-sm md:grid-cols-2"><div><h3 class="mb-1 font-medium">Arguments</h3><pre class="overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(node.Arguments) }</pre></div><div><h3 class="mb-1 font-medium">Conditions / next nodes</h3><pre class="overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(node.Conditions) }</pre></div><div><h3 class="mb-1 font-medium">Dependencies</h3><p class="break-all rounded bg-muted p-3 font-mono text-xs">{ fmt.Sprint(node.Dependencies) }</p></div><div><h3 class="mb-1 font-medium">Client targeting</h3><p class="break-all rounded bg-muted p-3 text-xs">client: { node.Client }<br/>tags: { fmt.Sprint(node.ClientTags) }<br/>credential: { node.CredentialRef }</p></div></div>
+                            if node.ActionType == "trigger" && node.ActionName == "webhook" {
+                                <div class="mt-4 rounded-lg border border-border p-4 text-sm"><h3 class="mb-1 font-medium">Webhook endpoint</h3><p class="break-all rounded bg-muted p-3 font-mono text-xs">/webhook/{ node.Id }</p><p class="mt-2 text-xs text-muted-foreground">Fire with the methods in the <span class="font-mono">method</span> argument (default <span class="font-mono">ALL</span>). Served by the server and by assigned clients running with <span class="font-mono">--webhook-addr</span>. Example: <span class="font-mono">curl -X POST /webhook/{ node.Id }</span></p></div>
+                            }
                         </article>
                     }
                 </div>
@@ -467,8 +471,23 @@ templ DesignerPage(data *DesignerPageData) {
 			if (Array.isArray(value)) { return value; }
 			return String(value).split(',').map(function (s) { return s.trim(); }).filter(Boolean);
 		}
+		function designerTypeidSuffix() {
+			// TypeID-compatible suffix: 26 chars from the typeid base32
+			// alphabet, first char 0-7 (valid time-high bits), so designer
+			// ids match the length and shape of server-minted ids
+			// (e.g. trigger_01h...). crypto-backed when available.
+			var alphabet = '0123456789abcdefghjkmnpqrstvwxyz';
+			var out = '01234567'.charAt(Math.floor(Math.random() * 8));
+			if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+				var rand = crypto.getRandomValues(new Uint8Array(25));
+				for (var i = 0; i < 25; i++) { out += alphabet.charAt(rand[i] % 32); }
+			} else {
+				for (var j = 0; j < 25; j++) { out += alphabet.charAt(Math.floor(Math.random() * 32)); }
+			}
+			return out;
+		}
 		function designerUid(prefix) {
-			return prefix + '_' + Math.random().toString(36).substring(2, 9);
+			return prefix + '_' + designerTypeidSuffix();
 		}
 		function designerParseOperand(v) {
 			if (v === undefined || v === null) { return null; }
@@ -518,14 +537,15 @@ templ DesignerPage(data *DesignerPageData) {
 				];
 			}
 			return {
-				workflowId: (initial && initial.workflowId) || ('workflow_' + Math.random().toString(36).substring(2, 9)),
+				workflowId: (initial && initial.workflowId) || ('workflow_' + designerTypeidSuffix()),
 				name: (initial && initial.name) || 'New Workflow',
 				tenantId: (initial && initial.tenantId) || 'default',
 				defaultClient: (initial && initial.defaultClient) || '',
 				defaultClientTags: (initial && initial.defaultClientTags) || '',
 				nodes: seedNodes,
 				selectedId: seedNodes.length ? seedNodes[0].id : null,
-				pickerFor: null, pickerQuery: '', showJson: false, zoom: 1,
+				pickerOpen: false, pickerFor: null, pickerQuery: '', showJson: false, zoom: 1,
+				panX: 0, panY: 0,
 				connectFrom: null, formError: '', drag: null,
 				init() { this.autoLayout(); },
 				selected() { for (var i = 0; i < this.nodes.length; i++) { if (this.nodes[i].id === this.selectedId) { return this.nodes[i]; } } return null; },
@@ -541,8 +561,8 @@ templ DesignerPage(data *DesignerPageData) {
 					if (!conds.length) { conds.push({ id: 'entry1', left: 'true', operator: '', right: '', nexts: [] }); }
 					return conds[0];
 				},
-				canvasW() { var m = 900; this.nodes.forEach(function (n) { m = Math.max(m, (n.x || 0) + 420); }); return m; },
-				canvasH() { var m = 640; this.nodes.forEach(function (n) { m = Math.max(m, (n.y || 0) + 340); }); return m; },
+				canvasW() { var m = 1400; this.nodes.forEach(function (n) { m = Math.max(m, (n.x || 0) + 420); }); return m; },
+				canvasH() { var m = 900; this.nodes.forEach(function (n) { m = Math.max(m, (n.y || 0) + 340); }); return m; },
 				edgePaths() {
 					var paths = [], self = this;
 					this.nodes.forEach(function (n) {
@@ -593,15 +613,29 @@ templ DesignerPage(data *DesignerPageData) {
 						layers[d].forEach(function (n, i) { n.x = 60 + Number(d) * 320; n.y = 60 + i * 250; });
 					});
 				},
-				openPicker(parentId) { this.pickerFor = parentId || null; this.pickerQuery = ''; },
-				closePicker() { this.pickerFor = null; this.pickerQuery = ''; },
+				openPicker(parentId) { this.pickerFor = parentId || null; this.pickerOpen = true; this.pickerQuery = ''; },
+				closePicker() { this.pickerOpen = false; this.pickerFor = null; this.pickerQuery = ''; },
 				pickerParent() { return this.pickerFor ? this.nodeById(this.pickerFor) : null; },
 				filteredCatalog() {
 					var q = (this.pickerQuery || '').toLowerCase();
-					if (!q) { return DESIGNER_CATALOG; }
-					return DESIGNER_CATALOG.filter(function (e) { return (e.label + ' ' + e.action_name + ' ' + e.desc).toLowerCase().indexOf(q) !== -1; });
+					var list = DESIGNER_CATALOG;
+					// Triggers are roots: they can only be added as new root
+					// cards, never as a child of another node. When the
+					// picker was opened from a parent card, offer actions
+					// only (this also keeps multi-trigger workflows
+					// possible via the root "+ Add node" button).
+					if (this.pickerParent()) {
+						list = list.filter(function (e) { return e.action_type !== 'trigger'; });
+					}
+					if (!q) { return list; }
+					return list.filter(function (e) { return (e.label + ' ' + e.action_name + ' ' + e.desc).toLowerCase().indexOf(q) !== -1; });
 				},
 				addFromCatalog(entry) {
+					var parent = this.pickerParent();
+					if (parent && entry.action_type === 'trigger') {
+						this.formError = 'Trigger nodes cannot be added after another node — add triggers as root cards.';
+						return;
+					}
 					var prefix = entry.action_type === 'trigger' ? 'trigger' : 'action';
 					var node = {
 						id: designerUid(prefix), name: entry.label, description: '',
@@ -651,6 +685,12 @@ templ DesignerPage(data *DesignerPageData) {
 					if (fromId === toId) { this.connectFrom = null; return; }
 					var from = this.nodeById(fromId);
 					if (!from) { this.connectFrom = null; return; }
+					var to = this.nodeById(toId);
+					if (to && to.action_type === 'trigger') {
+						this.formError = 'Trigger nodes cannot have parents — connect to an action instead.';
+						this.connectFrom = null;
+						return;
+					}
 					var target = this.defaultCondition(from);
 					if (target.nexts.indexOf(toId) === -1) { target.nexts.push(toId); }
 					this.connectFrom = null;
@@ -690,6 +730,27 @@ templ DesignerPage(data *DesignerPageData) {
 						return String(c.left);
 					}
 					return (c.left || '?') + ' ' + c.operator + ' ' + (c.right || '?');
+				},
+				// ---- canvas pan (drag empty space) ----
+				startPan(ev) {
+					if (ev.target.closest('.nj-node, button, input, select, textarea, a')) { return; }
+					if (ev.button !== undefined && ev.button !== 0) { return; }
+					var self = this;
+					var sx = ev.clientX, sy = ev.clientY, ox = self.panX, oy = self.panY;
+					var move = function (e) {
+						if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) < 4) { return; }
+						self.panX = Math.round(ox + (e.clientX - sx));
+						self.panY = Math.round(oy + (e.clientY - sy));
+					};
+					var stop = function () {
+						window.removeEventListener('pointermove', move);
+						window.removeEventListener('pointerup', stop);
+						window.removeEventListener('pointercancel', stop);
+					};
+					window.addEventListener('pointermove', move);
+					window.addEventListener('pointerup', stop);
+					window.addEventListener('pointercancel', stop);
+					if (ev.preventDefault) { ev.preventDefault(); }
 				},
 				// ---- drag & drop on the canvas ----
 				startDrag(ev, node) {
@@ -736,10 +797,33 @@ templ DesignerPage(data *DesignerPageData) {
 						return keys.slice(0, 3).join(', ') + (keys.length > 3 ? ' +' + (keys.length - 3) : '');
 					} catch (e) { return 'invalid JSON'; }
 				},
+				webhookPath(node) {
+					if (!node || !node.id) { return '/webhook/{id}'; }
+					return '/webhook/' + node.id;
+				},
+				webhookMethods(node) {
+					if (!node) { return 'ALL'; }
+					try {
+						var o = JSON.parse(node.arguments || '{}');
+						var m = o.method;
+						if (m === undefined || m === null || String(m).trim() === '') { return 'ALL'; }
+						var up = String(m).toUpperCase();
+						if (up === 'ALL' || up === '*') { return 'ALL'; }
+						return up;
+					} catch (e) { return 'ALL'; }
+				},
 				validateAll() {
 					if (!this.nodes.length) { this.formError = 'Add at least one node before saving.'; return false; }
 					var hasTrigger = this.nodes.some(function (n) { return n.action_type === 'trigger'; });
 					if (!hasTrigger) { this.formError = 'Every workflow needs at least one trigger node.'; return false; }
+					var self = this;
+					for (var ti = 0; ti < this.nodes.length; ti++) {
+						if (this.nodes[ti].action_type === 'trigger' && self.incoming(this.nodes[ti].id).length) {
+							this.formError = 'Trigger "' + this.nodes[ti].name + '" cannot have a parent — triggers are root nodes.';
+							this.selectedId = this.nodes[ti].id;
+							return false;
+						}
+					}
 					for (var i = 0; i < this.nodes.length; i++) {
 						try { JSON.parse(this.nodes[i].arguments || '{}'); } catch (e) {
 							this.formError = 'Node "' + this.nodes[i].name + '" has invalid arguments JSON.';
@@ -800,7 +884,8 @@ templ DesignerPage(data *DesignerPageData) {
 			};
 		}
 		</script>
-		<div x-data="designerGraph()" x-init="init()" @keydown.escape.window="connectFrom = null; closePicker()" class="mx-auto w-full max-w-[1400px] px-1 pb-10">
+		<div x-data="designerGraph()" x-init="init()" @keydown.escape.window="connectFrom = null; closePicker()" class="relative mx-auto w-full max-w-[1400px] px-1 pb-10">
+			<a href="/" title="Close designer" aria-label="Close designer" class="absolute right-1 top-1 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-lg font-bold text-muted-foreground shadow-sm hover:border-red-500 hover:text-red-500">✕</a>
 			if data.EditWorkflowID != "" {
 				@pageTitle("Edit Workflow")
 			} else {
@@ -833,7 +918,22 @@ templ DesignerPage(data *DesignerPageData) {
 					</div>
 					<div>
 						<label class="mb-1 block text-xs font-medium">Default client <span class="font-normal text-muted-foreground">(optional)</span></label>
-						<input type="text" x-model="defaultClient" placeholder="empty = broadcast" class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs"/>
+						<input type="text" x-model="defaultClient" list="nj-default-client-list" placeholder="empty = broadcast" class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs"/>
+						<datalist id="nj-default-client-list">
+							if len(data.Clients) == 0 {
+								<option value="">No clients registered — empty means broadcast</option>
+							} else {
+								for _, client := range data.Clients {
+									if client.Revoked {
+										<option value={ client.ID }>{ client.Name } — revoked</option>
+									} else if client.Online {
+										<option value={ client.ID }>{ client.Name } — online</option>
+									} else {
+										<option value={ client.ID }>{ client.Name } — offline</option>
+									}
+								}
+							}
+						</datalist>
 					</div>
 					<div class="md:col-span-3">
 						<label class="mb-1 block text-xs font-medium">Default client tags <span class="font-normal text-muted-foreground">(comma separated)</span></label>
@@ -874,8 +974,8 @@ templ DesignerPage(data *DesignerPageData) {
 				<!-- canvas + inspector -->
 				<div class="grid gap-4 xl:grid-cols-[1fr_340px]">
 					<div>
-						<div class="nj-canvas h-[560px] w-full border border-border shadow-sm" @click.self="selectedId = null">
-							<div id="nj-canvas-inner" class="nj-canvas-inner" :style="'transform: scale(' + zoom + '); width: ' + canvasW() + 'px; height: ' + canvasH() + 'px;'">
+						<div class="nj-canvas h-[720px] w-full cursor-grab border border-border shadow-sm active:cursor-grabbing" @click.self="selectedId = null" @pointerdown="startPan($event)">
+							<div id="nj-canvas-inner" class="nj-canvas-inner" :style="'transform: translate(' + panX + 'px,' + panY + 'px) scale(' + zoom + '); width: ' + canvasW() + 'px; height: ' + canvasH() + 'px;'">
 								<svg :width="canvasW()" :height="canvasH()" class="absolute inset-0 h-full w-full">
 									<defs>
 										<marker id="nj-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -952,22 +1052,21 @@ templ DesignerPage(data *DesignerPageData) {
 								<div class="grid grid-cols-2 gap-2">
 									<div>
 										<label class="mb-1 block text-xs font-medium">Type</label>
-										<select x-model="selected().action_type" class="w-full rounded-lg border border-border bg-background px-2 py-2 text-sm">
-											<option value="trigger">trigger</option>
-											<option value="action">action</option>
-										</select>
+										<p class="w-full rounded-lg border border-border bg-muted px-2 py-2 font-mono text-sm" x-text="selected().action_type"></p>
 									</div>
 									<div>
 										<label class="mb-1 block text-xs font-medium">Action</label>
-										<select x-model="selected().action_name" class="w-full rounded-lg border border-border bg-background px-2 py-2 font-mono text-sm">
-											<option value="filechange">filechange</option>
-											<option value="file">file</option>
-											<option value="datetime">datetime</option>
-											<option value="wait">wait</option>
-											<option value="transfer">transfer</option>
-											<option value="set">set</option>
-										</select>
+										<p class="w-full rounded-lg border border-border bg-muted px-2 py-2 font-mono text-sm" x-text="selected().action_name"></p>
 									</div>
+								</div>
+								<p class="text-[11px] text-muted-foreground">Type and action are fixed after creation — to change one, add a new node, reconnect, then delete this one.</p>
+								<div x-show="selected().action_type === 'trigger' && selected().action_name === 'webhook'" class="rounded-xl border border-border bg-muted/50 p-2.5">
+									<label class="mb-1 block text-xs font-medium">Webhook endpoint</label>
+									<div class="flex items-center gap-1.5">
+										<code class="flex-1 truncate rounded-md bg-background px-2 py-1.5 font-mono text-[11px]" x-text="webhookPath(selected())"></code>
+										<button type="button" @click="navigator.clipboard && navigator.clipboard.writeText(webhookPath(selected()))" class="rounded-md border border-border px-2 py-1 text-xs hover:border-red-500">Copy</button>
+									</div>
+									<p class="mt-1 text-[11px] text-muted-foreground">Accepts <span class="font-mono" x-text="webhookMethods(selected())"></span> · served by the server and by assigned clients running with <span class="font-mono">--webhook-addr</span>.</p>
 								</div>
 								<div>
 									<label class="mb-1 block text-xs font-medium">Description</label>
@@ -984,7 +1083,7 @@ templ DesignerPage(data *DesignerPageData) {
 								<div class="grid grid-cols-2 gap-2">
 									<div>
 										<label class="mb-1 block text-xs font-medium">Client</label>
-										<input type="text" x-model="selected().client" placeholder="empty = broadcast" class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs"/>
+										<input type="text" x-model="selected().client" list="nj-client-list" placeholder="empty = broadcast" class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs"/>
 									</div>
 									<div>
 										<label class="mb-1 block text-xs font-medium">Client tags</label>
@@ -1064,12 +1163,12 @@ templ DesignerPage(data *DesignerPageData) {
 					</aside>
 				</div>
 				<!-- action picker modal -->
-				<div x-show="pickerFor !== null && pickerFor !== undefined" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" style="display:none" x-bind:style="(pickerFor !== null && pickerFor !== undefined) ? 'display:flex' : 'display:none'" @click.self="closePicker()">
+				<div x-show="pickerOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" style="display:none" x-bind:style="pickerOpen ? 'display:flex' : 'display:none'" @click.self="closePicker()">
 					<div class="nj-fade-in max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl">
 						<div class="mb-1 flex items-start justify-between gap-3">
 							<div>
-								<h3 class="text-lg font-bold">Add action</h3>
-								<p class="text-sm text-muted-foreground"><span x-show="pickerParent()">After <strong x-text="pickerParent() ? pickerParent().name : ''"></strong> — a new card appears on the canvas, already connected under the default (first) entry; move it between entries in the inspector.</span><span x-show="!pickerParent()">As a new root card on the canvas.</span></p>
+								<h3 class="text-lg font-bold"><span x-text="pickerParent() ? 'Add action' : 'Add node'"></span></h3>
+								<p class="text-sm text-muted-foreground"><span x-show="pickerParent()">After <strong x-text="pickerParent() ? pickerParent().name : ''"></strong> — a new card appears on the canvas, already connected under the default (first) entry; move it between entries in the inspector. Triggers cannot follow another node, so only actions are listed here.</span><span x-show="!pickerParent()">As a new root card on the canvas. Triggers and actions can both start a workflow, so multiple triggers are allowed.</span></p>
 							</div>
 							<button type="button" @click="closePicker()" class="rounded-lg border border-border px-2.5 py-1 hover:border-red-500">✕</button>
 						</div>
@@ -1088,17 +1187,24 @@ templ DesignerPage(data *DesignerPageData) {
 								</button>
 							</template>
 						</div>
-						<p x-show="!filteredCatalog().length" class="mt-2 text-sm text-muted-foreground">No actions match that filter.</p>
+						<p x-show="!filteredCatalog().length" class="mt-2 text-sm text-muted-foreground">No nodes match that filter.</p>
 					</div>
 				</div>
-				<div class="flex flex-col gap-2 sm:flex-row">
-					if data.EditWorkflowID != "" {
-						<button type="submit" class="flex-1 rounded-xl bg-red-500 px-4 py-3 font-semibold text-white hover:bg-red-600">Save Changes</button>
+				<datalist id="nj-client-list">
+					if len(data.Clients) == 0 {
+						<option value="">No clients registered — empty means broadcast</option>
 					} else {
-						<button type="submit" class="flex-1 rounded-xl bg-red-500 px-4 py-3 font-semibold text-white hover:bg-red-600">Save & Import Workflow</button>
+						for _, client := range data.Clients {
+							if client.Revoked {
+								<option value={ client.ID }>{ client.Name } — revoked</option>
+							} else if client.Online {
+								<option value={ client.ID }>{ client.Name } — online</option>
+							} else {
+								<option value={ client.ID }>{ client.Name } — offline</option>
+							}
+						}
 					}
-					<a href="/" class="rounded-xl border border-border px-4 py-3 text-center text-sm hover:border-red-500">Cancel</a>
-				</div>
+				</datalist>
 			</form>
 		</div>
 	}

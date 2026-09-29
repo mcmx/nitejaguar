@@ -13,7 +13,7 @@ on the server, and — when the client listener is enabled — the same path on 
 - **All HTTP methods**: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, `TRACE`, `CONNECT`. The `method` argument selects which ones fire; anything else is rejected with `405` and never produces a result.
 - **Payload in the result**: methods that carry a body post it in the trigger result. JSON bodies decode to native values, anything else stays a string, so downstream conditions can route on `$result.body`, `$result.query`, `$result.method` and friends.
 - **Server ingress**: `e.Any("/webhook/:id")` on the server webserver. No session required so external systems (GitHub, Stripe, CI, `curl`) can deliver. The ack answers `{"ok":true,"workflow_id":...,"execution_id":...,"trigger_id":...}`.
-- **Client ingress**: the client runs its own webserver (`--webhook-addr 127.0.0.1:8081`, or `NITEJAGUAR_WEBHOOK_ADDR`) answering the same `/webhook/{id}` path. A client only fires triggers assigned to it — workflow `default_client` / `default_client_tags` first, per-node `client` / `client_tags` overrides, broadcast otherwise — because the server already filters assignments that way.
+- **Client ingress**: the client runs its own webserver (`--webhook-addr 127.0.0.1:8081`, or `NITEJAGUAR_WEBHOOK_ADDR`) answering the same `/webhook/{id}` path. A client only fires triggers assigned to it — workflow `default_client` / `default_client_tags` first, per-node `client` / `client_tags` overrides, broadcast otherwise — because the server already filters assignments that way. On install the client logs every served trigger (`webhook trigger installed; serving deliveries`, trigger id + path); unknown ids answer `404`, disallowed methods `405`.
 
 ## Arguments
 
@@ -117,4 +117,4 @@ curl -X POST http://127.0.0.1:8080/webhook/trigger_01webhook example0000001 \
   -H 'Content-Type: application/json' -d '{"event":"push"}'
 ```
 
-The trigger is also available in the visual designer picker (**Webhook**) and runs on remote clients like any other trigger.
+The trigger is also available in the visual designer picker (**Webhook**) and runs on remote clients like any other trigger. Selecting a webhook node in the designer shows its endpoint (`/webhook/{trigger_id}`) with a copy button, and the workflow detail page lists the same endpoint per webhook node.

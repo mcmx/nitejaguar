@@ -76,23 +76,37 @@ The designer is a node-graph canvas, not a form list:
 
 - Each workflow node is a draggable card showing its icon, name,
   `action_type`/`action_name`, an argument summary, and its id.
-- Every card has a **→+ arrow on its right edge**: it opens the action
-  picker (all seven catalog entries with descriptions and a filter box),
-  and the chosen action appears on the canvas as a new card already
-  connected downstream of the card you clicked (under its default,
-  first condition entry — move it between entries in the inspector).
+- Every card has a **→+ arrow on its right edge**: it opens the
+  picker and the chosen node appears on the canvas as a new card
+  already connected downstream of the card you clicked (under its
+  default, first condition entry — move it between entries in the
+  inspector). The picker opened from a card lists **actions only**:
+  triggers are root nodes and can never follow another node. The
+  toolbar **＋ Add node** button adds a root card (triggers and
+  actions), so workflows with multiple triggers are built by adding
+  each trigger as a root.
 - Click a card's **green output dot**, then click another card, to draw
   an edge; edges are green, with the arrowhead matching. The new edge
   lands in the source card's default (first) condition entry.
-- Clicking a card opens the **inspector** (name, type, action,
-  arguments JSON with format + validation, client targeting,
-  `credential_ref`, `merge_input` for actions, duplicate/delete) plus
+  Connecting into a trigger is refused — triggers cannot have parents.
+- Clicking a card opens the **inspector** (name, read-only type and
+  action badges, arguments JSON with format + validation, client
+  targeting combo, `credential_ref`, `merge_input` for actions,
+  duplicate/delete) plus
+  a **routing conditions editor**
   a **routing conditions editor**: every `conditions.entries` entry is
   listed with its id, left operand, operator (`always`, `==`, `!=`,
   `>`, `>=`, `<`, `<=`, `=~`, `glob`), and right operand. Each entry
   shows its children as green chips — remove one with × or move it to
   another entry with the per-chip entry selector. Add entries with
   **+ Add entry**; saving validates entry ids are non-empty and unique.
+  Type and action cannot be edited in place: add a new node, reconnect,
+  then delete the old one.
+- New node and workflow ids minted by the designer are TypeID-shaped
+  (26-char base32 suffix, same as server-minted ids).
+- Webhook triggers show their **endpoint** (`/webhook/{trigger_id}`,
+  accepted methods, copy button) in the inspector; the workflow detail
+  page lists the same endpoint per webhook node.
 - **Graph → JSON translation happens on save**: the drawn edges are
   the source of truth — each entry's edited condition plus its
   downstream `nexts` are carried forward into `conditions.entries`
@@ -100,12 +114,18 @@ The designer is a node-graph canvas, not a form list:
   definition always matches the picture. Loading a workflow restores
   all entries verbatim (e.g. a `=~` filename filter survives an
   edit round-trip).
-  A live JSON preview shows exactly what `Save` sends to
-  `POST /designer/save`, and saving validates (at least one node, at
-  least one trigger, all arguments parse as JSON) before submitting.
+   A live JSON preview shows exactly what `Save` sends to
+   `POST /designer/save`, and saving validates (at least one node, at
+   least one trigger, no trigger with a parent, all arguments parse as JSON) before submitting.
 - Canvas tools: auto-layout (topological columns), zoom controls,
+  click-and-drag panning on empty canvas space (larger 720px grid),
   and node positions kept per browser (layout-only, never saved into
   workflow JSON).
+- Client targeting in the designer uses combos fed by the registered
+  clients (name plus online/offline/revoked status): the workflow
+  default client and each node's client field both offer the list
+  while still accepting a custom id. Saving is done from the top-bar
+  button; closing uses the ✕ button in the top-right corner.
 
 ## Client targeting & distributed execution
 

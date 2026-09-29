@@ -1630,6 +1630,24 @@ func (s *Server) renderDesigner(c echo.Context, workflowID string) error {
 		}
 		data.Workflows = workflows
 	}
+	// Registered clients feed the designer client combos (per-node client
+	// + workflow default client). Same tenant scoping as the /clients
+	// page: open-bootstrap mode sees everything, tenant-local users see
+	// only their own tenant.
+	for _, client := range s.registry().list() {
+		if !open && user != nil && !database.IsSuperUser(user) && client.TenantID != "" && client.TenantID != user.TenantID {
+			continue
+		}
+		data.Clients = append(data.Clients, web.ClientView{
+			ID: client.ID, Name: client.Name, TenantID: client.TenantID, Tags: client.Tags,
+			RegisteredAt:  client.RegisteredAt.Format("2006-01-02 15:04:05 MST"),
+			LastHeartbeat: client.LastHeartbeat.Format("2006-01-02 15:04:05 MST"),
+			LastPoll:      client.LastPoll.Format("2006-01-02 15:04:05 MST"),
+			Online:        !client.Revoked && time.Since(client.LastHeartbeat) <= 15*time.Second,
+			Revoked:       client.Revoked,
+		})
+	}
+	sort.Slice(data.Clients, func(i, j int) bool { return data.Clients[i].Name < data.Clients[j].Name })
 	if workflowID != "" {
 		row, err := s.db.GetWorkflow(workflowID)
 		if err == nil && !open && user != nil && !database.IsSuperUser(user) &&

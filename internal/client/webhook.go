@@ -127,6 +127,17 @@ func (r *runner) webhookHTTPHandler() http.Handler {
 	return mux
 }
 
+// newWebhookServer builds the client-side webhook listener: its own HTTP
+// server answering /webhook/{id} for the triggers assigned to this client.
+func newWebhookServer(r *runner, addr string) *http.Server {
+	return &http.Server{
+		Addr:         addr,
+		Handler:      r.webhookHTTPHandler(),
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+	}
+}
+
 // serveWebhooks runs the client-side webhook listener until ctx ends. A
 // failure to bind is reported to the logger without stopping the polling
 // loop — webhooks stay unavailable while assignments keep flowing.
@@ -134,12 +145,7 @@ func serveWebhooks(ctx context.Context, r *runner, addr string, logger *slog.Log
 	if strings.TrimSpace(addr) == "" {
 		return
 	}
-	srv := &http.Server{
-		Addr:         addr,
-		Handler:      r.webhookHTTPHandler(),
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-	}
+	srv := newWebhookServer(r, addr)
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
