@@ -418,3 +418,100 @@ func TestWebCrossTenantDenials(t *testing.T) {
 		t.Errorf("triggerOwnedByTenant(B) = %v, %v; want false", ownedB, err)
 	}
 }
+
+// TestWebhookTenantBinding covers the public webhook endpoint's isolation
+// contract: delivery needs no session (external systems call it), the
+// tenant is derived from the trigger's workflow definition (never request
+// input), unknown ids are 404, and other tenants never see the workflow
+// or its results.
+func TestWebhookTenantBinding(t *testing.T) {
+	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
+	wm := workflow.NewWorkflowManager(false, db)
+	s := &Server{db: db, wm: wm}
+	_, api := newTestAPI(t)
+	addApiRoutes(api, s)
+	h := s.RegisterRoutes()
+
+	n := testAdminSeq.Add(1)
+	tenantA := fmt.Sprintf("hookA%d", n)
+	tenantB := fmt.Sprintf("hookB%d", n)
+	workflowID := fmt.Sprintf("workflow_01khookiso%06d001", n)
+	triggerID := fmt.Sprintf("trigger_01khookiso%06d001", n)
+	actionID := fmt.Sprintf("action_01khookiso%06d001", n)
+	operatorB := ensureRoleToken(t, db, tenantB, database.RoleOperator)
+	superAuth := ensureRoleToken(t, db, "default", database.RoleAdmin)
+
+	wfBody := map[string]any{
+		"id": workflowID, "name": "Hook isolation workflow", "tenant_id": tenantA,
+		"nodes": map[string]any{
+			triggerID: map[string]any{
+				"id": triggerID, "name": "Hook", "description": "Hook",
+				"action_type": "trigger",
+				"action_name": "webhook", "arguments": map[string]any{"method": "POST"},
+				"conditions":   map[string]any{"entries": map[string]any{}},
+				"dependencies": nil,
+			},
+			actionID: map[string]any{
+				"id": actionID, "name": "Downstream", "description": "Downstream",
+				"action_type":  "action",
+				"action_name":  "file",
+				"arguments":    map[string]any{"action": "create", "file": "/tmp/hook.txt"},
+				"conditions":   map[string]any{"entries": map[string]any{}},
+				"dependencies": []string{triggerID},
+			},
+		},
+	}
+	if resp := api.Post("/api/workflows/import", superAuth, wfBody); resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+		t.Fatalf("seed webhook workflow status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+
+	// Public delivery: no session, no client token — fires by design.
+	req := httptest.NewRequest(http.MethodPost, "/webhook/"+triggerID, strings.NewReader(`{"event":"push"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("anonymous webhook status = %v, want 200 (body %s)", rec.Code, rec.Body.String())
+	}
+
+	// The stored result carries the workflow tenant, not request input.
+	rows, err := db.ListResults("", "", 0)
+	if err != nil {
+		t.Fatalf("list results: %v", err)
+	}
+	var bound bool
+	for _, row := range rows {
+		if row.ActionID != triggerID {
+			continue
+		}
+		bound = true
+		if row.TenantID != tenantA {
+			t.Errorf("webhook result tenant = %q, want %q (must come from the workflow)", row.TenantID, tenantA)
+		}
+	}
+	if !bound {
+		t.Fatalf("no stored result for webhook trigger %s", triggerID)
+	}
+
+	// Tenant B sees neither the workflow nor any trace of the trigger.
+	if resp := api.Get("/api/workflows/"+workflowID, operatorB); resp.Code != http.StatusNotFound {
+		t.Errorf("cross-tenant webhook workflow GET status = %v, want 404", resp.Code)
+	}
+	if resp := api.Get("/api/workflows", operatorB); resp.Code != http.StatusOK {
+		t.Fatalf("B workflows status = %v", resp.Code)
+	} else if strings.Contains(resp.Body.String(), workflowID) {
+		t.Errorf("tenant B workflow list leaks webhook workflow: %s", resp.Body.String())
+	}
+
+	// Unknown webhook ids are 404 even anonymously (no existence oracle).
+	req = httptest.NewRequest(http.MethodPost, "/webhook/trigger_doesnotexist00001", strings.NewReader(`{}`))
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("unknown webhook status = %v, want 404", rec.Code)
+	}
+}

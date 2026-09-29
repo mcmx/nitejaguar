@@ -67,7 +67,9 @@ Suspended tenants fail closed: `VerifyUser`, `CreateSession`,
 `AuthenticateSession`, `CreateEnrollmentToken`,
 `ConsumeEnrollmentToken`, and `RegisterClient` all refuse with
 `invalid credentials` / `tenant is suspended`, so suspended users are
-locked out even with a previously valid session. Unknown `tenant_id`
+locked out even with a previously valid session. Webhook deliveries
+for a suspended tenant's triggers are refused with `403` and never
+fire. Unknown `tenant_id`
 strings (pre-registry legacy data) are treated as active so old rows
 keep working.
 
@@ -93,6 +95,14 @@ Every read and write is tenant-bound (verified by
   `default` is an ordinary tenant, not a wildcard — and every chunk,
   signal, and fetch re-checks participant + tenant visibility, so
   tenant A clients and users can never read or write tenant B data.
+- Webhooks (`/webhook/{id}`) are the one public endpoint: no session
+  is required so external systems can deliver. The tenant is derived
+  from the trigger's workflow definition, never from request input,
+  and the stored result carries that tenant — so tenant-scoped reads
+  (results page, `GET /api/audit`, client assignments) keep hiding it
+  from other tenants exactly like any other result. Unknown or
+  disabled trigger ids answer `404` (no existence oracle); suspended
+  tenants answer `403`.
 
 ## User emails
 

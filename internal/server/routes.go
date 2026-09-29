@@ -112,6 +112,12 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	e.GET("/websocket", s.websocketHandler)
 
+	// Public webhook ingress for webhook triggers: every method is
+	// accepted at the routing layer and the trigger's `method` argument
+	// decides which ones fire (others get 405). No session required so
+	// external systems can deliver.
+	e.Any("/webhook/:id", s.webhookHandler)
+
 	return e
 }
 

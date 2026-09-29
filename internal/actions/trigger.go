@@ -9,6 +9,7 @@ import (
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions/cron"
 	"github.com/mcmx/nitejaguar/internal/actions/filechange"
+	"github.com/mcmx/nitejaguar/internal/actions/webhook"
 
 	"go.jetify.com/typeid"
 )
@@ -44,6 +45,8 @@ func (ts *TriggerManager) AddTrigger(data common.ActionArgs) (common.Action, str
 		trigger, err = filechange.New(ts.events, data)
 	case "cron":
 		trigger, err = cron.New(ts.events, data)
+	case "webhook":
+		trigger, err = webhook.New(ts.events, data)
 	default:
 		return nil, "", fmt.Errorf("unknown action_name: %q", data.ActionName)
 	}

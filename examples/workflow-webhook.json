@@ -1,0 +1,44 @@
+{
+  "id": "workflow_webhook_example",
+  "name": "Example Workflow: webhook to stamp file",
+  "nodes": {
+    "trigger_01webhookexample0000001": {
+      "id": "trigger_01webhookexample0000001",
+      "name": "Trigger: webhook",
+      "description": "Trigger: fires on POST /webhook/trigger_01webhookexample0000001",
+      "action_type": "trigger",
+      "action_name": "webhook",
+      "arguments": {
+        "method": "POST"
+      },
+      "conditions": {
+        "entries": {
+          "entry1": {
+            "condition": {
+              "leftOperand": "$result.body.event",
+              "operator": "==",
+              "rightOperand": "push"
+            },
+            "nexts": ["action_01webhookexample0000001"]
+          }
+        }
+      },
+      "dependencies": null
+    },
+    "action_01webhookexample0000001": {
+      "id": "action_01webhookexample0000001",
+      "name": "Action: file",
+      "description": "Action: touch a stamp file for the push event",
+      "action_type": "action",
+      "action_name": "file",
+      "arguments": {
+        "action": "create",
+        "file": "/tmp/nitejaguar-webhook-{{ $input.body.branch | default:\"main\" }}.txt"
+      },
+      "conditions": {
+        "entries": {}
+      },
+      "dependencies": ["trigger_01webhookexample0000001"]
+    }
+  }
+}

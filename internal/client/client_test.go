@@ -436,6 +436,22 @@ func TestExecuteNodeTraceIsDebugOnly(t *testing.T) {
 func TestNewClientTriggerDispatch(t *testing.T) {
 	events := make(chan common.ResultData, 1)
 
+	webhookTrigger, err := newClientTrigger(events, common.ActionArgs{
+		ActionType: "trigger", ActionName: "webhook",
+		Args: map[string]string{"method": "POST"},
+	})
+	if err != nil {
+		t.Fatalf("newClientTrigger(webhook) error: %v", err)
+	}
+	defer func() {
+		if err := webhookTrigger.Stop(); err != nil {
+			t.Errorf("webhook trigger Stop error: %v", err)
+		}
+	}()
+	if webhookTrigger.GetArgs().ActionName != "webhook" || webhookTrigger.GetArgs().ActionType != "trigger" {
+		t.Errorf("webhook trigger args = %+v", webhookTrigger.GetArgs())
+	}
+
 	cronTrigger, err := newClientTrigger(events, common.ActionArgs{
 		ActionType: "trigger", ActionName: "cron",
 		Args: map[string]string{"interval": "1h"},
