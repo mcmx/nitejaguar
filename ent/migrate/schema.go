@@ -129,6 +129,7 @@ var (
 		{Name: "revoked_at", Type: field.TypeTime, Nullable: true},
 		{Name: "dial_info", Type: field.TypeString, Size: 2147483647, Default: ""},
 		{Name: "webhook_addr", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "host_info", Type: field.TypeString, Size: 2147483647, Default: ""},
 	}
 	// RemoteClientsTable holds the schema information for the "remote_clients" table.
 	RemoteClientsTable = &schema.Table{

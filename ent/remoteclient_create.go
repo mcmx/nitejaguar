@@ -150,6 +150,20 @@ func (_c *RemoteClientCreate) SetNillableWebhookAddr(v *string) *RemoteClientCre
 	return _c
 }
 
+// SetHostInfo sets the "host_info" field.
+func (_c *RemoteClientCreate) SetHostInfo(v string) *RemoteClientCreate {
+	_c.mutation.SetHostInfo(v)
+	return _c
+}
+
+// SetNillableHostInfo sets the "host_info" field if the given value is not nil.
+func (_c *RemoteClientCreate) SetNillableHostInfo(v *string) *RemoteClientCreate {
+	if v != nil {
+		_c.SetHostInfo(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *RemoteClientCreate) SetID(v string) *RemoteClientCreate {
 	_c.mutation.SetID(v)
@@ -219,6 +233,10 @@ func (_c *RemoteClientCreate) defaults() {
 		v := remoteclient.DefaultWebhookAddr
 		_c.mutation.SetWebhookAddr(v)
 	}
+	if _, ok := _c.mutation.HostInfo(); !ok {
+		v := remoteclient.DefaultHostInfo
+		_c.mutation.SetHostInfo(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -262,6 +280,9 @@ func (_c *RemoteClientCreate) check() error {
 	}
 	if _, ok := _c.mutation.WebhookAddr(); !ok {
 		return &ValidationError{Name: "webhook_addr", err: errors.New(`ent: missing required field "RemoteClient.webhook_addr"`)}
+	}
+	if _, ok := _c.mutation.HostInfo(); !ok {
+		return &ValidationError{Name: "host_info", err: errors.New(`ent: missing required field "RemoteClient.host_info"`)}
 	}
 	if v, ok := _c.mutation.ID(); ok {
 		if err := remoteclient.IDValidator(v); err != nil {
@@ -346,6 +367,10 @@ func (_c *RemoteClientCreate) createSpec() (*RemoteClient, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.WebhookAddr(); ok {
 		_spec.SetField(remoteclient.FieldWebhookAddr, field.TypeString, value)
 		_node.WebhookAddr = value
+	}
+	if value, ok := _c.mutation.HostInfo(); ok {
+		_spec.SetField(remoteclient.FieldHostInfo, field.TypeString, value)
+		_node.HostInfo = value
 	}
 	return _node, _spec
 }

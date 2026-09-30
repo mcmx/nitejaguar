@@ -114,6 +114,11 @@ func WebhookAddr(v string) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldEQ(FieldWebhookAddr, v))
 }
 
+// HostInfo applies equality check predicate on the "host_info" field. It's identical to HostInfoEQ.
+func HostInfo(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEQ(FieldHostInfo, v))
+}
+
 // NameEQ applies the EQ predicate on the "name" field.
 func NameEQ(v string) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldEQ(FieldName, v))
@@ -617,6 +622,71 @@ func WebhookAddrEqualFold(v string) predicate.RemoteClient {
 // WebhookAddrContainsFold applies the ContainsFold predicate on the "webhook_addr" field.
 func WebhookAddrContainsFold(v string) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldContainsFold(FieldWebhookAddr, v))
+}
+
+// HostInfoEQ applies the EQ predicate on the "host_info" field.
+func HostInfoEQ(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEQ(FieldHostInfo, v))
+}
+
+// HostInfoNEQ applies the NEQ predicate on the "host_info" field.
+func HostInfoNEQ(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldNEQ(FieldHostInfo, v))
+}
+
+// HostInfoIn applies the In predicate on the "host_info" field.
+func HostInfoIn(vs ...string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldIn(FieldHostInfo, vs...))
+}
+
+// HostInfoNotIn applies the NotIn predicate on the "host_info" field.
+func HostInfoNotIn(vs ...string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldNotIn(FieldHostInfo, vs...))
+}
+
+// HostInfoGT applies the GT predicate on the "host_info" field.
+func HostInfoGT(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldGT(FieldHostInfo, v))
+}
+
+// HostInfoGTE applies the GTE predicate on the "host_info" field.
+func HostInfoGTE(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldGTE(FieldHostInfo, v))
+}
+
+// HostInfoLT applies the LT predicate on the "host_info" field.
+func HostInfoLT(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldLT(FieldHostInfo, v))
+}
+
+// HostInfoLTE applies the LTE predicate on the "host_info" field.
+func HostInfoLTE(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldLTE(FieldHostInfo, v))
+}
+
+// HostInfoContains applies the Contains predicate on the "host_info" field.
+func HostInfoContains(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldContains(FieldHostInfo, v))
+}
+
+// HostInfoHasPrefix applies the HasPrefix predicate on the "host_info" field.
+func HostInfoHasPrefix(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldHasPrefix(FieldHostInfo, v))
+}
+
+// HostInfoHasSuffix applies the HasSuffix predicate on the "host_info" field.
+func HostInfoHasSuffix(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldHasSuffix(FieldHostInfo, v))
+}
+
+// HostInfoEqualFold applies the EqualFold predicate on the "host_info" field.
+func HostInfoEqualFold(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEqualFold(FieldHostInfo, v))
+}
+
+// HostInfoContainsFold applies the ContainsFold predicate on the "host_info" field.
+func HostInfoContainsFold(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldContainsFold(FieldHostInfo, v))
 }
 
 // And groups predicates with the AND operator between them.

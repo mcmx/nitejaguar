@@ -40,17 +40,18 @@ type WorkflowsResponse struct {
 }
 
 type ClientStatus struct {
-	ID            string    `json:"client_id"`
-	Name          string    `json:"name"`
-	TenantID      string    `json:"tenant_id"`
-	Tags          []string  `json:"tags"`
-	Revoked       bool      `json:"revoked"`
-	RegisteredAt  time.Time `json:"registered_at"`
-	LastHeartbeat time.Time `json:"last_heartbeat"`
-	LastPoll      time.Time `json:"last_poll"`
-	Online        bool      `json:"online"`
-	DialInfo      string    `json:"dial_info,omitempty"`
-	WebhookAddr   string    `json:"webhook_addr,omitempty"`
+	ID            string           `json:"client_id"`
+	Name          string           `json:"name"`
+	TenantID      string           `json:"tenant_id"`
+	Tags          []string         `json:"tags"`
+	Revoked       bool             `json:"revoked"`
+	RegisteredAt  time.Time        `json:"registered_at"`
+	LastHeartbeat time.Time        `json:"last_heartbeat"`
+	LastPoll      time.Time        `json:"last_poll"`
+	Online        bool             `json:"online"`
+	DialInfo      string           `json:"dial_info,omitempty"`
+	WebhookAddr   string           `json:"webhook_addr,omitempty"`
+	Host          *common.HostInfo `json:"host_info,omitempty"`
 }
 
 type ClientsResponse struct {
@@ -405,6 +406,10 @@ type HeartbeatInput struct {
 		// heartbeat, so a client restarted without --webhook-addr stops
 		// advertising instead of lingering.
 		WebhookAddr string `json:"webhook_addr,omitempty"`
+		// HostInfo carries the client's host description (OS/arch,
+		// hostname, IPs). Present means overwrite the stored value;
+		// absent leaves it unchanged (older clients).
+		HostInfo *common.HostInfo `json:"host_info,omitempty"`
 	}
 }
 
@@ -535,6 +540,15 @@ func (s *Server) ClientHeartbeat(_ context.Context, input *HeartbeatInput) (*Hea
 	if err := s.db.SetClientWebhookAddr(input.Body.ClientID, input.Body.WebhookAddr); err != nil {
 		return nil, huma.Error400BadRequest(err.Error())
 	}
+	if input.Body.HostInfo != nil {
+		raw, err := json.Marshal(input.Body.HostInfo)
+		if err != nil {
+			return nil, huma.Error400BadRequest("invalid host_info")
+		}
+		if err := s.db.SetClientHostInfo(input.Body.ClientID, string(raw)); err != nil {
+			return nil, huma.Error400BadRequest(err.Error())
+		}
+	}
 	log.Printf("client heartbeat: id=%s name=%q", c.ID, c.Name)
 	return &HeartbeatOutput{
 		Body: struct {
@@ -659,12 +673,17 @@ func (s *Server) GetClients(_ context.Context, input *ListClientsInput) (*Client
 		if caller != nil && !database.CanCrossTenant(caller) && normalizeTenantID(c.TenantID) != normalizeTenantID(caller.TenantID) {
 			continue
 		}
+		var host *common.HostInfo
+		if !c.Host.Empty() {
+			host = &c.Host
+		}
 		out = append(out, ClientStatus{
 			ID: c.ID, Name: c.Name, TenantID: c.TenantID, Tags: c.Tags, Revoked: c.Revoked,
 			RegisteredAt:  c.RegisteredAt,
 			LastHeartbeat: c.LastHeartbeat, LastPoll: c.LastPoll,
 			Online:   !c.Revoked && now.Sub(c.LastHeartbeat) <= 15*time.Second,
 			DialInfo: c.DialInfo, WebhookAddr: c.WebhookAddr,
+			Host: host,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
@@ -1657,6 +1676,7 @@ func (s *Server) renderDesigner(c echo.Context, workflowID string) error {
 			Online:        !client.Revoked && time.Since(client.LastHeartbeat) <= 15*time.Second,
 			Revoked:       client.Revoked,
 			WebhookAddr:   client.WebhookAddr,
+			Host:          client.Host,
 		})
 	}
 	sort.Slice(data.Clients, func(i, j int) bool { return data.Clients[i].Name < data.Clients[j].Name })

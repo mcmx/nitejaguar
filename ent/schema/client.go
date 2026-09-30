@@ -51,6 +51,9 @@ func (RemoteClient) Fields() []ent.Field {
 		field.Text("webhook_addr").
 			Default("").
 			Comment("client-advertised webhook listener addr (empty = no listener); reported on every heartbeat"),
+		field.Text("host_info").
+			Default("").
+			Comment("client-advertised host info (JSON: os, arch, hostname, ips); reported on every heartbeat"),
 	}
 }
 

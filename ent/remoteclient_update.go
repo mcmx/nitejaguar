@@ -157,6 +157,20 @@ func (_u *RemoteClientUpdate) SetNillableWebhookAddr(v *string) *RemoteClientUpd
 	return _u
 }
 
+// SetHostInfo sets the "host_info" field.
+func (_u *RemoteClientUpdate) SetHostInfo(v string) *RemoteClientUpdate {
+	_u.mutation.SetHostInfo(v)
+	return _u
+}
+
+// SetNillableHostInfo sets the "host_info" field if the given value is not nil.
+func (_u *RemoteClientUpdate) SetNillableHostInfo(v *string) *RemoteClientUpdate {
+	if v != nil {
+		_u.SetHostInfo(*v)
+	}
+	return _u
+}
+
 // Mutation returns the RemoteClientMutation object of the builder.
 func (_u *RemoteClientUpdate) Mutation() *RemoteClientMutation {
 	return _u.mutation
@@ -266,6 +280,9 @@ func (_u *RemoteClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.WebhookAddr(); ok {
 		_spec.SetField(remoteclient.FieldWebhookAddr, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.HostInfo(); ok {
+		_spec.SetField(remoteclient.FieldHostInfo, field.TypeString, value)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -415,6 +432,20 @@ func (_u *RemoteClientUpdateOne) SetNillableWebhookAddr(v *string) *RemoteClient
 	return _u
 }
 
+// SetHostInfo sets the "host_info" field.
+func (_u *RemoteClientUpdateOne) SetHostInfo(v string) *RemoteClientUpdateOne {
+	_u.mutation.SetHostInfo(v)
+	return _u
+}
+
+// SetNillableHostInfo sets the "host_info" field if the given value is not nil.
+func (_u *RemoteClientUpdateOne) SetNillableHostInfo(v *string) *RemoteClientUpdateOne {
+	if v != nil {
+		_u.SetHostInfo(*v)
+	}
+	return _u
+}
+
 // Mutation returns the RemoteClientMutation object of the builder.
 func (_u *RemoteClientUpdateOne) Mutation() *RemoteClientMutation {
 	return _u.mutation
@@ -554,6 +585,9 @@ func (_u *RemoteClientUpdateOne) sqlSave(ctx context.Context) (_node *RemoteClie
 	}
 	if value, ok := _u.mutation.WebhookAddr(); ok {
 		_spec.SetField(remoteclient.FieldWebhookAddr, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.HostInfo(); ok {
+		_spec.SetField(remoteclient.FieldHostInfo, field.TypeString, value)
 	}
 	_node = &RemoteClient{config: _u.config}
 	_spec.Assign = _node.assignValues

@@ -56,6 +56,7 @@ type ClientView struct {
     Online bool
     Revoked bool
     WebhookAddr string
+    Host common.HostInfo
 }
 
 type ClientsPageData struct {
@@ -300,7 +301,25 @@ func clientOptionLabel(c ClientView) string {
     if c.WebhookAddr != "" {
         hook = "webhook on"
     }
-    return c.Name + " — " + status + " · " + hook
+    label := c.Name + " — " + status + " · " + hook
+    if platform := c.Host.Summary(); platform != "" {
+        label += " · " + platform
+    }
+    return label
+}
+
+func hostIPsLabel(c ClientView) string {
+    if len(c.Host.IPs) == 0 {
+        return "—"
+    }
+    return strings.Join(c.Host.IPs, ", ")
+}
+
+func clientHostLabel(c ClientView) string {
+    if summary := c.Host.Summary(); summary != "" {
+        return summary
+    }
+    return "—"
 }
 
 templ WorkflowDetailPage(data *WorkflowDetailData) {
@@ -465,7 +484,7 @@ templ ClientsPage(data *ClientsPageData) {
                                     <span class="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">stale</span>
                                 }
                             </div>
-                            <div class="mt-4 grid gap-2 text-sm text-muted-foreground"><p><strong class="text-foreground">Tenant:</strong> { client.TenantID }</p><p><strong class="text-foreground">Tags:</strong> { fmt.Sprint(client.Tags) }</p><p><strong class="text-foreground">Registered:</strong> { client.RegisteredAt }</p><p><strong class="text-foreground">Last heartbeat:</strong> { client.LastHeartbeat }</p><p><strong class="text-foreground">Last assignment poll:</strong> { client.LastPoll }</p><p><strong class="text-foreground">Webhook listener:</strong> <span class="font-mono">{ webhookListenerLabel(client.WebhookAddr) }</span></p></div>
+                            <div class="mt-4 grid gap-2 text-sm text-muted-foreground"><p><strong class="text-foreground">Tenant:</strong> { client.TenantID }</p><p><strong class="text-foreground">Tags:</strong> { fmt.Sprint(client.Tags) }</p><p><strong class="text-foreground">Registered:</strong> { client.RegisteredAt }</p><p><strong class="text-foreground">Last heartbeat:</strong> { client.LastHeartbeat }</p><p><strong class="text-foreground">Last assignment poll:</strong> { client.LastPoll }</p><p><strong class="text-foreground">Webhook listener:</strong> <span class="font-mono">{ webhookListenerLabel(client.WebhookAddr) }</span></p><p><strong class="text-foreground">Host:</strong> <span class="font-mono">{ clientHostLabel(client) }</span></p><p><strong class="text-foreground">IPs:</strong> <span class="font-mono">{ hostIPsLabel(client) }</span></p></div>
                             if data.CurrentUser != nil && data.CurrentUser.IsOperator() && !client.Revoked {
                                 <form method="post" action={ templ.URL("/clients/" + client.ID + "/revoke") } class="mt-4" onsubmit="return confirm('Revoke client { client.Name }? Its token stops working immediately.');"><button type="submit" class="rounded border border-border px-3 py-1 text-xs hover:border-red-500">Revoke client</button></form>
                             }

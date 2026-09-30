@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mcmx/nitejaguar/cmd/web"
+	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/workflow"
 )
@@ -116,6 +120,111 @@ func TestWebhookListenerAdvertised(t *testing.T) {
 	}
 	if cleared := s.webhookNodeInfo("default", def)[trigTargeted]; cleared.HasListener {
 		t.Fatalf("targeted webhook info after clear = %+v, want no listener", cleared)
+	}
+}
+
+// Host info travels the same heartbeat path: a client reporting
+// os/arch/hostname/ips has it stored and exposed via GET /api/clients,
+// while a heartbeat without host_info leaves the stored value alone.
+func TestHostInfoAdvertised(t *testing.T) {
+	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
+	wm := workflow.NewWorkflowManager(false, db)
+	s := &Server{db: db, wm: wm}
+	_, api := newTestAPI(t)
+	addApiRoutes(api, s)
+
+	joinToken := mintEnrollmentToken(t, db, "default", 0)
+	resp := api.Post("/api/clients/register", map[string]any{
+		"name":             "host-info-probe",
+		"enrollment_token": joinToken,
+	})
+	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+		t.Fatalf("register status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	var registered struct {
+		ClientID string `json:"client_id"`
+		Token    string `json:"token"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &registered)
+	auth := "Authorization: Bearer " + registered.Token
+	readerAuth := ensureRoleToken(t, db, "default", database.RoleViewer)
+
+	findHost := func() (map[string]any, bool) {
+		resp := api.Get("/api/clients", readerAuth)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("clients status = %v, body = %s", resp.Code, resp.Body.String())
+		}
+		var out struct {
+			Clients []struct {
+				ID   string         `json:"client_id"`
+				Host map[string]any `json:"host_info"`
+			} `json:"clients"`
+		}
+		decodeBody(t, strings.NewReader(resp.Body.String()), &out)
+		for _, c := range out.Clients {
+			if c.ID == registered.ClientID {
+				return c.Host, true
+			}
+		}
+		return nil, false
+	}
+
+	resp = api.Post("/api/clients/heartbeat", auth, map[string]any{
+		"client_id": registered.ClientID,
+		"host_info": map[string]any{
+			"os": "linux", "arch": "amd64", "hostname": "edge-9",
+			"ips": []string{"10.0.0.9", "fe80::1"},
+		},
+	})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("heartbeat status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	host, found := findHost()
+	if !found || host["os"] != "linux" || host["arch"] != "amd64" ||
+		host["hostname"] != "edge-9" {
+		t.Fatalf("host_info = %v, found = %v", host, found)
+	}
+	ips, _ := host["ips"].([]any)
+	if len(ips) != 2 || ips[0] != "10.0.0.9" || ips[1] != "fe80::1" {
+		t.Fatalf("host ips = %v, want [10.0.0.9 fe80::1]", host["ips"])
+	}
+
+	// A heartbeat without host_info preserves the stored value.
+	resp = api.Post("/api/clients/heartbeat", auth, map[string]any{
+		"client_id": registered.ClientID,
+	})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("heartbeat status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	if host, found := findHost(); !found || host["hostname"] != "edge-9" {
+		t.Fatalf("host_info after plain heartbeat = %v, found = %v, want preserved", host, found)
+	}
+}
+
+// The /clients page shows the advertised listener, host summary, and IP
+// addresses per client.
+func TestClientsPageShowsHostInfo(t *testing.T) {
+	var buf bytes.Buffer
+	data := &web.ClientsPageData{Clients: []web.ClientView{{
+		ID: "client_hostinfo000001", Name: "edge-9", TenantID: "default",
+		Online: true, WebhookAddr: "127.0.0.1:8081",
+		Host: common.HostInfo{OS: "linux", Arch: "arm64", Hostname: "edge-9", IPs: []string{"10.0.0.9", "fe80::1"}},
+	}}}
+	if err := web.ClientsPage(data).Render(context.Background(), &buf); err != nil {
+		t.Fatalf("render clients: %v", err)
+	}
+	body := buf.String()
+	for _, want := range []string{
+		"Webhook listener:", "127.0.0.1:8081 (on)",
+		"linux/arm64 @edge-9", "10.0.0.9", "fe80::1",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("clients page missing %q", want)
+		}
 	}
 }
 

@@ -112,6 +112,7 @@ type Service interface {
 	ListTransferSignals(transferID string, since time.Time) ([]*ent.TransferSignal, error)
 	SetClientDialInfo(id, dialInfo string) error
 	SetClientWebhookAddr(id, addr string) error
+	SetClientHostInfo(id, hostInfoJSON string) error
 
 	// RBAC + web auth (roadmap slice 4): users, roles, login sessions.
 	CreateUser(tenantID, username, password, role string, groups []string) (*ent.AppUser, error)

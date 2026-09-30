@@ -35,6 +35,7 @@ func (s *Server) clientsPageData(c echo.Context) *web.ClientsPageData {
 			Online:        !client.Revoked && time.Since(client.LastHeartbeat) <= 15*time.Second,
 			Revoked:       client.Revoked,
 			WebhookAddr:   client.WebhookAddr,
+			Host:          client.Host,
 		})
 	}
 	sort.Slice(data.Clients, func(i, j int) bool { return data.Clients[i].Name < data.Clients[j].Name })
