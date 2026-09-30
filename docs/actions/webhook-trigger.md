@@ -14,6 +14,7 @@ on the server, and — when the client listener is enabled — the same path on 
 - **Payload in the result**: methods that carry a body post it in the trigger result. JSON bodies decode to native values, anything else stays a string, so downstream conditions can route on `$result.body`, `$result.query`, `$result.method` and friends.
 - **Server ingress**: `e.Any("/webhook/:id")` on the server webserver. No session required so external systems (GitHub, Stripe, CI, `curl`) can deliver. The ack answers `{"ok":true,"workflow_id":...,"execution_id":...,"trigger_id":...}`.
 - **Client ingress**: the client runs its own webserver (`--webhook-addr 127.0.0.1:8081`, or `NITEJAGUAR_WEBHOOK_ADDR`) answering the same `/webhook/{id}` path. A client only fires triggers assigned to it — workflow `default_client` / `default_client_tags` first, per-node `client` / `client_tags` overrides, broadcast otherwise — because the server already filters assignments that way. On install the client logs every served trigger (`webhook trigger installed; serving deliveries`, trigger id + path); unknown ids answer `404`, disallowed methods `405`.
+- **Listener detection**: every heartbeat advertises the client's listener address (`webhook_addr`, empty when disabled), and the server stores it. The `/clients` page and `GET /api/clients` show it per client; the workflow detail page and the designer inspector warn when a webhook trigger's owner client runs no listener (deliveries to that client's endpoint will fail — the server endpoint always fires).
 
 ## Arguments
 

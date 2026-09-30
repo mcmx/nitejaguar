@@ -21,6 +21,7 @@ type clientInfo struct {
 	LastHeartbeat time.Time `json:"last_heartbeat"`
 	LastPoll      time.Time `json:"last_poll"`
 	DialInfo      string    `json:"dial_info,omitempty"`
+	WebhookAddr   string    `json:"webhook_addr,omitempty"`
 }
 
 // clientRegistry is a database-backed client registry.
@@ -58,6 +59,7 @@ func (r *clientRegistry) register(name string, tags []string, enrollmentToken st
 		LastHeartbeat: c.LastHeartbeat,
 		LastPoll:      c.LastPoll,
 		DialInfo:      c.DialInfo,
+		WebhookAddr:   c.WebhookAddr,
 	}, token, nil
 }
 
@@ -81,6 +83,7 @@ func (r *clientRegistry) getClient(id string) (*clientInfo, bool) {
 				LastHeartbeat: c.LastHeartbeat,
 				LastPoll:      c.LastPoll,
 				DialInfo:      c.DialInfo,
+				WebhookAddr:   c.WebhookAddr,
 			}, true
 		}
 	}
@@ -126,6 +129,7 @@ func (r *clientRegistry) list() []*clientInfo {
 			LastHeartbeat: c.LastHeartbeat,
 			LastPoll:      c.LastPoll,
 			DialInfo:      c.DialInfo,
+			WebhookAddr:   c.WebhookAddr,
 		})
 	}
 	return list

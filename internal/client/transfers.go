@@ -140,9 +140,10 @@ func (a API) PollSignals(ctx context.Context, transferID string, since time.Time
 	return out.Signals, err
 }
 
-// HeartbeatWithDial reports liveness plus advertised P2P dial info.
-func (a API) HeartbeatWithDial(ctx context.Context, id, dialInfo string) error {
-	return a.request(ctx, "POST", "/api/clients/heartbeat", map[string]string{"client_id": id, "dial_info": dialInfo}, nil)
+// HeartbeatWithDial reports liveness plus advertised P2P dial info and the
+// webhook listener address (empty = no listener).
+func (a API) HeartbeatWithDial(ctx context.Context, id, dialInfo, webhookAddr string) error {
+	return a.request(ctx, "POST", "/api/clients/heartbeat", map[string]string{"client_id": id, "dial_info": dialInfo, "webhook_addr": webhookAddr}, nil)
 }
 
 // UploadFileRelay streams a local file through the server relay in order.

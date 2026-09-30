@@ -136,6 +136,20 @@ func (_c *RemoteClientCreate) SetNillableDialInfo(v *string) *RemoteClientCreate
 	return _c
 }
 
+// SetWebhookAddr sets the "webhook_addr" field.
+func (_c *RemoteClientCreate) SetWebhookAddr(v string) *RemoteClientCreate {
+	_c.mutation.SetWebhookAddr(v)
+	return _c
+}
+
+// SetNillableWebhookAddr sets the "webhook_addr" field if the given value is not nil.
+func (_c *RemoteClientCreate) SetNillableWebhookAddr(v *string) *RemoteClientCreate {
+	if v != nil {
+		_c.SetWebhookAddr(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *RemoteClientCreate) SetID(v string) *RemoteClientCreate {
 	_c.mutation.SetID(v)
@@ -201,6 +215,10 @@ func (_c *RemoteClientCreate) defaults() {
 		v := remoteclient.DefaultDialInfo
 		_c.mutation.SetDialInfo(v)
 	}
+	if _, ok := _c.mutation.WebhookAddr(); !ok {
+		v := remoteclient.DefaultWebhookAddr
+		_c.mutation.SetWebhookAddr(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -241,6 +259,9 @@ func (_c *RemoteClientCreate) check() error {
 	}
 	if _, ok := _c.mutation.DialInfo(); !ok {
 		return &ValidationError{Name: "dial_info", err: errors.New(`ent: missing required field "RemoteClient.dial_info"`)}
+	}
+	if _, ok := _c.mutation.WebhookAddr(); !ok {
+		return &ValidationError{Name: "webhook_addr", err: errors.New(`ent: missing required field "RemoteClient.webhook_addr"`)}
 	}
 	if v, ok := _c.mutation.ID(); ok {
 		if err := remoteclient.IDValidator(v); err != nil {
@@ -321,6 +342,10 @@ func (_c *RemoteClientCreate) createSpec() (*RemoteClient, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.DialInfo(); ok {
 		_spec.SetField(remoteclient.FieldDialInfo, field.TypeString, value)
 		_node.DialInfo = value
+	}
+	if value, ok := _c.mutation.WebhookAddr(); ok {
+		_spec.SetField(remoteclient.FieldWebhookAddr, field.TypeString, value)
+		_node.WebhookAddr = value
 	}
 	return _node, _spec
 }

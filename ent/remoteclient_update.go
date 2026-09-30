@@ -143,6 +143,20 @@ func (_u *RemoteClientUpdate) SetNillableDialInfo(v *string) *RemoteClientUpdate
 	return _u
 }
 
+// SetWebhookAddr sets the "webhook_addr" field.
+func (_u *RemoteClientUpdate) SetWebhookAddr(v string) *RemoteClientUpdate {
+	_u.mutation.SetWebhookAddr(v)
+	return _u
+}
+
+// SetNillableWebhookAddr sets the "webhook_addr" field if the given value is not nil.
+func (_u *RemoteClientUpdate) SetNillableWebhookAddr(v *string) *RemoteClientUpdate {
+	if v != nil {
+		_u.SetWebhookAddr(*v)
+	}
+	return _u
+}
+
 // Mutation returns the RemoteClientMutation object of the builder.
 func (_u *RemoteClientUpdate) Mutation() *RemoteClientMutation {
 	return _u.mutation
@@ -249,6 +263,9 @@ func (_u *RemoteClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.DialInfo(); ok {
 		_spec.SetField(remoteclient.FieldDialInfo, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.WebhookAddr(); ok {
+		_spec.SetField(remoteclient.FieldWebhookAddr, field.TypeString, value)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -380,6 +397,20 @@ func (_u *RemoteClientUpdateOne) SetDialInfo(v string) *RemoteClientUpdateOne {
 func (_u *RemoteClientUpdateOne) SetNillableDialInfo(v *string) *RemoteClientUpdateOne {
 	if v != nil {
 		_u.SetDialInfo(*v)
+	}
+	return _u
+}
+
+// SetWebhookAddr sets the "webhook_addr" field.
+func (_u *RemoteClientUpdateOne) SetWebhookAddr(v string) *RemoteClientUpdateOne {
+	_u.mutation.SetWebhookAddr(v)
+	return _u
+}
+
+// SetNillableWebhookAddr sets the "webhook_addr" field if the given value is not nil.
+func (_u *RemoteClientUpdateOne) SetNillableWebhookAddr(v *string) *RemoteClientUpdateOne {
+	if v != nil {
+		_u.SetWebhookAddr(*v)
 	}
 	return _u
 }
@@ -520,6 +551,9 @@ func (_u *RemoteClientUpdateOne) sqlSave(ctx context.Context) (_node *RemoteClie
 	}
 	if value, ok := _u.mutation.DialInfo(); ok {
 		_spec.SetField(remoteclient.FieldDialInfo, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.WebhookAddr(); ok {
+		_spec.SetField(remoteclient.FieldWebhookAddr, field.TypeString, value)
 	}
 	_node = &RemoteClient{config: _u.config}
 	_spec.Assign = _node.assignValues

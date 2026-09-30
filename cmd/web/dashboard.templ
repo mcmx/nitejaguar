@@ -22,7 +22,21 @@ type WorkflowDetailData struct {
     CurrentUser *modules.NavUser
     Workflow *ent.Workflow
     Definition workflow.Workflow
+    WebhookInfo map[string]WebhookNodeInfo
     Error string
+}
+
+// WebhookNodeInfo describes who can serve one webhook trigger: the
+// resolved owner client ("" = broadcast) and whether it runs a listener.
+// The server endpoint always fires; only client-side deliveries depend on
+// the owner advertising webhook_addr in its heartbeats.
+type WebhookNodeInfo struct {
+    Path string
+    Owner string
+    OwnerName string
+    HasListener bool
+    ListenerAddr string
+    ListenerCount int
 }
 
 type ResultsPageData struct {
@@ -41,6 +55,7 @@ type ClientView struct {
     LastPoll string
     Online bool
     Revoked bool
+    WebhookAddr string
 }
 
 type ClientsPageData struct {
@@ -83,6 +98,15 @@ type DesignerInit struct {
     DefaultClient string `json:"defaultClient"`
     DefaultClientTags string `json:"defaultClientTags"`
     Nodes []DesignerNodeInit `json:"nodes"`
+    Clients []DesignerClientInit `json:"clients"`
+}
+
+// DesignerClientInit carries the registered clients into the designer so
+// the inspector can warn when a webhook trigger's owner runs no listener.
+type DesignerClientInit struct {
+    ID string `json:"id"`
+    Name string `json:"name"`
+    WebhookAddr string `json:"webhookAddr"`
 }
 
 type DesignerPageData struct {
@@ -260,6 +284,25 @@ func workflowName(wf *ent.Workflow) string {
     return wf.ID
 }
 
+func webhookListenerLabel(addr string) string {
+    if addr != "" { return addr + " (on)" }
+    return "off"
+}
+
+func clientOptionLabel(c ClientView) string {
+    status := "offline"
+    if c.Revoked {
+        status = "revoked"
+    } else if c.Online {
+        status = "online"
+    }
+    hook := "webhook off"
+    if c.WebhookAddr != "" {
+        hook = "webhook on"
+    }
+    return c.Name + " — " + status + " · " + hook
+}
+
 templ WorkflowDetailPage(data *WorkflowDetailData) {
     @Base(data.CurrentUser) {
         <main class="container mx-auto max-w-6xl px-4 py-8">
@@ -288,7 +331,17 @@ templ WorkflowDetailPage(data *WorkflowDetailData) {
                                 }</div></div>
                             <div class="mt-4 grid gap-4 text-sm md:grid-cols-2"><div><h3 class="mb-1 font-medium">Arguments</h3><pre class="overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(node.Arguments) }</pre></div><div><h3 class="mb-1 font-medium">Conditions / next nodes</h3><pre class="overflow-x-auto rounded bg-muted p-3 text-xs">{ jsonText(node.Conditions) }</pre></div><div><h3 class="mb-1 font-medium">Dependencies</h3><p class="break-all rounded bg-muted p-3 font-mono text-xs">{ fmt.Sprint(node.Dependencies) }</p></div><div><h3 class="mb-1 font-medium">Client targeting</h3><p class="break-all rounded bg-muted p-3 text-xs">client: { node.Client }<br/>tags: { fmt.Sprint(node.ClientTags) }<br/>credential: { node.CredentialRef }</p></div></div>
                             if node.ActionType == "trigger" && node.ActionName == "webhook" {
-                                <div class="mt-4 rounded-lg border border-border p-4 text-sm"><h3 class="mb-1 font-medium">Webhook endpoint</h3><p class="break-all rounded bg-muted p-3 font-mono text-xs">/webhook/{ node.Id }</p><p class="mt-2 text-xs text-muted-foreground">Fire with the methods in the <span class="font-mono">method</span> argument (default <span class="font-mono">ALL</span>). Served by the server and by assigned clients running with <span class="font-mono">--webhook-addr</span>. Example: <span class="font-mono">curl -X POST /webhook/{ node.Id }</span></p></div>
+                                <div class="mt-4 rounded-lg border border-border p-4 text-sm"><h3 class="mb-1 font-medium">Webhook endpoint</h3><p class="break-all rounded bg-muted p-3 font-mono text-xs">/webhook/{ node.Id }</p><p class="mt-2 text-xs text-muted-foreground">Fire with the methods in the <span class="font-mono">method</span> argument (default <span class="font-mono">ALL</span>). Served by the server and by assigned clients running with <span class="font-mono">--webhook-addr</span>. Example: <span class="font-mono">curl -X POST /webhook/{ node.Id }</span></p>
+                                    if data.WebhookInfo[node.Id].Owner != "" && !data.WebhookInfo[node.Id].HasListener {
+                                        <p class="mt-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-xs text-amber-700">No webhook listener: client { data.WebhookInfo[node.Id].OwnerName } has not advertised one (is it running with <span class="font-mono">--webhook-addr</span>?). Deliveries to its endpoint will fail; the server endpoint still fires.</p>
+                                    }
+                                    if data.WebhookInfo[node.Id].Owner != "" && data.WebhookInfo[node.Id].HasListener {
+                                        <p class="mt-2 text-xs text-muted-foreground">Client endpoint served by { data.WebhookInfo[node.Id].OwnerName } (<span class="font-mono">{ data.WebhookInfo[node.Id].ListenerAddr }</span>).</p>
+                                    }
+                                    if data.WebhookInfo[node.Id].Owner == "" {
+                                        <p class="mt-2 text-xs text-muted-foreground">Broadcast trigger: { fmt.Sprint(data.WebhookInfo[node.Id].ListenerCount) } registered client(s) run a webhook listener.</p>
+                                    }
+                                </div>
                             }
                         </article>
                     }
@@ -412,7 +465,7 @@ templ ClientsPage(data *ClientsPageData) {
                                     <span class="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">stale</span>
                                 }
                             </div>
-                            <div class="mt-4 grid gap-2 text-sm text-muted-foreground"><p><strong class="text-foreground">Tenant:</strong> { client.TenantID }</p><p><strong class="text-foreground">Tags:</strong> { fmt.Sprint(client.Tags) }</p><p><strong class="text-foreground">Registered:</strong> { client.RegisteredAt }</p><p><strong class="text-foreground">Last heartbeat:</strong> { client.LastHeartbeat }</p><p><strong class="text-foreground">Last assignment poll:</strong> { client.LastPoll }</p></div>
+                            <div class="mt-4 grid gap-2 text-sm text-muted-foreground"><p><strong class="text-foreground">Tenant:</strong> { client.TenantID }</p><p><strong class="text-foreground">Tags:</strong> { fmt.Sprint(client.Tags) }</p><p><strong class="text-foreground">Registered:</strong> { client.RegisteredAt }</p><p><strong class="text-foreground">Last heartbeat:</strong> { client.LastHeartbeat }</p><p><strong class="text-foreground">Last assignment poll:</strong> { client.LastPoll }</p><p><strong class="text-foreground">Webhook listener:</strong> <span class="font-mono">{ webhookListenerLabel(client.WebhookAddr) }</span></p></div>
                             if data.CurrentUser != nil && data.CurrentUser.IsOperator() && !client.Revoked {
                                 <form method="post" action={ templ.URL("/clients/" + client.ID + "/revoke") } class="mt-4" onsubmit="return confirm('Revoke client { client.Name }? Its token stops working immediately.');"><button type="submit" class="rounded border border-border px-3 py-1 text-xs hover:border-red-500">Revoke client</button></form>
                             }
@@ -544,6 +597,7 @@ templ DesignerPage(data *DesignerPageData) {
 				defaultClientTags: (initial && initial.defaultClientTags) || '',
 				nodes: seedNodes,
 				selectedId: seedNodes.length ? seedNodes[0].id : null,
+				clients: (initial && initial.clients) || [],
 				pickerOpen: false, pickerFor: null, pickerQuery: '', showJson: false, zoom: 1,
 				panX: 0, panY: 0,
 				connectFrom: null, formError: '', drag: null,
@@ -812,6 +866,33 @@ templ DesignerPage(data *DesignerPageData) {
 						return up;
 					} catch (e) { return 'ALL'; }
 				},
+				clientHookById(id) {
+					var list = this.clients || [];
+					for (var i = 0; i < list.length; i++) { if (list[i].id === id) { return list[i]; } }
+					return null;
+				},
+				webhookOwner(node) {
+					if (!node) { return ''; }
+					var o = (node.client || '').trim() || (this.defaultClient || '').trim();
+					return o;
+				},
+				// webhookOwnerNote reports whether the owner of a webhook
+				// trigger runs a listener. The server endpoint always
+				// fires; only client-side deliveries depend on the owner
+				// advertising webhook_addr in its heartbeats.
+				webhookOwnerNote(node) {
+					var self = this;
+					var o = self.webhookOwner(node);
+					if (!o) {
+						var count = 0;
+						(self.clients || []).forEach(function (c) { if (c.webhookAddr) { count++; } });
+						return { kind: 'info', text: 'Broadcast: ' + count + ' registered client(s) run a webhook listener. The server endpoint always fires.' };
+					}
+					var c = self.clientHookById(o);
+					if (!c) { return { kind: 'warn', text: 'Client ' + o + ' is not registered: its deliveries will fail. The server endpoint still fires.' }; }
+					if (!c.webhookAddr) { return { kind: 'warn', text: (c.name || o) + ' has no webhook listener (is it running with --webhook-addr?): its deliveries will fail. The server endpoint still fires.' }; }
+					return { kind: 'ok', text: 'Client endpoint served by ' + (c.name || o) + ' (' + c.webhookAddr + ') and by the server.' };
+				},
 				validateAll() {
 					if (!this.nodes.length) { this.formError = 'Add at least one node before saving.'; return false; }
 					var hasTrigger = this.nodes.some(function (n) { return n.action_type === 'trigger'; });
@@ -924,13 +1005,7 @@ templ DesignerPage(data *DesignerPageData) {
 								<option value="">No clients registered — empty means broadcast</option>
 							} else {
 								for _, client := range data.Clients {
-									if client.Revoked {
-										<option value={ client.ID }>{ client.Name } — revoked</option>
-									} else if client.Online {
-										<option value={ client.ID }>{ client.Name } — online</option>
-									} else {
-										<option value={ client.ID }>{ client.Name } — offline</option>
-									}
+									<option value={ client.ID }>{ clientOptionLabel(client) }</option>
 								}
 							}
 						</datalist>
@@ -1067,6 +1142,7 @@ templ DesignerPage(data *DesignerPageData) {
 										<button type="button" @click="navigator.clipboard && navigator.clipboard.writeText(webhookPath(selected()))" class="rounded-md border border-border px-2 py-1 text-xs hover:border-red-500">Copy</button>
 									</div>
 									<p class="mt-1 text-[11px] text-muted-foreground">Accepts <span class="font-mono" x-text="webhookMethods(selected())"></span> · served by the server and by assigned clients running with <span class="font-mono">--webhook-addr</span>.</p>
+									<p class="mt-1 rounded-md px-2 py-1 text-[11px]" :class="webhookOwnerNote(selected()).kind === 'warn' ? 'border border-amber-500/50 bg-amber-500/10 text-amber-700' : 'text-muted-foreground'" x-text="webhookOwnerNote(selected()).text"></p>
 								</div>
 								<div>
 									<label class="mb-1 block text-xs font-medium">Description</label>
@@ -1195,13 +1271,7 @@ templ DesignerPage(data *DesignerPageData) {
 						<option value="">No clients registered — empty means broadcast</option>
 					} else {
 						for _, client := range data.Clients {
-							if client.Revoked {
-								<option value={ client.ID }>{ client.Name } — revoked</option>
-							} else if client.Online {
-								<option value={ client.ID }>{ client.Name } — online</option>
-							} else {
-								<option value={ client.ID }>{ client.Name } — offline</option>
-							}
+							<option value={ client.ID }>{ clientOptionLabel(client) }</option>
 						}
 					}
 				</datalist>

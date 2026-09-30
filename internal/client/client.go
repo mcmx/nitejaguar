@@ -804,7 +804,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		r.mu.Lock()
 		r.selfID = id
 		r.mu.Unlock()
-		if err := r.api.HeartbeatWithDial(ctx, id, transferDialInfo); err != nil {
+		if err := r.api.HeartbeatWithDial(ctx, id, transferDialInfo, strings.TrimSpace(cfg.WebhookAddr)); err != nil {
 			if dropIdentity(err) {
 				logger.Warn("server rejected client token; discarding saved identity and re-registering (needs enrollment token)",
 					"client_id", id, "error", err, "after", backoff)

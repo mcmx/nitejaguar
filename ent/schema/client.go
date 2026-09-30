@@ -48,6 +48,9 @@ func (RemoteClient) Fields() []ent.Field {
 		field.Text("dial_info").
 			Default("").
 			Comment("client-advertised dial info for P2P signaling (JSON, server never dials it)"),
+		field.Text("webhook_addr").
+			Default("").
+			Comment("client-advertised webhook listener addr (empty = no listener); reported on every heartbeat"),
 	}
 }
 

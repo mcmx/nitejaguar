@@ -199,6 +199,8 @@ func TestDesignerGraphClientLogic(t *testing.T) {
 		"designerTypeidSuffix",
 		"abcdefghjkmnpqrstvwxyz",
 		"webhookPath",
+		"webhookOwnerNote",
+		"clientHookById",
 		"Webhook endpoint",
 		"/webhook/",
 	} {

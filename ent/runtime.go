@@ -281,6 +281,10 @@ func init() {
 	remoteclientDescDialInfo := remoteclientFields[10].Descriptor()
 	// remoteclient.DefaultDialInfo holds the default value on creation for the dial_info field.
 	remoteclient.DefaultDialInfo = remoteclientDescDialInfo.Default.(string)
+	// remoteclientDescWebhookAddr is the schema descriptor for webhook_addr field.
+	remoteclientDescWebhookAddr := remoteclientFields[11].Descriptor()
+	// remoteclient.DefaultWebhookAddr holds the default value on creation for the webhook_addr field.
+	remoteclient.DefaultWebhookAddr = remoteclientDescWebhookAddr.Default.(string)
 	// remoteclientDescID is the schema descriptor for id field.
 	remoteclientDescID := remoteclientFields[0].Descriptor()
 	// remoteclient.IDValidator is a validator for the "id" field. It is called by the builders before save.

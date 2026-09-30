@@ -109,6 +109,11 @@ func DialInfo(v string) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldEQ(FieldDialInfo, v))
 }
 
+// WebhookAddr applies equality check predicate on the "webhook_addr" field. It's identical to WebhookAddrEQ.
+func WebhookAddr(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEQ(FieldWebhookAddr, v))
+}
+
 // NameEQ applies the EQ predicate on the "name" field.
 func NameEQ(v string) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldEQ(FieldName, v))
@@ -547,6 +552,71 @@ func DialInfoEqualFold(v string) predicate.RemoteClient {
 // DialInfoContainsFold applies the ContainsFold predicate on the "dial_info" field.
 func DialInfoContainsFold(v string) predicate.RemoteClient {
 	return predicate.RemoteClient(sql.FieldContainsFold(FieldDialInfo, v))
+}
+
+// WebhookAddrEQ applies the EQ predicate on the "webhook_addr" field.
+func WebhookAddrEQ(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEQ(FieldWebhookAddr, v))
+}
+
+// WebhookAddrNEQ applies the NEQ predicate on the "webhook_addr" field.
+func WebhookAddrNEQ(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldNEQ(FieldWebhookAddr, v))
+}
+
+// WebhookAddrIn applies the In predicate on the "webhook_addr" field.
+func WebhookAddrIn(vs ...string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldIn(FieldWebhookAddr, vs...))
+}
+
+// WebhookAddrNotIn applies the NotIn predicate on the "webhook_addr" field.
+func WebhookAddrNotIn(vs ...string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldNotIn(FieldWebhookAddr, vs...))
+}
+
+// WebhookAddrGT applies the GT predicate on the "webhook_addr" field.
+func WebhookAddrGT(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldGT(FieldWebhookAddr, v))
+}
+
+// WebhookAddrGTE applies the GTE predicate on the "webhook_addr" field.
+func WebhookAddrGTE(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldGTE(FieldWebhookAddr, v))
+}
+
+// WebhookAddrLT applies the LT predicate on the "webhook_addr" field.
+func WebhookAddrLT(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldLT(FieldWebhookAddr, v))
+}
+
+// WebhookAddrLTE applies the LTE predicate on the "webhook_addr" field.
+func WebhookAddrLTE(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldLTE(FieldWebhookAddr, v))
+}
+
+// WebhookAddrContains applies the Contains predicate on the "webhook_addr" field.
+func WebhookAddrContains(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldContains(FieldWebhookAddr, v))
+}
+
+// WebhookAddrHasPrefix applies the HasPrefix predicate on the "webhook_addr" field.
+func WebhookAddrHasPrefix(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldHasPrefix(FieldWebhookAddr, v))
+}
+
+// WebhookAddrHasSuffix applies the HasSuffix predicate on the "webhook_addr" field.
+func WebhookAddrHasSuffix(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldHasSuffix(FieldWebhookAddr, v))
+}
+
+// WebhookAddrEqualFold applies the EqualFold predicate on the "webhook_addr" field.
+func WebhookAddrEqualFold(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldEqualFold(FieldWebhookAddr, v))
+}
+
+// WebhookAddrContainsFold applies the ContainsFold predicate on the "webhook_addr" field.
+func WebhookAddrContainsFold(v string) predicate.RemoteClient {
+	return predicate.RemoteClient(sql.FieldContainsFold(FieldWebhookAddr, v))
 }
 
 // And groups predicates with the AND operator between them.

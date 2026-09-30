@@ -50,6 +50,7 @@ type ClientStatus struct {
 	LastPoll      time.Time `json:"last_poll"`
 	Online        bool      `json:"online"`
 	DialInfo      string    `json:"dial_info,omitempty"`
+	WebhookAddr   string    `json:"webhook_addr,omitempty"`
 }
 
 type ClientsResponse struct {
@@ -399,6 +400,11 @@ type HeartbeatInput struct {
 		// the server stores and shows to signaling peers; never dialed
 		// by the server itself). Empty leaves the stored value unchanged.
 		DialInfo string `json:"dial_info,omitempty"`
+		// WebhookAddr is the client's webhook listener address (empty =
+		// no listener). Unlike dial_info it is overwritten on every
+		// heartbeat, so a client restarted without --webhook-addr stops
+		// advertising instead of lingering.
+		WebhookAddr string `json:"webhook_addr,omitempty"`
 	}
 }
 
@@ -525,6 +531,9 @@ func (s *Server) ClientHeartbeat(_ context.Context, input *HeartbeatInput) (*Hea
 		if err := s.db.SetClientDialInfo(input.Body.ClientID, input.Body.DialInfo); err != nil {
 			return nil, huma.Error400BadRequest(err.Error())
 		}
+	}
+	if err := s.db.SetClientWebhookAddr(input.Body.ClientID, input.Body.WebhookAddr); err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
 	}
 	log.Printf("client heartbeat: id=%s name=%q", c.ID, c.Name)
 	return &HeartbeatOutput{
@@ -655,7 +664,7 @@ func (s *Server) GetClients(_ context.Context, input *ListClientsInput) (*Client
 			RegisteredAt:  c.RegisteredAt,
 			LastHeartbeat: c.LastHeartbeat, LastPoll: c.LastPoll,
 			Online:   !c.Revoked && now.Sub(c.LastHeartbeat) <= 15*time.Second,
-			DialInfo: c.DialInfo,
+			DialInfo: c.DialInfo, WebhookAddr: c.WebhookAddr,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
@@ -1258,6 +1267,8 @@ func (s *Server) workflowPage(c echo.Context) error {
 		data.Error = "Workflow not found"
 	} else if err := json.Unmarshal([]byte(row.JSONDefinition), &data.Definition); err != nil {
 		data.Error = "Workflow definition is invalid"
+	} else {
+		data.WebhookInfo = s.webhookNodeInfo(workflowTenant(row.TenantID, row.JSONDefinition), data.Definition)
 	}
 	templ.Handler(web.WorkflowDetailPage(data)).ServeHTTP(c.Response(), c.Request())
 	return nil
@@ -1645,6 +1656,7 @@ func (s *Server) renderDesigner(c echo.Context, workflowID string) error {
 			LastPoll:      client.LastPoll.Format("2006-01-02 15:04:05 MST"),
 			Online:        !client.Revoked && time.Since(client.LastHeartbeat) <= 15*time.Second,
 			Revoked:       client.Revoked,
+			WebhookAddr:   client.WebhookAddr,
 		})
 	}
 	sort.Slice(data.Clients, func(i, j int) bool { return data.Clients[i].Name < data.Clients[j].Name })
@@ -1666,6 +1678,13 @@ func (s *Server) renderDesigner(c echo.Context, workflowID string) error {
 				data.EditWorkflowID = workflowID
 			}
 		}
+	}
+	// Registered clients ride along in the designer payload so the
+	// inspector can warn when a webhook trigger's owner runs no listener.
+	for _, c := range data.Clients {
+		data.Init.Clients = append(data.Init.Clients, web.DesignerClientInit{
+			ID: c.ID, Name: c.Name, WebhookAddr: c.WebhookAddr,
+		})
 	}
 	data.InitJSON = web.DesignerInitJSON(data.Init)
 	templ.Handler(web.DesignerPage(data)).ServeHTTP(c.Response(), c.Request())

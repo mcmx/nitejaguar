@@ -296,6 +296,19 @@ func (s *service) SetClientDialInfo(id, dialInfo string) error {
 	return nil
 }
 
+// SetClientWebhookAddr stores the client's advertised webhook listener
+// address (empty = no listener). It is overwritten on every heartbeat so
+// a client restarted without --webhook-addr stops advertising.
+func (s *service) SetClientWebhookAddr(id, addr string) error {
+	if len(addr) > 256 {
+		return fmt.Errorf("webhook_addr exceeds 256 bytes")
+	}
+	if err := s.client.RemoteClient.UpdateOneID(id).SetWebhookAddr(addr).Exec(context.Background()); err != nil {
+		return fmt.Errorf("failed to store webhook addr: %w", err)
+	}
+	return nil
+}
+
 // TransferVisibleTo reports whether a client may access a session
 // (participant + tenant). Exported for server route handlers.
 func TransferVisibleTo(row *ent.TransferSession, clientID string, tags []string, tenantID string) bool {

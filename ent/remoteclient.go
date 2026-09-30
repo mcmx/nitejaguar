@@ -37,7 +37,9 @@ type RemoteClient struct {
 	// RevokedAt holds the value of the "revoked_at" field.
 	RevokedAt *time.Time `json:"revoked_at,omitempty"`
 	// client-advertised dial info for P2P signaling (JSON, server never dials it)
-	DialInfo     string `json:"dial_info,omitempty"`
+	DialInfo string `json:"dial_info,omitempty"`
+	// client-advertised webhook listener addr (empty = no listener); reported on every heartbeat
+	WebhookAddr  string `json:"webhook_addr,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -50,7 +52,7 @@ func (*RemoteClient) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case remoteclient.FieldRevoked:
 			values[i] = new(sql.NullBool)
-		case remoteclient.FieldID, remoteclient.FieldName, remoteclient.FieldTenantID, remoteclient.FieldTokenHash, remoteclient.FieldDialInfo:
+		case remoteclient.FieldID, remoteclient.FieldName, remoteclient.FieldTenantID, remoteclient.FieldTokenHash, remoteclient.FieldDialInfo, remoteclient.FieldWebhookAddr:
 			values[i] = new(sql.NullString)
 		case remoteclient.FieldRegisteredAt, remoteclient.FieldLastHeartbeat, remoteclient.FieldLastPoll, remoteclient.FieldRevokedAt:
 			values[i] = new(sql.NullTime)
@@ -138,6 +140,12 @@ func (_m *RemoteClient) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.DialInfo = value.String
 			}
+		case remoteclient.FieldWebhookAddr:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field webhook_addr", values[i])
+			} else if value.Valid {
+				_m.WebhookAddr = value.String
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -205,6 +213,9 @@ func (_m *RemoteClient) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("dial_info=")
 	builder.WriteString(_m.DialInfo)
+	builder.WriteString(", ")
+	builder.WriteString("webhook_addr=")
+	builder.WriteString(_m.WebhookAddr)
 	builder.WriteByte(')')
 	return builder.String()
 }

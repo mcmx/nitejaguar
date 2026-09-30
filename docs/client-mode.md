@@ -19,7 +19,7 @@ The `nitejaguar` binary is the client-only build. Nitejaguar supports distribute
 | `--enrollment-token` | `NITEJAGUAR_ENROLLMENT_TOKEN` | `""` | Tenant enrollment/join token for self-registration (required on first register; tenant comes from the token) |
 | `--state-file` | `NITEJAGUAR_STATE_FILE` | `client_state.json` | Path to the client identity state file (use one file per client when running several clients from the same directory) |
 | `--log-level` | `NITEJAGUAR_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn` or `error`. `debug` adds the per-node execution trace (see [Logging](#logging)) |
-| `--webhook-addr` | `NITEJAGUAR_WEBHOOK_ADDR` | `""` (disabled) | Listen address for the client webhook listener, e.g. `127.0.0.1:8081`. When set, the client answers `/webhook/{id}` for its assigned `webhook` triggers (see [Webhook Trigger](./actions/webhook-trigger.md)) |
+| `--webhook-addr` | `NITEJAGUAR_WEBHOOK_ADDR` | `""` (disabled) | Listen address for the client webhook listener, e.g. `127.0.0.1:8081`. When set, the client answers `/webhook/{id}` for its assigned `webhook` triggers and advertises the address in every heartbeat so the server can tell which clients run a listener (see [Webhook Trigger](./actions/webhook-trigger.md)) |
 
 ## Client State File
 

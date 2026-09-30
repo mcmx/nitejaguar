@@ -126,6 +126,12 @@ The designer is a node-graph canvas, not a form list:
   default client and each node's client field both offer the list
   while still accepting a custom id. Saving is done from the top-bar
   button; closing uses the ✕ button in the top-right corner.
+- Webhook triggers show their endpoint plus a listener check: when the
+  resolved owner client (per-node client, else workflow default)
+  runs no webhook listener, the inspector and the workflow detail page
+  warn that deliveries to that client's endpoint will fail (the server
+  endpoint always fires). Broadcast triggers report how many clients
+  run a listener.
 
 ## Client targeting & distributed execution
 
