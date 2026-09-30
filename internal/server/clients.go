@@ -1,10 +1,12 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
 
+	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/database"
 )
 
@@ -12,15 +14,17 @@ var errNoDatabase = errors.New("no database")
 
 // clientInfo is a registered remote client (REST polling transport).
 type clientInfo struct {
-	ID            string    `json:"client_id"`
-	Name          string    `json:"name"`
-	TenantID      string    `json:"tenant_id"`
-	Tags          []string  `json:"tags"`
-	Revoked       bool      `json:"revoked"`
-	RegisteredAt  time.Time `json:"registered_at"`
-	LastHeartbeat time.Time `json:"last_heartbeat"`
-	LastPoll      time.Time `json:"last_poll"`
-	DialInfo      string    `json:"dial_info,omitempty"`
+	ID            string          `json:"client_id"`
+	Name          string          `json:"name"`
+	TenantID      string          `json:"tenant_id"`
+	Tags          []string        `json:"tags"`
+	Revoked       bool            `json:"revoked"`
+	RegisteredAt  time.Time       `json:"registered_at"`
+	LastHeartbeat time.Time       `json:"last_heartbeat"`
+	LastPoll      time.Time       `json:"last_poll"`
+	DialInfo      string          `json:"dial_info,omitempty"`
+	WebhookAddr   string          `json:"webhook_addr,omitempty"`
+	Host          common.HostInfo `json:"host_info,omitempty"`
 }
 
 // clientRegistry is a database-backed client registry.
@@ -58,6 +62,8 @@ func (r *clientRegistry) register(name string, tags []string, enrollmentToken st
 		LastHeartbeat: c.LastHeartbeat,
 		LastPoll:      c.LastPoll,
 		DialInfo:      c.DialInfo,
+		WebhookAddr:   c.WebhookAddr,
+		Host:          parseHostInfo(c.HostInfo),
 	}, token, nil
 }
 
@@ -81,6 +87,8 @@ func (r *clientRegistry) getClient(id string) (*clientInfo, bool) {
 				LastHeartbeat: c.LastHeartbeat,
 				LastPoll:      c.LastPoll,
 				DialInfo:      c.DialInfo,
+				WebhookAddr:   c.WebhookAddr,
+				Host:          parseHostInfo(c.HostInfo),
 			}, true
 		}
 	}
@@ -126,6 +134,8 @@ func (r *clientRegistry) list() []*clientInfo {
 			LastHeartbeat: c.LastHeartbeat,
 			LastPoll:      c.LastPoll,
 			DialInfo:      c.DialInfo,
+			WebhookAddr:   c.WebhookAddr,
+			Host:          parseHostInfo(c.HostInfo),
 		})
 	}
 	return list
@@ -151,4 +161,17 @@ func bearerToken(authorization, compatible string) string {
 		return strings.TrimSpace(authorization[7:])
 	}
 	return strings.TrimSpace(compatible)
+}
+
+// parseHostInfo decodes the stored host_info blob; corrupt or empty
+// values yield the zero HostInfo (unknown host).
+func parseHostInfo(raw string) common.HostInfo {
+	var out common.HostInfo
+	if raw == "" {
+		return out
+	}
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return common.HostInfo{}
+	}
+	return out
 }

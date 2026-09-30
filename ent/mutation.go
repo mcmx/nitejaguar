@@ -4426,6 +4426,8 @@ type RemoteClientMutation struct {
 	revoked        *bool
 	revoked_at     *time.Time
 	dial_info      *string
+	webhook_addr   *string
+	host_info      *string
 	clearedFields  map[string]struct{}
 	done           bool
 	oldValue       func(context.Context) (*RemoteClient, error)
@@ -4924,6 +4926,78 @@ func (m *RemoteClientMutation) ResetDialInfo() {
 	m.dial_info = nil
 }
 
+// SetWebhookAddr sets the "webhook_addr" field.
+func (m *RemoteClientMutation) SetWebhookAddr(s string) {
+	m.webhook_addr = &s
+}
+
+// WebhookAddr returns the value of the "webhook_addr" field in the mutation.
+func (m *RemoteClientMutation) WebhookAddr() (r string, exists bool) {
+	v := m.webhook_addr
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWebhookAddr returns the old "webhook_addr" field's value of the RemoteClient entity.
+// If the RemoteClient object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RemoteClientMutation) OldWebhookAddr(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWebhookAddr is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWebhookAddr requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWebhookAddr: %w", err)
+	}
+	return oldValue.WebhookAddr, nil
+}
+
+// ResetWebhookAddr resets all changes to the "webhook_addr" field.
+func (m *RemoteClientMutation) ResetWebhookAddr() {
+	m.webhook_addr = nil
+}
+
+// SetHostInfo sets the "host_info" field.
+func (m *RemoteClientMutation) SetHostInfo(s string) {
+	m.host_info = &s
+}
+
+// HostInfo returns the value of the "host_info" field in the mutation.
+func (m *RemoteClientMutation) HostInfo() (r string, exists bool) {
+	v := m.host_info
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHostInfo returns the old "host_info" field's value of the RemoteClient entity.
+// If the RemoteClient object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RemoteClientMutation) OldHostInfo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHostInfo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHostInfo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHostInfo: %w", err)
+	}
+	return oldValue.HostInfo, nil
+}
+
+// ResetHostInfo resets all changes to the "host_info" field.
+func (m *RemoteClientMutation) ResetHostInfo() {
+	m.host_info = nil
+}
+
 // Where appends a list predicates to the RemoteClientMutation builder.
 func (m *RemoteClientMutation) Where(ps ...predicate.RemoteClient) {
 	m.predicates = append(m.predicates, ps...)
@@ -4958,7 +5032,7 @@ func (m *RemoteClientMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RemoteClientMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 12)
 	if m.name != nil {
 		fields = append(fields, remoteclient.FieldName)
 	}
@@ -4989,6 +5063,12 @@ func (m *RemoteClientMutation) Fields() []string {
 	if m.dial_info != nil {
 		fields = append(fields, remoteclient.FieldDialInfo)
 	}
+	if m.webhook_addr != nil {
+		fields = append(fields, remoteclient.FieldWebhookAddr)
+	}
+	if m.host_info != nil {
+		fields = append(fields, remoteclient.FieldHostInfo)
+	}
 	return fields
 }
 
@@ -5017,6 +5097,10 @@ func (m *RemoteClientMutation) Field(name string) (ent.Value, bool) {
 		return m.RevokedAt()
 	case remoteclient.FieldDialInfo:
 		return m.DialInfo()
+	case remoteclient.FieldWebhookAddr:
+		return m.WebhookAddr()
+	case remoteclient.FieldHostInfo:
+		return m.HostInfo()
 	}
 	return nil, false
 }
@@ -5046,6 +5130,10 @@ func (m *RemoteClientMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldRevokedAt(ctx)
 	case remoteclient.FieldDialInfo:
 		return m.OldDialInfo(ctx)
+	case remoteclient.FieldWebhookAddr:
+		return m.OldWebhookAddr(ctx)
+	case remoteclient.FieldHostInfo:
+		return m.OldHostInfo(ctx)
 	}
 	return nil, fmt.Errorf("unknown RemoteClient field %s", name)
 }
@@ -5124,6 +5212,20 @@ func (m *RemoteClientMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDialInfo(v)
+		return nil
+	case remoteclient.FieldWebhookAddr:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWebhookAddr(v)
+		return nil
+	case remoteclient.FieldHostInfo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHostInfo(v)
 		return nil
 	}
 	return fmt.Errorf("unknown RemoteClient field %s", name)
@@ -5212,6 +5314,12 @@ func (m *RemoteClientMutation) ResetField(name string) error {
 		return nil
 	case remoteclient.FieldDialInfo:
 		m.ResetDialInfo()
+		return nil
+	case remoteclient.FieldWebhookAddr:
+		m.ResetWebhookAddr()
+		return nil
+	case remoteclient.FieldHostInfo:
+		m.ResetHostInfo()
 		return nil
 	}
 	return fmt.Errorf("unknown RemoteClient field %s", name)

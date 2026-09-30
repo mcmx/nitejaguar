@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mcmx/nitejaguar/common"
 	transferaction "github.com/mcmx/nitejaguar/internal/actions/transfer"
 )
 
@@ -140,9 +141,21 @@ func (a API) PollSignals(ctx context.Context, transferID string, since time.Time
 	return out.Signals, err
 }
 
-// HeartbeatWithDial reports liveness plus advertised P2P dial info.
-func (a API) HeartbeatWithDial(ctx context.Context, id, dialInfo string) error {
-	return a.request(ctx, "POST", "/api/clients/heartbeat", map[string]string{"client_id": id, "dial_info": dialInfo}, nil)
+// HeartbeatReport is what a client advertises on every heartbeat: P2P
+// dial info, the webhook listener address (empty = no listener), and
+// host info (OS/arch, hostname, IPs).
+type HeartbeatReport struct {
+	DialInfo    string          `json:"dial_info,omitempty"`
+	WebhookAddr string          `json:"webhook_addr,omitempty"`
+	Host        common.HostInfo `json:"host_info,omitempty"`
+}
+
+// HeartbeatWithDial reports liveness plus the heartbeat report.
+func (a API) HeartbeatWithDial(ctx context.Context, id string, rep HeartbeatReport) error {
+	return a.request(ctx, "POST", "/api/clients/heartbeat", map[string]any{
+		"client_id": id, "dial_info": rep.DialInfo,
+		"webhook_addr": rep.WebhookAddr, "host_info": rep.Host,
+	}, nil)
 }
 
 // UploadFileRelay streams a local file through the server relay in order.

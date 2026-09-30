@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -292,6 +293,38 @@ func (s *service) SetClientDialInfo(id, dialInfo string) error {
 	}
 	if err := s.client.RemoteClient.UpdateOneID(id).SetDialInfo(dialInfo).Exec(context.Background()); err != nil {
 		return fmt.Errorf("failed to store dial info: %w", err)
+	}
+	return nil
+}
+
+// SetClientWebhookAddr stores the client's advertised webhook listener
+// address (empty = no listener). It is overwritten on every heartbeat so
+// a client restarted without --webhook-addr stops advertising.
+func (s *service) SetClientWebhookAddr(id, addr string) error {
+	if len(addr) > 256 {
+		return fmt.Errorf("webhook_addr exceeds 256 bytes")
+	}
+	if err := s.client.RemoteClient.UpdateOneID(id).SetWebhookAddr(addr).Exec(context.Background()); err != nil {
+		return fmt.Errorf("failed to store webhook addr: %w", err)
+	}
+	return nil
+}
+
+// maxHostInfoBytes caps the stored host_info blob (OS/arch/hostname plus
+// a bounded IP list easily fit).
+const maxHostInfoBytes = 4096
+
+// SetClientHostInfo stores the client's advertised host info (canonical
+// JSON produced by the server from the heartbeat fields). Empty clears it.
+func (s *service) SetClientHostInfo(id, hostInfoJSON string) error {
+	if len(hostInfoJSON) > maxHostInfoBytes {
+		return fmt.Errorf("host_info exceeds %d bytes", maxHostInfoBytes)
+	}
+	if hostInfoJSON != "" && !json.Valid([]byte(hostInfoJSON)) {
+		return fmt.Errorf("host_info is not valid JSON")
+	}
+	if err := s.client.RemoteClient.UpdateOneID(id).SetHostInfo(hostInfoJSON).Exec(context.Background()); err != nil {
+		return fmt.Errorf("failed to store host info: %w", err)
 	}
 	return nil
 }

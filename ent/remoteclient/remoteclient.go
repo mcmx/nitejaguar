@@ -33,6 +33,10 @@ const (
 	FieldRevokedAt = "revoked_at"
 	// FieldDialInfo holds the string denoting the dial_info field in the database.
 	FieldDialInfo = "dial_info"
+	// FieldWebhookAddr holds the string denoting the webhook_addr field in the database.
+	FieldWebhookAddr = "webhook_addr"
+	// FieldHostInfo holds the string denoting the host_info field in the database.
+	FieldHostInfo = "host_info"
 	// Table holds the table name of the remoteclient in the database.
 	Table = "remote_clients"
 )
@@ -50,6 +54,8 @@ var Columns = []string{
 	FieldRevoked,
 	FieldRevokedAt,
 	FieldDialInfo,
+	FieldWebhookAddr,
+	FieldHostInfo,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -83,6 +89,10 @@ var (
 	DefaultRevoked bool
 	// DefaultDialInfo holds the default value on creation for the "dial_info" field.
 	DefaultDialInfo string
+	// DefaultWebhookAddr holds the default value on creation for the "webhook_addr" field.
+	DefaultWebhookAddr string
+	// DefaultHostInfo holds the default value on creation for the "host_info" field.
+	DefaultHostInfo string
 	// IDValidator is a validator for the "id" field. It is called by the builders before save.
 	IDValidator func(string) error
 )
@@ -138,4 +148,14 @@ func ByRevokedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByDialInfo orders the results by the dial_info field.
 func ByDialInfo(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDialInfo, opts...).ToFunc()
+}
+
+// ByWebhookAddr orders the results by the webhook_addr field.
+func ByWebhookAddr(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldWebhookAddr, opts...).ToFunc()
+}
+
+// ByHostInfo orders the results by the host_info field.
+func ByHostInfo(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldHostInfo, opts...).ToFunc()
 }

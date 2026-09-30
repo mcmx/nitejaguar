@@ -284,6 +284,36 @@ func TestDropIdentityOnlyOnUnauthorized(t *testing.T) {
 	}
 }
 
+// HeartbeatWithDial advertises dial info, the webhook listener address,
+// and host info in one heartbeat body.
+func TestHeartbeatWithDialAdvertisesReport(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Error(err)
+		}
+	}))
+	defer srv.Close()
+	a := API{BaseURL: srv.URL, Token: "tok", HTTPClient: srv.Client()}
+	host := common.HostInfo{OS: "linux", Arch: "amd64", Hostname: "edge-1", IPs: []string{"10.0.0.1"}}
+	if err := a.HeartbeatWithDial(context.Background(), "client_1", HeartbeatReport{
+		DialInfo: "dial", WebhookAddr: "127.0.0.1:8081", Host: host,
+	}); err != nil {
+		t.Fatalf("heartbeat: %v", err)
+	}
+	if got["client_id"] != "client_1" || got["dial_info"] != "dial" || got["webhook_addr"] != "127.0.0.1:8081" {
+		t.Fatalf("heartbeat body = %v", got)
+	}
+	hi, ok := got["host_info"].(map[string]any)
+	if !ok || hi["os"] != "linux" || hi["arch"] != "amd64" || hi["hostname"] != "edge-1" {
+		t.Fatalf("host_info = %v", got["host_info"])
+	}
+	ips, _ := hi["ips"].([]any)
+	if len(ips) != 1 || ips[0] != "10.0.0.1" {
+		t.Fatalf("host ips = %v", hi["ips"])
+	}
+}
+
 // The runner (not the action) applies merge_input before reporting:
 // upstream payload keys flow into the result, the result wins.
 func TestRunnerAppliesMergeInput(t *testing.T) {

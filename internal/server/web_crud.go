@@ -34,6 +34,8 @@ func (s *Server) clientsPageData(c echo.Context) *web.ClientsPageData {
 			LastPoll:      client.LastPoll.Format("2006-01-02 15:04:05 MST"),
 			Online:        !client.Revoked && time.Since(client.LastHeartbeat) <= 15*time.Second,
 			Revoked:       client.Revoked,
+			WebhookAddr:   client.WebhookAddr,
+			Host:          client.Host,
 		})
 	}
 	sort.Slice(data.Clients, func(i, j int) bool { return data.Clients[i].Name < data.Clients[j].Name })
@@ -517,6 +519,49 @@ func (s *Server) changePasswordWeb(c echo.Context) error {
 	}
 	_ = s.db.LogAudit("user.password_change", user.TenantID, user.ID, user.ID, "changed via web")
 	return render("", "Password changed.")
+}
+
+// webhookNodeInfo resolves listener status for every webhook trigger in a
+// workflow definition, tenant-scoped: explicit per-node/workflow-default
+// owners map to their registered client (name + listener addr), broadcast
+// nodes count tenant clients running a listener. Revoked clients never
+// count — their tokens are dead, so their results would be rejected.
+func (s *Server) webhookNodeInfo(tenantID string, def workflow.Workflow) map[string]web.WebhookNodeInfo {
+	out := make(map[string]web.WebhookNodeInfo)
+	byID := make(map[string]*clientInfo)
+	listeners := 0
+	for _, c := range s.registry().list() {
+		if normalizeTenantID(c.TenantID) != normalizeTenantID(tenantID) {
+			continue
+		}
+		byID[c.ID] = c
+		if c.WebhookAddr != "" && !c.Revoked {
+			listeners++
+		}
+	}
+	for id, n := range def.Nodes {
+		if n.ActionType != "trigger" || n.ActionName != "webhook" {
+			continue
+		}
+		owner, _ := def.EffectiveTarget(n)
+		info := web.WebhookNodeInfo{Path: "/webhook/" + n.Id, ListenerCount: listeners}
+		if owner != "" {
+			info.Owner = owner
+			if c, ok := byID[owner]; ok {
+				info.OwnerName = c.Name
+				info.HasListener = c.WebhookAddr != "" && !c.Revoked
+				info.ListenerAddr = c.WebhookAddr
+			} else {
+				info.OwnerName = owner + " (not registered)"
+			}
+		}
+		key := n.Id
+		if key == "" {
+			key = id
+		}
+		out[key] = info
+	}
+	return out
 }
 
 // workflowTenant resolves the tenant owning a workflow row (definition

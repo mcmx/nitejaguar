@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -130,6 +131,74 @@ func TestClientWebhookMethodSelectable(t *testing.T) {
 	case <-r.events:
 	case <-time.After(2 * time.Second):
 		t.Fatalf("accepted method must queue a trigger result")
+	}
+}
+
+// The client serves webhooks from its own HTTP server (started by
+// serveWebhooks when --webhook-addr is set): over real TCP an assigned
+// trigger answers 200 and queues its result, while unknown ids are 404.
+func TestServeWebhooksBindsAndServes(t *testing.T) {
+	r := webhookTestRunner()
+	defer r.close()
+	r.syncAssignments([]Workflow{webhookTestWorkflow("trigger_client_serve1", "ALL")})
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	srv := newWebhookServer(r, ln.Addr().String())
+	go func() { _ = srv.Serve(ln) }()
+	defer func() { _ = srv.Close() }()
+	base := "http://" + ln.Addr().String()
+
+	post := func(target, body string) (int, string) {
+		var reader io.Reader
+		if body != "" {
+			reader = strings.NewReader(body)
+		}
+		var rec *http.Response
+		var err error
+		for i := 0; i < 100; i++ {
+			rec, err = http.Post(base+target, "application/json", reader)
+			if err == nil {
+				break
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		if err != nil {
+			t.Fatalf("POST %s: %v", target, err)
+		}
+		defer func() { _ = rec.Body.Close() }()
+		b, _ := io.ReadAll(rec.Body)
+		return rec.StatusCode, string(b)
+	}
+
+	code, body := post("/webhook/trigger_client_serve1", `{"event":"push"}`)
+	if code != http.StatusOK {
+		t.Fatalf("POST assigned webhook status = %v, body = %s", code, body)
+	}
+	var ack struct {
+		Ok         bool   `json:"ok"`
+		WorkflowID string `json:"workflow_id"`
+		TriggerID  string `json:"trigger_id"`
+	}
+	if err := json.Unmarshal([]byte(body), &ack); err != nil {
+		t.Fatalf("decode ack: %v", err)
+	}
+	if !ack.Ok || ack.WorkflowID != "workflow_webhook_client" || ack.TriggerID != "trigger_client_serve1" {
+		t.Fatalf("unexpected ack: %s", body)
+	}
+	select {
+	case got := <-r.events:
+		if got.ActionID != "trigger_client_serve1" || got.ActionName != "webhook" {
+			t.Fatalf("event = %+v, want webhook trigger result", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("served webhook must queue a trigger result")
+	}
+
+	if code, body := post("/webhook/trigger_nope00000001", `{}`); code != http.StatusNotFound {
+		t.Errorf("unknown webhook status = %v, want 404 (body %s)", code, body)
 	}
 }
 

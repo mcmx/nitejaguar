@@ -165,8 +165,10 @@ func TestDesignerInitPreservesConditions(t *testing.T) {
 
 // TestDesignerGraphClientLogic guards the visual-designer
 // regressions: drag listeners that never detached (cards stuck to the
-// cursor) and edges rendered via <template x-for> inside <svg> (template
-// content parses in the HTML namespace, so <path> never paints).
+// cursor), edges rendered via <template x-for> inside <svg> (template
+// content parses in the HTML namespace, so <path> never paints), and the
+// root "+ Add node" picker that never opened (pickerFor=null collided
+// with the closed state).
 func TestDesignerGraphClientLogic(t *testing.T) {
 	var buf bytes.Buffer
 	if err := web.DesignerPage(&web.DesignerPageData{InitJSON: "{}"}).Render(context.Background(), &buf); err != nil {
@@ -179,12 +181,28 @@ func TestDesignerGraphClientLogic(t *testing.T) {
 		"removeEventListener('pointermove', move)",
 		"url(#nj-arrow)",
 		"Add action",
+		"Add node",
 		"designer-initial",
 		"addCondition",
 		"moveChild",
 		"conditionLabel",
 		"#16a34a",
 		"→+",
+		"pickerOpen",
+		"startPan",
+		"panX",
+		"nj-client-list",
+		"nj-default-client-list",
+		"cannot have parents",
+		"Type and action are fixed after creation",
+		"h-[720px]",
+		"designerTypeidSuffix",
+		"abcdefghjkmnpqrstvwxyz",
+		"webhookPath",
+		"webhookOwnerNote",
+		"clientHookById",
+		"Webhook endpoint",
+		"/webhook/",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("designer page missing %q", want)
@@ -195,5 +213,11 @@ func TestDesignerGraphClientLogic(t *testing.T) {
 	}
 	if strings.Contains(body, `stroke="hsl(0 72.2% 50.6%)"`) {
 		t.Errorf("designer edges still use the old red stroke (want green #16a34a)")
+	}
+	if strings.Contains(body, "Save & Import Workflow") {
+		t.Errorf("designer still renders the bottom save button (should only save from the top bar)")
+	}
+	if strings.Contains(body, `x-model="selected().action_type"`) || strings.Contains(body, `x-model="selected().action_name"`) {
+		t.Errorf("designer inspector still allows changing type/action (must be read-only)")
 	}
 }

@@ -19,7 +19,7 @@ The `nitejaguar` binary is the client-only build. Nitejaguar supports distribute
 | `--enrollment-token` | `NITEJAGUAR_ENROLLMENT_TOKEN` | `""` | Tenant enrollment/join token for self-registration (required on first register; tenant comes from the token) |
 | `--state-file` | `NITEJAGUAR_STATE_FILE` | `client_state.json` | Path to the client identity state file (use one file per client when running several clients from the same directory) |
 | `--log-level` | `NITEJAGUAR_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn` or `error`. `debug` adds the per-node execution trace (see [Logging](#logging)) |
-| `--webhook-addr` | `NITEJAGUAR_WEBHOOK_ADDR` | `""` (disabled) | Listen address for the client webhook listener, e.g. `127.0.0.1:8081`. When set, the client answers `/webhook/{id}` for its assigned `webhook` triggers (see [Webhook Trigger](./actions/webhook-trigger.md)) |
+| `--webhook-addr` | `NITEJAGUAR_WEBHOOK_ADDR` | `""` (disabled) | Listen address for the client webhook listener, e.g. `127.0.0.1:8081`. When set, the client answers `/webhook/{id}` for its assigned `webhook` triggers and advertises the address in every heartbeat so the server can tell which clients run a listener (see [Webhook Trigger](./actions/webhook-trigger.md)) |
 
 ## Client State File
 
@@ -56,7 +56,7 @@ After the first registration the client stores its identity in the state file
 ## Execution Lifecycle
 
 1. **Registration**: On startup, the client registers itself with the server using its enrollment token (or reconnects using an existing `--client-id`). Without a valid join token the server returns `401`.
-2. **Polling**: The client periodically polls the server for assigned workflow nodes (`workflows`) plus owned pending cross-client handoffs (`pending`). Node filtering applies per-node overrides over workflow defaults; untargeted nodes broadcast.
+2. **Polling**: The client periodically polls the server for assigned workflow nodes (`workflows`) plus owned pending cross-client handoffs (`pending`). Node filtering applies per-node overrides over workflow defaults; untargeted nodes broadcast. Every heartbeat also advertises the webhook listener address (`webhook_addr`, empty when disabled) and host info — OS/arch, hostname, and unicast IPv4/IPv6 addresses (interfaces that are up, loopback skipped) — so the server can show which clients run a listener and on what host. This is self-reported telemetry, visible to tenant viewers on `/clients` and in `GET /api/clients`; it is never used for auth or routing.
 3. **Local Execution**: Assigned nodes (such as file watches or file transformations) execute locally against the client's file system (e.g., expanding `~` paths locally). Pending handoffs execute at most once per process with the parent payload as `$input` (seeded for `merge_input`); completion is confirmed when the node's result is posted.
 4. **Result Reporting**: Success or error results are transmitted back to the server and logged in `./results/`. The server replies with only the `nexts` this client owns, and does not also queue those as pending — so a returned node runs exactly once. Foreign nexts arrive later as `pending` for their owners, never in the response.
 5. **Transfer inbox**: each tick also polls inbound file deliveries. `transfer` nodes addressed elsewhere are sent WebRTC-P2P-first (server-signaled) with relay fallback; inbound sessions are received, written with the transfer safety rules, and completed (no workflow result posted by the receiver). See [Transfer Action](./actions/transfer-action.md).

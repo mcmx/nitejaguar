@@ -487,6 +487,13 @@ func (r *runner) buildManagedWorkflow(w Workflow) *managedWorkflow {
 			if err == nil {
 				mw.actions[id] = t
 				mw.triggers[id] = t
+				if n.ActionName == "webhook" {
+					served := n.Id
+					if served == "" {
+						served = id
+					}
+					r.log.Info("webhook trigger installed; serving deliveries", "trigger_id", served, "path", "/webhook/"+served)
+				}
 				execution, _ := typeid.WithPrefix("execution")
 				go t.Execute(execution.String(), nil)
 			} else {
@@ -797,7 +804,10 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		r.mu.Lock()
 		r.selfID = id
 		r.mu.Unlock()
-		if err := r.api.HeartbeatWithDial(ctx, id, transferDialInfo); err != nil {
+		if err := r.api.HeartbeatWithDial(ctx, id, HeartbeatReport{
+			DialInfo: transferDialInfo, WebhookAddr: strings.TrimSpace(cfg.WebhookAddr),
+			Host: common.CollectHostInfo(),
+		}); err != nil {
 			if dropIdentity(err) {
 				logger.Warn("server rejected client token; discarding saved identity and re-registering (needs enrollment token)",
 					"client_id", id, "error", err, "after", backoff)
