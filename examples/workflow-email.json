@@ -1,0 +1,52 @@
+{
+    "id": "workflow_email_example",
+    "name": "Example Workflow: send email on filechange",
+    "nodes": {
+      "trigger_01hemail000000000001": {
+        "id": "trigger_01hemail000000000001",
+        "name": "Trigger: filechange",
+        "description": "Trigger: on /tmp",
+        "action_type": "trigger",
+        "action_name": "filechange",
+        "arguments": {
+          "path": "/tmp",
+          "event_type": "create"
+        },
+        "conditions": {
+          "entries": {
+            "entry1": {
+                "condition": {
+                    "leftOperand": true,
+                    "operator": "",
+                    "rightOperand": null
+                },
+                "nexts": ["action_01hemail000000000001"]
+            }
+          }
+        },
+        "dependencies": null
+      },
+    "action_01hemail000000000001": {
+      "id": "action_01hemail000000000001",
+      "name": "Action: email",
+      "description": "Action: notify ops with the new file attached",
+      "action_type": "action",
+      "action_name": "email",
+      "credential_ref": "smtp-prod",
+      "arguments": {
+        "host": "smtp.example.com",
+        "port": "587",
+        "from": "noreply@example.com",
+        "to": "ops@example.com",
+        "subject": "New file: {{ $input.file }}",
+        "body": "Hi team, $input.file arrived.",
+        "html": "<b>Hi team</b><p>{{ $input.file }} arrived.</p>",
+        "attachments": "$input.file"
+      },
+      "conditions": {
+        "entries": {}
+      },
+      "dependencies": ["trigger_01hemail000000000001"]
+    }
+  }
+}

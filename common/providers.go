@@ -25,7 +25,7 @@ func Providers() []Provider {
 		{
 			Name:           "core",
 			CredentialType: "",
-			Actions:        []string{"file", "datetime", "wait", "transfer", "filechange", "cron", "webhook", "set"},
+			Actions:        []string{"file", "datetime", "wait", "transfer", "filechange", "cron", "webhook", "set", "email"},
 		},
 		{
 			Name:           "aws",

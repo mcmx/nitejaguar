@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -130,8 +131,13 @@ func (wm *workflowManager) Run(ctx context.Context) {
 				fmt.Printf("Executing next node %v,\n", next)
 				// Thread the triggering result into downstream actions so
 				// fileaction (and others) can resolve $input. references.
-				// Signature stays inputs []any for compatibility.
-				err := wm.ActionManager.ExecuteAction(next, result.ExecutionID, []any{result})
+				// Signature stays inputs []any for compatibility. Nodes
+				// with credential_ref get their secret injected here
+				// (server-local just-in-time fetch; never in workflow JSON,
+				// logs, or results).
+				inputs := []any{result}
+				inputs = wm.withCredential(result.WorkflowID, next, inputs)
+				err := wm.ActionManager.ExecuteAction(next, result.ExecutionID, inputs)
 				if err != nil {
 					log.Printf("Error executing action: %s", err)
 				}
@@ -636,7 +642,9 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 		if !wm.enableActions {
 			continue
 		}
-		if err := wm.ActionManager.ExecuteAction(next, result.ExecutionID, []any{result}); err != nil {
+		inputs := []any{result}
+		inputs = wm.withCredential(workflowID, next, inputs)
+		if err := wm.ActionManager.ExecuteAction(next, result.ExecutionID, inputs); err != nil {
 			// Best effort: remote clients may own the downstream node, so
 			// a locally unknown action is not fatal.
 			log.Printf("IngestResult: skipping local execute of %s: %s", next, err)
@@ -716,6 +724,31 @@ func (wm *workflowManager) rememberResult(result common.ResultData) {
 		wm.execHistory[result.ExecutionID] = byNode
 	}
 	byNode[result.ActionID] = result.Payload
+}
+
+// withCredential injects a just-in-time credential binding for server-local
+// execution. Nodes without credential_ref run unchanged (anonymous SMTP
+// stays possible). Resolution failures are injected as an Err binding so the
+// action fails closed instead of silently falling back to anonymous. Secrets
+// live only in the returned slice — never logged or persisted.
+func (wm *workflowManager) withCredential(workflowID, nodeID string, inputs []any) []any {
+	var def Workflow
+	if wf, ok := wm.Workflows[workflowID]; ok {
+		def = wf.Definition
+	}
+	n, ok := def.Nodes[nodeID]
+	if !ok || strings.TrimSpace(n.CredentialRef) == "" {
+		return inputs
+	}
+	lookup, ok := wm.db.(common.CredentialSecretLookup)
+	if !ok || lookup == nil {
+		return common.WithCredential(inputs, common.CredentialBinding{Ref: n.CredentialRef, Err: "credential store unavailable"})
+	}
+	secret, ctype, err := lookup.ResolveCredentialSecret(def.TenantID, n.CredentialRef)
+	if err != nil {
+		return common.WithCredential(inputs, common.CredentialBinding{Ref: n.CredentialRef, Err: err.Error()})
+	}
+	return common.WithCredential(inputs, common.CredentialBinding{Ref: n.CredentialRef, Type: ctype, Secret: secret})
 }
 
 // applyMergeInput folds recorded dependency payloads into result.Payload.

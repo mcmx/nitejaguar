@@ -10,7 +10,7 @@ The source of truth is `Providers()` in `common/providers.go`:
 
 | Collection | Credential type | Actions |
 |---|---|---|
-| `core` | — (none) | `file`, `datetime`, `wait`, `transfer`, `set`, `filechange`, `cron` and `webhook` triggers |
+| `core` | — (none) | `file`, `datetime`, `wait`, `transfer`, `set`, `email`, `filechange`, `cron` and `webhook` triggers |
 | `aws` | `aws` | `ec2`, `s3` (placeholders — executables ship later) |
 
 Helpers: `ProviderForAction`, `CredentialTypeForAction`,

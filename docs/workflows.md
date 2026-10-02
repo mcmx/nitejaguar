@@ -246,4 +246,9 @@ secret just-in-time via `GET /api/credentials/{ref}/fetch`. See
 `s3` is an AWS-collection action, so its credential must have type
 `aws` — fetches for it are strictly enforced (see
 [Credentials](./credentials.md); `ec2`/`s3` executables ship in a later
-slice, the registry entries exist today).
+slice, the registry entries exist today). The `email` action is a `core`
+action that optionally uses a generic `username_password` credential for
+SMTP auth: the framework injects the fetched secret in-memory at execution
+time (server-local and remote alike); an unresolvable ref or a wrong type
+fails the node closed instead of sending anonymously (see
+[Email Action](./actions/email-action.md)).
