@@ -11,7 +11,10 @@ import (
 	"github.com/mcmx/nitejaguar/internal/actions/datetime"
 	"github.com/mcmx/nitejaguar/internal/actions/email"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
+	"github.com/mcmx/nitejaguar/internal/actions/httpcall"
+	"github.com/mcmx/nitejaguar/internal/actions/pagerduty"
 	"github.com/mcmx/nitejaguar/internal/actions/set"
+	"github.com/mcmx/nitejaguar/internal/actions/slack"
 	"github.com/mcmx/nitejaguar/internal/actions/transfer"
 	"github.com/mcmx/nitejaguar/internal/actions/wait"
 	"go.jetify.com/typeid"
@@ -54,6 +57,9 @@ var actionRegistry = []nodeRegistration{
 	{transfer.CatalogEntry(), transfer.New},
 	{set.CatalogEntry(), set.New},
 	{email.CatalogEntry(), email.New},
+	{slack.CatalogEntry(), slack.New},
+	{httpcall.CatalogEntry(), httpcall.New},
+	{pagerduty.CatalogEntry(), pagerduty.New},
 }
 
 // ActionCatalog lists the designer schemas for every runnable action,

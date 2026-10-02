@@ -1,0 +1,74 @@
+{
+    "id": "workflow_pagerduty_example",
+    "name": "Example Workflow: page on failure with dedup",
+    "nodes": {
+      "trigger_01hpduty00000000000001": {
+        "id": "trigger_01hpduty00000000000001",
+        "name": "Trigger: filechange",
+        "description": "Trigger: on /tmp",
+        "action_type": "trigger",
+        "action_name": "filechange",
+        "arguments": {
+          "path": "/tmp",
+          "event_type": "create"
+        },
+        "conditions": {
+          "entries": {
+            "entry1": {
+                "condition": {
+                    "leftOperand": true,
+                    "operator": "",
+                    "rightOperand": null
+                },
+                "nexts": ["action_01hpduty00000000000001"]
+            }
+          }
+        },
+        "dependencies": null
+      },
+      "action_01hpduty00000000000001": {
+        "id": "action_01hpduty00000000000001",
+        "name": "Action: file",
+        "description": "Action: archive the new file (may fail)",
+        "action_type": "action",
+        "action_name": "file",
+        "arguments": {
+          "action": "copy",
+          "file": "$input.file",
+          "destination": "/var/backups/$input.name"
+        },
+        "conditions": {
+          "entries": {
+            "on_error": {
+                "condition": {
+                    "leftOperand": "$result.type",
+                    "operator": "==",
+                    "rightOperand": "error"
+                },
+                "nexts": ["action_01hpduty00000000000002"]
+            }
+          }
+        },
+        "dependencies": ["trigger_01hpduty00000000000001"]
+      },
+      "action_01hpduty00000000000002": {
+        "id": "action_01hpduty00000000000002",
+        "name": "Alert: pagerduty",
+        "description": "Alert: page oncall when the archive step fails (deduped)",
+        "action_type": "action",
+        "action_name": "pagerduty",
+        "credential_ref": "pagerduty-deploy-key",
+        "arguments": {
+          "event_action": "trigger",
+          "summary": "Archive failed for $input.file: $input.result",
+          "severity": "error",
+          "source": "nitejaguar",
+          "dedup_key": "nitejaguar-archive-$input.name"
+        },
+        "conditions": {
+          "entries": {}
+        },
+        "dependencies": ["action_01hpduty00000000000001"]
+      }
+  }
+}
