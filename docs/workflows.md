@@ -90,9 +90,15 @@ The designer is a node-graph canvas, not a form list:
   lands in the source card's default (first) condition entry.
   Connecting into a trigger is refused — triggers cannot have parents.
 - Clicking a card opens the **inspector** (name, read-only type and
-  action badges, arguments JSON with format + validation, client
-  targeting combo, `credential_ref`, `merge_input` for actions,
-  duplicate/delete) plus
+  action badges, typed arguments form — number inputs for integers
+  (`debounce_ms`), checkboxes for booleans (`run_on_start`,
+  `keep_only_set`), combos for finite option lists (`action`,
+  `operation`, `mode`, webhook `method`), multi-checkboxes for
+  `event_type`, textareas for JSON blobs (`fields`, `json`) — plus an
+  **Advanced: raw JSON** fallback for extra keys, `field.*` dynamics
+  and `$input` templates, with format + validation and reset to
+  defaults, client targeting combo, `credential_ref`, `merge_input`
+  for actions, duplicate/delete) plus
   a **routing conditions editor**
   a **routing conditions editor**: every `conditions.entries` entry is
   listed with its id, left operand, operator (`always`, `==`, `!=`,

@@ -506,23 +506,21 @@ templ designerInitialData(jsonData string) {
     @templ.Raw("<script id=\"designer-initial\" type=\"application/json\">" + jsonData + "</script>")
 }
 
+// designerCatalogData renders the typed action catalog (picker entries +
+// per-argument field schemas) for the Alpine designer to read. Emitted via
+// templ.Raw like designerInitialData so the JSON payload is evaluated.
+templ designerCatalogData(jsonData string) {
+	@templ.Raw("<script>window.DESIGNER_CATALOG = " + jsonData + ";</script>")
+}
+
 templ DesignerPage(data *DesignerPageData) {
 	@Base(data.CurrentUser) {
 		@designerInitialData(data.InitJSON)
+		@designerCatalogData(DesignerCatalogJSON())
 		<script>
-		// Action catalog: the single visual source of truth for the picker.
-		// action_type mirrors the workflow engine (trigger vs action);
-		// action_name is the canonical lowercase identifier used in JSON.
-		var DESIGNER_CATALOG = [
-			{ action_type: 'trigger', action_name: 'filechange', icon: '📁', label: 'File Change', desc: 'Watch a directory for creates, writes, renames…', args: { path: '/tmp', event_type: 'create' } },
-			{ action_type: 'trigger', action_name: 'cron', icon: '⏰', label: 'Cron', desc: 'Run on a cron schedule or interval, emitting now() each time it fires.', args: { cron: '*/5 * * * *', format: '2006-01-02 15:04:05', run_on_start: 'false' } },
-		{ action_type: 'trigger', action_name: 'webhook', icon: '🪝', label: 'Webhook', desc: 'Fire on inbound HTTP at /webhook/{id}; method selects which verbs trigger.', args: { method: 'POST' } },
-			{ action_type: 'action', action_name: 'file', icon: '📄', label: 'File', desc: 'Create, remove or rename files.', args: { action: 'create', file: '/tmp/out.txt' } },
-			{ action_type: 'action', action_name: 'datetime', icon: '🕒', label: 'Datetime', desc: 'Current timestamp, formatted for downstream use.', args: { operation: 'getCurrentDate', format: '2006-01-02', timezone: 'UTC', output_field: 'current_date' } },
-			{ action_type: 'action', action_name: 'wait', icon: '⏳', label: 'Wait', desc: 'Pause the execution before continuing.', args: { duration: '1.5 minutes' } },
-			{ action_type: 'action', action_name: 'transfer', icon: '📦', label: 'Transfer', desc: 'Copy a file, locally or to another client.', args: { file: '$input.file', destination_file: '~/received/' + String.fromCharCode(123, 123) + 'base' + String.fromCharCode(125, 125) } },
-			{ action_type: 'action', action_name: 'set', icon: '🧩', label: 'Set', desc: 'Shape a payload from literals and $input refs.', args: { mode: 'manual', 'field.kind': 'contact', keep_only_set: 'false' } }
-		];
+		// Action catalog: server-rendered by DesignerCatalog (cmd/web/designer_catalog.go).
+		// Each entry carries args (new-node defaults) and fields (typed inspector schema).
+		var DESIGNER_CATALOG = (typeof window !== 'undefined' && window.DESIGNER_CATALOG) || [];
 		function designerCatalogEntry(type, name) {
 			for (var i = 0; i < DESIGNER_CATALOG.length; i++) {
 				if (DESIGNER_CATALOG[i].action_type === type && DESIGNER_CATALOG[i].action_name === name) { return DESIGNER_CATALOG[i]; }
@@ -537,6 +535,96 @@ templ DesignerPage(data *DesignerPageData) {
 			var e = designerCatalogEntry(type, name);
 			var a = e ? e.args : {};
 			return JSON.stringify(a, null, 2);
+		}
+		// ---- typed argument form ----
+		// Fields come from DesignerCatalog (Go): each entry lists its args
+		// with a control type (string, integer/number, boolean, select,
+		// multiselect, textarea/json). The form edits node.arguments JSON
+		// in place; the raw JSON textarea below stays as the advanced
+		// fallback for extra keys, field.* dynamics and $input templates.
+		function designerFieldDefs(node) {
+			if (!node) { return []; }
+			var e = designerCatalogEntry(node.action_type, node.action_name);
+			return (e && e.fields) || [];
+		}
+		function designerArgsObj(node) {
+			if (!node) { return {}; }
+			try { return JSON.parse(node.arguments || '{}') || {}; } catch (e) { return {}; }
+		}
+		function designerArgValue(node, field) {
+			var o = designerArgsObj(node);
+			var v = o[field.key];
+			if (v === undefined || v === null) {
+				if (field.default !== undefined) { return field.default; }
+				return field.type === 'boolean' ? false : '';
+			}
+			return v;
+		}
+		function designerArgText(node, field) {
+			var v = designerArgValue(node, field);
+			if (v === undefined || v === null) { return ''; }
+			if (typeof v === 'object') { try { return JSON.stringify(v); } catch (e) { return String(v); } }
+			return String(v);
+		}
+		function designerBoolValue(node, field) {
+			var v = designerArgValue(node, field);
+			if (v === true) { return true; }
+			if (v === false) { return false; }
+			var s = String(v).toLowerCase();
+			if (s === 'true' || s === '1' || s === 'yes' || s === 'on') { return true; }
+			if (field.default === true) { return true; }
+			return false;
+		}
+		function designerSetArg(node, key, value, field) {
+			if (!node) { return; }
+			var o = designerArgsObj(node);
+			var t = (field && field.type) || 'string';
+			if (t === 'boolean') {
+				var b = value === true || String(value).toLowerCase() === 'true';
+				o[key] = b;
+			} else if (t === 'integer' || t === 'number') {
+				var s = String(value).trim();
+				if (s === '') { delete o[key]; }
+				else {
+					var n = Number(s);
+					o[key] = isNaN(n) ? s : n;
+				}
+			} else {
+				var str = (value === undefined || value === null) ? '' : String(value);
+				if (str === '') { delete o[key]; }
+				else { o[key] = str; }
+			}
+			try { node.arguments = JSON.stringify(o, null, 2); } catch (e) {}
+		}
+		function designerMultiValues(node, field) {
+			var v = designerArgValue(node, field);
+			if (Array.isArray(v)) { return v.map(function (x) { return String(x); }); }
+			if (v === undefined || v === null || String(v).trim() === '') {
+				if (field.default !== undefined && field.default !== '') { return designerSplitList(field.default); }
+				return [];
+			}
+			return designerSplitList(v);
+		}
+		function designerToggleMulti(node, key, option) {
+			if (!node) { return; }
+			var o = designerArgsObj(node);
+			var cur = designerSplitList(o[key]);
+			var ix = cur.indexOf(option);
+			if (ix === -1) { cur.push(option); } else { cur.splice(ix, 1); }
+			if (!cur.length) { delete o[key]; }
+			else { o[key] = cur.join(','); }
+			try { node.arguments = JSON.stringify(o, null, 2); } catch (e) {}
+		}
+		function designerExtraKeys(node) {
+			var o = designerArgsObj(node);
+			var known = {};
+			designerFieldDefs(node).forEach(function (f) { known[f.key] = true; });
+			return Object.keys(o).filter(function (k) { return !known[k]; });
+		}
+		function designerResetArgs(node) {
+			if (!node) { return; }
+			var e = designerCatalogEntry(node.action_type, node.action_name);
+			try { node.arguments = JSON.stringify((e && e.args) || {}, null, 2); } catch (err) {}
 		}
 		function designerSplitList(value) {
 			if (!value) { return []; }
@@ -1169,11 +1257,57 @@ templ DesignerPage(data *DesignerPageData) {
 								</div>
 								<div>
 									<div class="mb-1 flex items-center justify-between">
-										<label class="block text-xs font-medium">Arguments (JSON)</label>
-										<button type="button" @click="formatArgs(selected())" class="text-xs text-red-500 hover:underline">Format</button>
+										<label class="block text-xs font-medium">Arguments</label>
+										<button type="button" @click="designerResetArgs(selected())" class="text-xs text-muted-foreground hover:text-red-500 hover:underline">Reset to defaults</button>
 									</div>
-									<textarea x-model="selected().arguments" rows="6" spellcheck="false" class="w-full rounded-lg border border-border bg-background p-2.5 font-mono text-xs"></textarea>
-									<p x-show="argsError(selected())" class="mt-1 font-mono text-xs text-red-500" x-text="argsError(selected())"></p>
+									<div class="space-y-2.5">
+										<template x-for="f in designerFieldDefs(selected())" :key="f.key">
+											<div>
+												<label class="mb-1 block text-xs font-medium"><span x-text="f.label"></span><span x-show="f.required" class="ml-1 text-red-500">*</span><span class="ml-1 font-mono font-normal text-muted-foreground" x-text="f.key"></span></label>
+												<template x-if="f.type === 'boolean'">
+													<label class="flex items-center gap-2 text-sm"><input type="checkbox" :checked="designerBoolValue(selected(), f)" @change="designerSetArg(selected(), f.key, $event.target.checked, f)" class="rounded border border-border"/><span class="text-xs text-muted-foreground" x-text="f.help"></span></label>
+												</template>
+												<template x-if="f.type === 'select'">
+													<select :value="designerArgText(selected(), f)" @change="designerSetArg(selected(), f.key, $event.target.value, f)" class="w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm">
+														<template x-for="opt in (f.options || [])" :key="opt.value">
+															<option :value="opt.value" x-text="opt.label"></option>
+														</template>
+													</select>
+												</template>
+												<template x-if="f.type === 'multiselect'">
+													<div class="flex flex-wrap gap-1.5">
+														<template x-for="opt in (f.options || [])" :key="opt.value">
+															<label class="flex cursor-pointer items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs hover:border-red-500">
+																<input type="checkbox" :checked="designerMultiValues(selected(), f).indexOf(opt.value) !== -1" @change="designerToggleMulti(selected(), f.key, opt.value)" class="rounded border border-border"/>
+																<span class="font-mono" x-text="opt.label"></span>
+															</label>
+														</template>
+													</div>
+												</template>
+												<template x-if="f.type === 'integer' || f.type === 'number'">
+													<input type="number" :value="designerArgText(selected(), f)" @input="designerSetArg(selected(), f.key, $event.target.value, f)" :placeholder="f.placeholder || ''" class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm"/>
+												</template>
+												<template x-if="f.type === 'textarea' || f.type === 'json'">
+													<textarea :value="designerArgText(selected(), f)" @input="designerSetArg(selected(), f.key, $event.target.value, f)" :rows="f.rows || 3" :placeholder="f.placeholder || ''" spellcheck="false" class="w-full rounded-lg border border-border bg-background p-2.5 font-mono text-xs"></textarea>
+												</template>
+												<template x-if="f.type !== 'boolean' && f.type !== 'select' && f.type !== 'multiselect' && f.type !== 'integer' && f.type !== 'number' && f.type !== 'textarea' && f.type !== 'json'">
+													<input type="text" :value="designerArgText(selected(), f)" @input="designerSetArg(selected(), f.key, $event.target.value, f)" :placeholder="f.placeholder || ''" spellcheck="false" class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm"/>
+												</template>
+												<p x-show="f.help && f.type !== 'boolean'" class="mt-1 text-[11px] text-muted-foreground" x-text="f.help"></p>
+											</div>
+										</template>
+										<p x-show="!designerFieldDefs(selected()).length" class="text-xs text-muted-foreground">No typed schema for this node — edit the JSON below.</p>
+										<p x-show="designerExtraKeys(selected()).length" class="text-[11px] text-muted-foreground">Extra keys kept in JSON: <span class="font-mono" x-text="designerExtraKeys(selected()).join(', ')"></span></p>
+									</div>
+									<details class="mt-2 rounded-xl border border-border bg-muted/40 p-2.5">
+										<summary class="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">Advanced: raw JSON</summary>
+										<div class="mt-2 flex items-center justify-between">
+											<span class="text-[11px] text-muted-foreground">Covers extra keys, field.* dynamics and $input templates.</span>
+											<button type="button" @click="formatArgs(selected())" class="text-xs text-red-500 hover:underline">Format</button>
+										</div>
+										<textarea x-model="selected().arguments" rows="5" spellcheck="false" class="mt-1 w-full rounded-lg border border-border bg-background p-2.5 font-mono text-xs"></textarea>
+										<p x-show="argsError(selected())" class="mt-1 font-mono text-xs text-red-500" x-text="argsError(selected())"></p>
+									</details>
 								</div>
 								<div class="grid grid-cols-2 gap-2">
 									<div>
