@@ -41,10 +41,11 @@ Rules:
 
 ## 4. Register everywhere (or it doesn't exist)
 
-1. `internal/actions/actions.go` `AddAction` (actions) or `internal/actions/trigger.go` `AddTrigger` (triggers) — switch on `action_name`.
-2. Client dispatch in `internal/client/client.go`: `newClientAction` / `newClientTrigger`. The client binary **must never link** `internal/server`, `internal/database`, `ent`, `echo`/`huma`, or `templ` — keep new code to `common` + `internal/actions`.
-3. `common/providers.go` `core` list (credential-free built-ins).
-4. `cmd/web/dashboard.templ` `DESIGNER_CATALOG` picker entry. templ gotchas (all bitten before): never a literal `{{`/`}}` inside `<script>` (build brace strings via `String.fromCharCode(123, …)`); never `<template x-for>` inside `<svg>` (render edges via `x-html`); canvas drag listeners detach on `pointerup` **and** `pointercancel` with a dead-zone.
+1. `internal/actions/actions.go` `AddAction` (actions) or `internal/actions/trigger.go` `AddTrigger` (triggers) — switch on `action_name` — **plus** the adjacent `ActionCatalog` / `TriggerCatalog` list (one `CatalogEntry()` line; the schema itself lives in the package, see 1b).
+2. 1b. Designer schema: define `CatalogEntry() common.DesignerCatalogEntry` in the package (`internal/actions/<pkg>/catalog.go`): picker card (icon/label/desc), new-node defaults (`Args`), and typed inspector fields (`common.DesignerField`: `string`, `integer`/`number` → number input, `boolean` → checkbox, `select` → combo, `multiselect` → checkboxes, `textarea`/`json` → textarea). `common.FieldOptions(...)` builds same-labelled options. Covered by `internal/actions/catalog_test.go` (every entry must dispatch with its own defaults) and `cmd/web/designer_catalog_test.go` — no central schema file to edit.
+3. Client dispatch in `internal/client/client.go`: `newClientAction` / `newClientTrigger`. The client binary **must never link** `internal/server`, `internal/database`, `ent`, `echo`/`huma`, or `templ` — keep new code to `common` + `internal/actions` (catalog types live in `common`, so `CatalogEntry` adds no forbidden deps).
+4. `common/providers.go` `core` list (credential-free built-ins).
+5. Designer picker needs nothing extra — the entry above feeds it automatically. templ gotchas (all bitten before): never a literal `{{`/`}}` inside `<script>` in `.templ` files; never `<template x-for>` inside `<svg>` (render edges via `x-html`); canvas drag listeners detach on `pointerup` **and** `pointercancel` with a dead-zone.
 
 ## 5. Tenant isolation & RBAC (every change)
 

@@ -14,6 +14,25 @@ import (
 	"go.jetify.com/typeid"
 )
 
+// TriggerCatalog lists the designer schemas for every runnable trigger,
+// one entry per trigger package. When adding a trigger, define its
+// CatalogEntry next to the implementation and add it here alongside
+// the AddTrigger case below.
+func TriggerCatalog() []common.DesignerCatalogEntry {
+	return []common.DesignerCatalogEntry{
+		filechange.CatalogEntry(),
+		cron.CatalogEntry(),
+		webhook.CatalogEntry(),
+	}
+}
+
+// DesignerCatalog is the single visual source of truth for the designer
+// picker and typed inspector form: every trigger and action the engine
+// can run, with new-node defaults and per-argument field schemas.
+func DesignerCatalog() []common.DesignerCatalogEntry {
+	return append(TriggerCatalog(), ActionCatalog()...)
+}
+
 // TriggerManager manages triggers and their events
 type TriggerManager struct {
 	events   chan common.ResultData

@@ -38,6 +38,20 @@ func RequiredCredentialTypes(actionName string) []string {
 	return []string{ctype}
 }
 
+// ActionCatalog lists the designer schemas for every runnable action,
+// one entry per action package. When adding an action, define its
+// CatalogEntry next to the implementation and add it here alongside
+// the AddAction case below.
+func ActionCatalog() []common.DesignerCatalogEntry {
+	return []common.DesignerCatalogEntry{
+		fileaction.CatalogEntry(),
+		datetime.CatalogEntry(),
+		wait.CatalogEntry(),
+		transfer.CatalogEntry(),
+		set.CatalogEntry(),
+	}
+}
+
 // ActionManager manages a collection of actions
 type ActionManager struct {
 	actions       map[string]common.Action
