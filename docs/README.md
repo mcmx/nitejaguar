@@ -25,3 +25,4 @@ Welcome to the official documentation for **Nitejaguar**, a lightweight and powe
 - [Wait Action (`wait`)](./actions/wait-action.md)
 - [Transfer Action (`transfer`)](./actions/transfer-action.md)
 - [Set Action (`set`)](./actions/set-action.md)
+- [Email Action (`email`)](./actions/email-action.md)

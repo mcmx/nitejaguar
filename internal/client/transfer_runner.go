@@ -85,6 +85,7 @@ func (r *runner) executeNode(nodeID, executionID string, inputs []any) {
 		go r.runTransferSender(nodeID, executionID, inputs)
 		return
 	}
+	inputs = r.credentialInputs(nodeID, inputs)
 	go a.Execute(executionID, inputs)
 }
 

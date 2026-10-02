@@ -19,6 +19,7 @@ import (
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions/cron"
 	"github.com/mcmx/nitejaguar/internal/actions/datetime"
+	"github.com/mcmx/nitejaguar/internal/actions/email"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
 	"github.com/mcmx/nitejaguar/internal/actions/filechange"
 	"github.com/mcmx/nitejaguar/internal/actions/set"
@@ -377,6 +378,7 @@ type transferTarget struct {
 // persisted; entries expire after the server-advertised TTL.
 type credentialCacheEntry struct {
 	secret    string
+	credType  string
 	expiresAt time.Time
 }
 
@@ -545,6 +547,8 @@ func newClientAction(events chan common.ResultData, args common.ActionArgs) (com
 		return transferaction.New(events, args)
 	case "set":
 		return set.New(events, args)
+	case "email":
+		return email.New(events, args)
 	default:
 		return nil, fmt.Errorf("unknown action_name: %q", args.ActionName)
 	}
@@ -655,23 +659,31 @@ func (r *runner) mergedPayloadLocked(result common.ResultData) any {
 // Provider actions call this at execution time; the secret is never written
 // to disk, logs, or results. Nodes without a credential_ref return "".
 func (r *runner) fetchCredentialCached(ctx context.Context, nodeID string) (string, error) {
+	secret, _, err := r.fetchCredentialFull(ctx, nodeID)
+	return secret, err
+}
+
+// fetchCredentialFull is fetchCredentialCached plus the credential type, for
+// actions (like email) that enforce the collection-declared type at execution
+// time. The type is cached alongside the secret and never persisted.
+func (r *runner) fetchCredentialFull(ctx context.Context, nodeID string) (secret, credType string, err error) {
 	r.mu.Lock()
 	cfg := r.nodeMeta[nodeID]
 	workflowID := r.nodeWorkflow[nodeID]
 	if cfg.credentialRef == "" {
 		r.mu.Unlock()
-		return "", nil
+		return "", "", nil
 	}
 	if entry, ok := r.credCache[cfg.credentialRef]; ok && time.Now().Before(entry.expiresAt) {
-		secret := entry.secret
+		secret, credType := entry.secret, entry.credType
 		r.mu.Unlock()
-		return secret, nil
+		return secret, credType, nil
 	}
 	ref := cfg.credentialRef
 	r.mu.Unlock()
 	fetched, err := r.api.FetchCredential(ctx, ref, "", nil, workflowID, nodeID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	ttl := fetched.TTLSeconds
 	if ttl <= 0 {
@@ -681,9 +693,28 @@ func (r *runner) fetchCredentialCached(ctx context.Context, nodeID string) (stri
 	if r.credCache == nil {
 		r.credCache = make(map[string]credentialCacheEntry)
 	}
-	r.credCache[ref] = credentialCacheEntry{secret: fetched.Secret, expiresAt: time.Now().Add(time.Duration(ttl) * time.Second)}
+	r.credCache[ref] = credentialCacheEntry{secret: fetched.Secret, credType: fetched.Type, expiresAt: time.Now().Add(time.Duration(ttl) * time.Second)}
 	r.mu.Unlock()
-	return fetched.Secret, nil
+	return fetched.Secret, fetched.Type, nil
+}
+
+// credentialInputs appends the just-in-time credential binding for a node.
+// Nodes without credential_ref run unchanged; fetch failures become an Err
+// binding so the action fails closed instead of sending anonymously.
+func (r *runner) credentialInputs(nodeID string, inputs []any) []any {
+	r.mu.Lock()
+	cfg, ok := r.nodeMeta[nodeID]
+	r.mu.Unlock()
+	if !ok || strings.TrimSpace(cfg.credentialRef) == "" {
+		return inputs
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	secret, ctype, err := r.fetchCredentialFull(ctx, nodeID)
+	if err != nil {
+		return common.WithCredential(inputs, common.CredentialBinding{Ref: cfg.credentialRef, Err: err.Error()})
+	}
+	return common.WithCredential(inputs, common.CredentialBinding{Ref: cfg.credentialRef, Type: ctype, Secret: secret})
 }
 
 // rememberLocked records a result payload for later merge_input lookups.
