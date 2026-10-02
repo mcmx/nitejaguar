@@ -14,16 +14,20 @@ import (
 	"go.jetify.com/typeid"
 )
 
+var triggerRegistry = []nodeRegistration{
+	{filechange.CatalogEntry(), filechange.New},
+	{cron.CatalogEntry(), cron.New},
+	{webhook.CatalogEntry(), webhook.New},
+}
+
 // TriggerCatalog lists the designer schemas for every runnable trigger,
-// one entry per trigger package. When adding a trigger, define its
-// CatalogEntry next to the implementation and add it here alongside
-// the AddTrigger case below.
+// derived from the same registry AddTrigger dispatches through.
 func TriggerCatalog() []common.DesignerCatalogEntry {
-	return []common.DesignerCatalogEntry{
-		filechange.CatalogEntry(),
-		cron.CatalogEntry(),
-		webhook.CatalogEntry(),
+	out := make([]common.DesignerCatalogEntry, 0, len(triggerRegistry))
+	for _, r := range triggerRegistry {
+		out = append(out, r.entry)
 	}
+	return out
 }
 
 // DesignerCatalog is the single visual source of truth for the designer
@@ -57,18 +61,17 @@ func (ts *TriggerManager) AddTrigger(data common.ActionArgs) (common.Action, str
 	}
 
 	// TODO Add a validation that the triger_id doesn't exist in the triggers already
-	var trigger common.Action
-	var err error
-	switch data.ActionName {
-	case "filechange":
-		trigger, err = filechange.New(ts.events, data)
-	case "cron":
-		trigger, err = cron.New(ts.events, data)
-	case "webhook":
-		trigger, err = webhook.New(ts.events, data)
-	default:
+	var build func(chan common.ResultData, common.ActionArgs) (common.Action, error)
+	for _, r := range triggerRegistry {
+		if r.entry.ActionName == data.ActionName {
+			build = r.build
+			break
+		}
+	}
+	if build == nil {
 		return nil, "", fmt.Errorf("unknown action_name: %q", data.ActionName)
 	}
+	trigger, err := build(ts.events, data)
 	if err != nil {
 		return nil, "", err
 	}

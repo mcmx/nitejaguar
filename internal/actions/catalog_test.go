@@ -9,8 +9,9 @@ import (
 // TestDesignerCatalogDispatches guards the per-package designer schemas:
 // every catalog entry must dispatch through its manager with its own
 // designer defaults, and the entry's action_type must match the runtime
-// type. A new action/trigger that ships a switch case but no working
-// CatalogEntry fails here.
+// type. Registry and catalog are built from the same entries (see
+// actionRegistry/triggerRegistry), so a node cannot be dispatchable
+// without a working CatalogEntry — or vice versa.
 func TestDesignerCatalogDispatches(t *testing.T) {
 	seen := map[string]bool{}
 	for _, e := range DesignerCatalog() {
@@ -62,5 +63,12 @@ func TestDesignerCatalogDispatches(t *testing.T) {
 		if err := ts.RemoveTrigger(id); err != nil {
 			t.Errorf("RemoveTrigger(%q) error: %v", e.ActionName, err)
 		}
+	}
+}
+
+func TestAddActionUnknownActionName(t *testing.T) {
+	am := NewActionManager(true)
+	if _, _, err := am.AddAction(common.ActionArgs{ActionName: "nope"}); err == nil {
+		t.Errorf("AddAction(nope) succeeded, want unknown action_name error")
 	}
 }

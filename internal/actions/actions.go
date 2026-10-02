@@ -38,18 +38,30 @@ func RequiredCredentialTypes(actionName string) []string {
 	return []string{ctype}
 }
 
+// nodeRegistration binds a node's constructor to its designer schema in
+// a single entry, so dispatch and the designer catalog can never drift:
+// adding a node means adding one line to the registry below.
+type nodeRegistration struct {
+	entry common.DesignerCatalogEntry
+	build func(chan common.ResultData, common.ActionArgs) (common.Action, error)
+}
+
+var actionRegistry = []nodeRegistration{
+	{fileaction.CatalogEntry(), fileaction.New},
+	{datetime.CatalogEntry(), datetime.New},
+	{wait.CatalogEntry(), wait.New},
+	{transfer.CatalogEntry(), transfer.New},
+	{set.CatalogEntry(), set.New},
+}
+
 // ActionCatalog lists the designer schemas for every runnable action,
-// one entry per action package. When adding an action, define its
-// CatalogEntry next to the implementation and add it here alongside
-// the AddAction case below.
+// derived from the same registry AddAction dispatches through.
 func ActionCatalog() []common.DesignerCatalogEntry {
-	return []common.DesignerCatalogEntry{
-		fileaction.CatalogEntry(),
-		datetime.CatalogEntry(),
-		wait.CatalogEntry(),
-		transfer.CatalogEntry(),
-		set.CatalogEntry(),
+	out := make([]common.DesignerCatalogEntry, 0, len(actionRegistry))
+	for _, r := range actionRegistry {
+		out = append(out, r.entry)
 	}
+	return out
 }
 
 // ActionManager manages a collection of actions
@@ -78,24 +90,17 @@ func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, strin
 		data.Id = tid.String()
 	}
 
-	var action common.Action
-	var err error
-	switch data.ActionName {
-
-	case "file":
-		action, err = fileaction.New(am.events, data)
-	case "datetime":
-		action, err = datetime.New(am.events, data)
-	case "wait":
-		action, err = wait.New(am.events, data)
-	case "transfer":
-		action, err = transfer.New(am.events, data)
-	case "set":
-		action, err = set.New(am.events, data)
-	default:
+	var build func(chan common.ResultData, common.ActionArgs) (common.Action, error)
+	for _, r := range actionRegistry {
+		if r.entry.ActionName == data.ActionName {
+			build = r.build
+			break
+		}
+	}
+	if build == nil {
 		return nil, "", fmt.Errorf("unknown action_name: %q", data.ActionName)
 	}
-
+	action, err := build(am.events, data)
 	if err != nil {
 		return nil, "", err
 	}

@@ -41,7 +41,7 @@ Rules:
 
 ## 4. Register everywhere (or it doesn't exist)
 
-1. `internal/actions/actions.go` `AddAction` (actions) or `internal/actions/trigger.go` `AddTrigger` (triggers) — switch on `action_name` — **plus** the adjacent `ActionCatalog` / `TriggerCatalog` list (one `CatalogEntry()` line; the schema itself lives in the package, see 1b).
+1. `internal/actions/actions.go` `actionRegistry` (actions) or `internal/actions/trigger.go` `triggerRegistry` (triggers) — one line binding the constructor to `CatalogEntry()` (see 1b). The registry drives both dispatch (`AddAction`/`AddTrigger`) and the designer catalog (`ActionCatalog`/`TriggerCatalog`), so the two can never drift.
 2. 1b. Designer schema: define `CatalogEntry() common.DesignerCatalogEntry` in the package (`internal/actions/<pkg>/catalog.go`): picker card (icon/label/desc), new-node defaults (`Args`), and typed inspector fields (`common.DesignerField`: `string`, `integer`/`number` → number input, `boolean` → checkbox, `select` → combo, `multiselect` → checkboxes, `textarea`/`json` → textarea). `common.FieldOptions(...)` builds same-labelled options. Covered by `internal/actions/catalog_test.go` (every entry must dispatch with its own defaults) and `cmd/web/designer_catalog_test.go` — no central schema file to edit.
 3. Client dispatch in `internal/client/client.go`: `newClientAction` / `newClientTrigger`. The client binary **must never link** `internal/server`, `internal/database`, `ent`, `echo`/`huma`, or `templ` — keep new code to `common` + `internal/actions` (catalog types live in `common`, so `CatalogEntry` adds no forbidden deps).
 4. `common/providers.go` `core` list (credential-free built-ins).
