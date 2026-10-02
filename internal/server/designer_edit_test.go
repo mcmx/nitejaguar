@@ -203,6 +203,17 @@ func TestDesignerGraphClientLogic(t *testing.T) {
 		"clientHookById",
 		"Webhook endpoint",
 		"/webhook/",
+		"window.DESIGNER_CATALOG",
+		"designerFieldDefs",
+		"designerArgValue",
+		"designerSetArg",
+		"designerToggleMulti",
+		"designerExtraKeys",
+		"designerResetArgs",
+		"Advanced: raw JSON",
+		"Reset to defaults",
+		`type="number"`,
+		`type="checkbox"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("designer page missing %q", want)
