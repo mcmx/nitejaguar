@@ -251,4 +251,46 @@ action that optionally uses a generic `username_password` credential for
 SMTP auth: the framework injects the fetched secret in-memory at execution
 time (server-local and remote alike); an unresolvable ref or a wrong type
 fails the node closed instead of sending anonymously (see
-[Email Action](./actions/email-action.md)).
+[Email Action](./actions/email-action.md)). The same just-in-time pattern
+carries the alerting secrets: `slack` and `pagerduty` take a
+`token`/`generic` credential holding the webhook URL / routing key, and
+`http` with `auth: bearer` takes a `token`/`generic` credential for the
+`Authorization` header.
+
+## Alerting on failure
+
+A failure is an error result you route on: every action emits
+`{type: "error", ..., result: message}` when it fails, so alerting is
+opt-in per node — add an alert node downstream of the fallible step and
+route to it with a `$result.type == error` condition entry on the
+fallible node:
+
+```json
+"conditions": {"entries": {"on_error": {
+  "condition": {"leftOperand": "$result.type", "operator": "==", "rightOperand": "error"},
+  "nexts": ["action_01h...alert"]
+}}}
+```
+
+The alert node's `$input.` is the failed node's result, so messages
+interpolate the failure (`"Archive failed for $input.file: $input.result"`).
+Each alert selects its channel by its `action_name`:
+
+| Channel | Action | Secret via `credential_ref` |
+|---|---|---|
+| Email | [`email`](./actions/email-action.md) | `username_password` (SMTP login; anonymous without) |
+| Slack | [`slack`](./actions/slack-action.md) | `token`/`generic` holding the webhook URL |
+| Outbound webhook | [`http`](./actions/http-action.md) | `token`/`generic` as `Authorization: Bearer` with `auth: bearer` |
+| Incident management | [`pagerduty`](./actions/pagerduty-action.md) (Events API v2) | `token`/`generic` holding the routing key |
+| Anything else (Opsgenie, custom) | [`http`](./actions/http-action.md) with a shaped `body` | per API (usually `token`/`generic` + `auth: bearer`) |
+
+Examples: `examples/workflow-email.json`, `examples/workflow-slack.json`,
+`examples/workflow-http.json`, `examples/workflow-pagerduty.json`.
+
+Dedup / throttling: there is no engine-level alert throttle — a failing
+loop re-fires its alert nodes every pass. Keep paging quiet with a stable
+`dedup_key` on the [`pagerduty`](./actions/pagerduty-action.md) node
+(PagerDuty collapses repeats into one incident), and prefer
+`acknowledge`/`resolve` nodes reusing that key over new `trigger` nodes
+for recovery. Per-workflow alert policies and engine-side throttling
+remain future work.

@@ -515,3 +515,34 @@ func TestNewClientTriggerDispatch(t *testing.T) {
 		t.Errorf("newClientTrigger(nope) succeeded, want unknown trigger error")
 	}
 }
+
+// The client builds actions by action_name, so alerting channels run on
+// remote runners exactly as on the server (server and client must expose
+// the same action set).
+func TestNewClientActionDispatchAlerting(t *testing.T) {
+	events := make(chan common.ResultData, 1)
+	cases := []struct {
+		actionName string
+		args       map[string]string
+	}{
+		{"email", map[string]string{"host": "smtp.example.com", "from": "a@example.com", "to": "b@example.com", "subject": "hi"}},
+		{"slack", map[string]string{"webhook_url": "https://hooks.slack.com/services/T/B/X", "text": "hi"}},
+		{"http", map[string]string{"url": "https://example.com/hook", "method": "POST"}},
+		{"pagerduty", map[string]string{"routing_key": "key", "summary": "hi"}},
+	}
+	for _, tc := range cases {
+		a, err := newClientAction(events, common.ActionArgs{
+			ActionType: "action", ActionName: tc.actionName, Args: tc.args,
+		})
+		if err != nil {
+			t.Errorf("newClientAction(%s) error: %v", tc.actionName, err)
+			continue
+		}
+		if got := a.GetArgs(); got.ActionName != tc.actionName || got.ActionType != "action" {
+			t.Errorf("newClientAction(%s) args = %+v", tc.actionName, got)
+		}
+	}
+	if _, err := newClientAction(events, common.ActionArgs{ActionType: "action", ActionName: "nope"}); err == nil {
+		t.Errorf("newClientAction(nope) succeeded, want unknown action error")
+	}
+}

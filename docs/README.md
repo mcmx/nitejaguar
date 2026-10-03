@@ -26,3 +26,6 @@ Welcome to the official documentation for **Nitejaguar**, a lightweight and powe
 - [Transfer Action (`transfer`)](./actions/transfer-action.md)
 - [Set Action (`set`)](./actions/set-action.md)
 - [Email Action (`email`)](./actions/email-action.md)
+- [Slack Action (`slack`)](./actions/slack-action.md)
+- [HTTP Action (`http`)](./actions/http-action.md)
+- [PagerDuty Action (`pagerduty`)](./actions/pagerduty-action.md)
