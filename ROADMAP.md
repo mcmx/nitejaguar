@@ -1,7 +1,16 @@
 # Nitejaguar Roadmap — Distributed Workflow Platform
 
 Vision: Ansible-like flexibility, faster than n8n, with distributed clients
-orchestrated through a central server.
+orchestrated through a central server — growing into Tidal-class workload
+automation for the corporate mid-market.
+
+## How this file relates to GitHub
+
+GitHub issues are the working tracker: they auto-close via `Fixes #N`,
+carry the design discussion, and define acceptance. This file holds the
+vision, locked decisions, and phase status with links — it is not a
+second backlog. After the foundation slices, implementation order is the
+enterprise list under Build order, top to bottom.
 
 ## Locked decisions (2026-09-23)
 
@@ -9,8 +18,11 @@ orchestrated through a central server.
 - Credential resolution: **user > group > tenant** (most-specific wins).
 - Secret delivery: **client fetches just-in-time** with its own token
   (server never ships secrets inside workflow assignments).
-- Client-to-client transfer: **P2P first, server relay fallback**.
+- Client-to-client transfer: **P2P (WebRTC, host candidates) first,
+  server relay fallback**.
   Control plane always goes through the server.
+- `exec` runs **direct-only, no shell** (pipes/globs need an explicit
+  `sh -c` command). Revisit in #92 if demand proves otherwise.
 
 ## 1. Client targeting & distributed execution
 
@@ -168,8 +180,23 @@ path for unreachable peers.
 5. Provider collections foundation (registry + shared credential type + enforcement; no new actions) ✅ done
 6. Client-to-client transfer (P2P + relay fallback) ✅ done
 
+## Enterprise readiness (in implementation order)
+
+Alerting loop already closed: #85 (email, slack, pagerduty, http channels).
+
+7. #91 — Engine retries and deadlines (per-node retry policy, execution
+   timeouts). The contract-justifying feature: retry before page.
+8. #86 — File-arrival watchdog trigger (schedule + missing-file alert).
+9. #94 — SSO/OIDC login (local users keep working).
+10. #95 — Exec command allowlist (security-review blocker).
+11. #96 — External secrets backend (Vault/KMS; DB encryption stays default).
+12. #90 — HA / server failover story (document first, then mechanism).
+13. #93 — Business calendars for cron (holidays/weekends).
+14. #92 — Exec shell mode follow-up (later; direct-only is the decision).
+
 ## Open questions (for later slices)
 
-- Web auth method: local users first, OIDC later?
-- Secret encryption backend: DB-column encryption vs external KMS/vault?
+- Web auth method: local users first, OIDC tracked in #94.
+- Secret encryption backend: DB-column encryption today, external
+  KMS/vault tracked in #96.
 - P2P NAT scope: host candidates + relay fallback today; STUN/TURN for wider NAT traversal later?
