@@ -29,3 +29,4 @@ Welcome to the official documentation for **Nitejaguar**, a lightweight and powe
 - [Slack Action (`slack`)](./actions/slack-action.md)
 - [HTTP Action (`http`)](./actions/http-action.md)
 - [PagerDuty Action (`pagerduty`)](./actions/pagerduty-action.md)
+- [Exec Action (`exec`)](./actions/exec-action.md)

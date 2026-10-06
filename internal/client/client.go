@@ -20,6 +20,7 @@ import (
 	"github.com/mcmx/nitejaguar/internal/actions/cron"
 	"github.com/mcmx/nitejaguar/internal/actions/datetime"
 	"github.com/mcmx/nitejaguar/internal/actions/email"
+	"github.com/mcmx/nitejaguar/internal/actions/execaction"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
 	"github.com/mcmx/nitejaguar/internal/actions/filechange"
 	"github.com/mcmx/nitejaguar/internal/actions/httpcall"
@@ -538,7 +539,7 @@ func newClientTrigger(events chan common.ResultData, args common.ActionArgs) (co
 
 // newClientAction dispatches action construction by action_name so remote
 // clients can run any server-side action (e.g. file, datetime, wait,
-// transfer, set, email, slack, http, pagerduty).
+// transfer, set, email, slack, http, pagerduty, exec).
 func newClientAction(events chan common.ResultData, args common.ActionArgs) (common.Action, error) {
 	switch args.ActionName {
 	case "file":
@@ -559,6 +560,8 @@ func newClientAction(events chan common.ResultData, args common.ActionArgs) (com
 		return httpcall.New(events, args)
 	case "pagerduty":
 		return pagerduty.New(events, args)
+	case "exec":
+		return execaction.New(events, args)
 	default:
 		return nil, fmt.Errorf("unknown action_name: %q", args.ActionName)
 	}
