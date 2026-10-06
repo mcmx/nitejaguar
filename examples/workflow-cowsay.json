@@ -1,0 +1,47 @@
+{
+  "id": "workflow_cowsay_example",
+  "name": "Example Workflow: cowsay motivation",
+  "nodes": {
+    "trigger_01cowsay0000000000001": {
+      "id": "trigger_01cowsay0000000000001",
+      "name": "Trigger: cron",
+      "description": "Trigger: every 2 minutes (UTC), plus once at start",
+      "action_type": "trigger",
+      "action_name": "cron",
+      "arguments": {
+        "cron": "*/2 * * * *",
+        "timezone": "UTC",
+        "run_on_start": "true"
+      },
+      "conditions": {
+        "entries": {
+          "entry1": {
+            "condition": {
+              "leftOperand": true,
+              "operator": "",
+              "rightOperand": null
+            },
+            "nexts": ["action_01cowsay0000000000001"]
+          }
+        }
+      },
+      "dependencies": null
+    },
+    "action_01cowsay0000000000001": {
+      "id": "action_01cowsay0000000000001",
+      "name": "Action: exec",
+      "description": "Action: cowsay drops some wisdom",
+      "action_type": "action",
+      "action_name": "exec",
+      "arguments": {
+        "command": "/usr/bin/cowsay",
+        "args": "[\"Moo! I survived another meeting that could have been an email.\"]",
+        "timeout": "30s"
+      },
+      "conditions": {
+        "entries": {}
+      },
+      "dependencies": ["trigger_01cowsay0000000000001"]
+    }
+  }
+}
