@@ -1,0 +1,73 @@
+{
+    "id": "workflow_exec_example",
+    "name": "Example Workflow: run a local ETL script on schedule",
+    "nodes": {
+      "trigger_01hexec00000000000001": {
+        "id": "trigger_01hexec00000000000001",
+        "name": "Trigger: cron",
+        "description": "Trigger: nightly at 02:00 UTC",
+        "action_type": "trigger",
+        "action_name": "cron",
+        "arguments": {
+          "cron": "0 2 * * *",
+          "timezone": "UTC",
+          "run_on_start": "false"
+        },
+        "conditions": {
+          "entries": {
+            "entry1": {
+                "condition": {
+                    "leftOperand": true,
+                    "operator": "",
+                    "rightOperand": null
+                },
+                "nexts": ["action_01hexec00000000000001"]
+            }
+          }
+        },
+        "dependencies": null
+      },
+      "action_01hexec00000000000001": {
+        "id": "action_01hexec00000000000001",
+        "name": "Action: exec",
+        "description": "Action: run the nightly ETL script for the fire date",
+        "action_type": "action",
+        "action_name": "exec",
+        "arguments": {
+          "command": "/usr/local/bin/etl.sh",
+          "args": "[\"--date\", \"$input.datetime\"]",
+          "workdir": "/var/etl",
+          "timeout": "5m",
+          "env": "{\"RUN_DATE\": \"$input.datetime\"}"
+        },
+        "conditions": {
+          "entries": {
+            "on_error": {
+                "condition": {
+                    "leftOperand": "$result.type",
+                    "operator": "==",
+                    "rightOperand": "error"
+                },
+                "nexts": ["action_01hexec00000000000002"]
+            }
+          }
+        },
+        "dependencies": ["trigger_01hexec00000000000001"]
+      },
+      "action_01hexec00000000000002": {
+        "id": "action_01hexec00000000000002",
+        "name": "Alert: slack",
+        "description": "Alert: ETL script failed",
+        "action_type": "action",
+        "action_name": "slack",
+        "arguments": {
+          "webhook_url": "https://hooks.slack.com/services/T/B/X",
+          "text": "ETL failed for $input.command: $input.result"
+        },
+        "conditions": {
+          "entries": {}
+        },
+        "dependencies": ["action_01hexec00000000000001"]
+      }
+  }
+}

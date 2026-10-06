@@ -10,6 +10,7 @@ import (
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions/datetime"
 	"github.com/mcmx/nitejaguar/internal/actions/email"
+	"github.com/mcmx/nitejaguar/internal/actions/execaction"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
 	"github.com/mcmx/nitejaguar/internal/actions/httpcall"
 	"github.com/mcmx/nitejaguar/internal/actions/pagerduty"
@@ -60,6 +61,7 @@ var actionRegistry = []nodeRegistration{
 	{slack.CatalogEntry(), slack.New},
 	{httpcall.CatalogEntry(), httpcall.New},
 	{pagerduty.CatalogEntry(), pagerduty.New},
+	{execaction.CatalogEntry(), execaction.New},
 }
 
 // ActionCatalog lists the designer schemas for every runnable action,
