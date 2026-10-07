@@ -14,12 +14,12 @@ To start the application in server mode, you need to define some environment var
 
 ```txt
 PORT=8081  # if not set, 8080 will be used by default
-DB_URL=file:./test.db?_fk=1&cache=shared
+DB_URL=./test.db
 ```
 
 The only required value is DB_URL for server mode, if not defined you will receive the following message:
 `
-DB_URL is empty, you could set it to: file:ent.db?mode=memory&cache=shared&_fk=1, to start in memory only
+DB_URL is empty, using the in-memory Turso database
 `
 
 Note that if using the recommended value any change will be lost after the application is shut.

@@ -32,10 +32,10 @@ Workflow automation app (Go). Module `github.com/mcmx/nitejaguar`. Entrypoint `c
 
 ## Runtime / env
 
-- `.env` is loaded via `godotenv` autoload and is gitignored. Server mode needs `DB_URL` (e.g. `file:./test.db?_fk=1&cache=shared`); without it the app falls back to in-memory SQLite. `PORT` defaults to 8080.
+- `.env` is loaded via `godotenv` autoload and is gitignored. Server mode needs `DB_URL` (a local Turso path, e.g. `./test.db`; legacy `file:...?` sqlite-style values are normalized in `internal/database/turso.go`); without it the app falls back to in-memory Turso. `PORT` defaults to 8080.
 - `log/server.log`, `results/`, `*.db`, and the `main` binary are gitignored runtime artifacts.
 - API is OpenAPI via huma v2 (docs at `/docs`) on top of Echo; websocket at `/websocket`; static assets from `cmd/web/assets`.
-- Edge-case note: the `routes_test.go` / `ent/db_test.go` tests use in-memory SQLite and set `DB_URL` themselves; running the full `go test ./...` needs templ generated first (see above).
+- Edge-case note: the `routes_test.go` / `ent/db_test.go` tests use in-memory Turso and set `DB_URL` themselves; running the full `go test ./...` needs templ generated first (see above).
 
 ## Architecture / conventions
 

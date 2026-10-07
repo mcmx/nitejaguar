@@ -7,7 +7,7 @@ The `nitejaguar-server` binary acts as the central orchestrator, managing workfl
 Server configuration relies on environment variables (loaded via `godotenv` from `.env`):
 
 - `PORT` — HTTP server port (defaults to `8080`).
-- `DB_URL` — Database connection string (e.g., `file:./test.db?_fk=1&cache=shared`). If unset, falls back to in-memory SQLite.
+- `DB_URL` — Local Turso database path (e.g., `./test.db`). Legacy sqlite-style values (`file:./test.db?_fk=1&cache=shared`) are still accepted and normalized. If unset, falls back to an in-memory Turso database. Existing SQLite files open as-is (same file format) — no export needed.
 - `CREDENTIALS_KEY` — AES-256 key for credential secrets at rest (64-char hex, base64 32-byte key, or any passphrase hashed with SHA-256). If unset, an ephemeral process-local key is generated (stored secrets do not survive restarts).
 - `ADMIN_PASSWORD` — Pins the bootstrap `admin` password (min 8 chars). If unset, a random one is generated and printed once to stdout on first run.
 
