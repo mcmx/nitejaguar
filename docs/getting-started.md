@@ -20,7 +20,7 @@ This builds two binaries from the same module, sharing all framework and
 contract code (`common/`, `internal/workflow` types, `internal/actions`):
 
 - `nitejaguar-server` (`./cmd/server`) — server only, links the DB/web stack.
-- `nitejaguar` (`./cmd/client`) — client only, no ent/sqlite/echo; roughly half the size.
+- `nitejaguar` (`./cmd/client`) — client only, no ent/db-driver/echo; roughly half the size.
 
 To run tests and linting:
 
@@ -36,7 +36,7 @@ make lint
 1. Create a `.env` file in the project root:
    ```env
    PORT=8080
-   DB_URL=file:./test.db?_fk=1&cache=shared
+    DB_URL=./test.db
    ```
 2. Start the server (with `-e` to enable local action execution):
    ```bash

@@ -9,7 +9,7 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.15.4
-	github.com/mattn/go-sqlite3 v1.14.52
+	github.com/mattn/go-sqlite3 v1.14.52 // indirect
 )
 
 require (
@@ -20,6 +20,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
 	go.jetify.com/typeid v1.3.0
+	turso.tech/database/tursogo v0.8.2
 )
 
 require (
@@ -29,6 +30,7 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
 	github.com/bmatcuk/doublestar v1.3.4 // indirect
+	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/go-openapi/inflect v1.0.0 // indirect
 	github.com/gofrs/uuid/v5 v5.5.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
@@ -53,6 +55,7 @@ require (
 	github.com/pion/transport/v4 v4.1.0 // indirect
 	github.com/pion/turn/v5 v5.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/tursodatabase/turso-go-platform-libs v0.8.2 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/zclconf/go-cty v1.19.0 // indirect
 	github.com/zclconf/go-cty-yaml v1.2.0 // indirect

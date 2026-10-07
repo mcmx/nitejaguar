@@ -13,7 +13,6 @@ import (
 	"os"
 	"time"
 
-	"entgo.io/ent/dialect/sql"
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/ent"
 	"github.com/mcmx/nitejaguar/ent/auditlog"
@@ -25,7 +24,6 @@ import (
 	"go.jetify.com/typeid"
 
 	_ "github.com/joho/godotenv/autoload"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // Service represents a service that interacts with a database.
@@ -176,18 +174,20 @@ func New() (Service, error) {
 		return dbInstance, nil
 	}
 	if dburl == "" {
-		fmt.Println("DB_URL is empty, you could set it to: file:ent.db?mode=memory&cache=shared&_fk=1, to start in memory only")
-		fmt.Println("or file:ent.db?cache=shared&_fk=1, to create a file called ent.db")
+		fmt.Println("DB_URL is empty, using Turso in-memory database")
+		fmt.Println("or set DB_URL to a file path (e.g. ./test.db) for a persistent local Turso database")
 	}
 
-	drv, err := sql.Open("sqlite3", dburl)
+	// Local database engine is Turso (SQLite-compatible, no CGO). Legacy
+	// sqlite-style DB_URL values (file:...?...) are translated in
+	// normalizeTursoDSN, and existing SQLite files open as-is.
+	drv, db, err := openTursoEnt(dburl)
 	if err != nil {
 		// This will not be a connection error, but a DSN parse error or
 		// another initialization error.
 		return nil, fmt.Errorf("failed opening database connection: %w", err)
 	}
 
-	db := drv.DB()
 	client := ent.NewClient(ent.Driver(drv))
 
 	dbInstance = &service{

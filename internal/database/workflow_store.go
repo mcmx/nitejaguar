@@ -6,7 +6,7 @@ import (
 
 // Compile-time guarantee that the database service satisfies the workflow
 // engine's persistence boundary. The client imports internal/workflow for its
-// types but never links this package (no ent/sqlite in the client binary).
+// types but never links this package (no ent/db-driver in the client binary).
 // The interface itself lives in common (leaf package) to avoid a
 // workflow <-> database import cycle.
 var _ common.WorkflowStore = (*service)(nil)

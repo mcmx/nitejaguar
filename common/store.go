@@ -14,7 +14,7 @@ type WorkflowRecord struct {
 // fake. It lives in common (the shared-contracts leaf package) so that
 // internal/workflow can use it without importing internal/database, and
 // internal/database can implement it without creating an import cycle —
-// keeping the client binary free of ent/sqlite/echo.
+// keeping the client binary free of ent/db-driver/echo.
 type WorkflowStore interface {
 	// SaveWorkflow saves a workflow definition (upsert by id).
 	SaveWorkflow(workflowID string, jsonDef string, tenantID string) error
