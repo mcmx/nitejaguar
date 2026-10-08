@@ -1,6 +1,6 @@
 # Client Mode (Remote Runner)
 
-The `nitejaguar` binary is the client-only build. Nitejaguar supports distributed execution where remote **Clients** (runners) register with a central server, poll for assigned task nodes (`filechange`, `cron`, `webhook`, `file`), execute them locally, and report execution results back.
+The `nitejaguar` binary is the client-only build. Nitejaguar supports distributed execution where remote **Clients** (runners) register with a central server, poll for assigned task nodes (`filechange`, `filewatch`, `cron`, `webhook`, `file`), execute them locally, and report execution results back.
 
 ## Starting a Client
 

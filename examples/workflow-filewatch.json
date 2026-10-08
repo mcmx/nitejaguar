@@ -1,0 +1,76 @@
+{
+  "id": "workflow_filewatch_example",
+  "name": "Example Workflow: statement-drop watchdog",
+  "nodes": {
+    "trigger_01watch01example00000001": {
+      "id": "trigger_01watch01example00000001",
+      "name": "Trigger: filewatch",
+      "description": "Trigger: expect statement-*.pdf daily by 09:30 (UTC)",
+      "action_type": "trigger",
+      "action_name": "filewatch",
+      "arguments": {
+        "path": "/tmp/nitejaguar-inbox",
+        "pattern": "statement-*.pdf",
+        "cron": "0 9 * * *",
+        "timezone": "UTC",
+        "expect_within": "30m"
+      },
+      "conditions": {
+        "entries": {
+          "entry_missing": {
+            "condition": {
+              "leftOperand": "$result.type",
+              "operator": "==",
+              "rightOperand": "missing"
+            },
+            "nexts": ["action_01watch01example00000001"]
+          },
+          "entry_arrived": {
+            "condition": {
+              "leftOperand": "$result.type",
+              "operator": "==",
+              "rightOperand": "success"
+            },
+            "nexts": ["action_01watch01example00000002"]
+          }
+        }
+      },
+      "dependencies": null
+    },
+    "action_01watch01example00000001": {
+      "id": "action_01watch01example00000001",
+      "name": "Action: email",
+      "description": "Action: page ops when the statement file never arrived",
+      "action_type": "action",
+      "action_name": "email",
+      "credential_ref": "smtp-prod",
+      "arguments": {
+        "host": "smtp.example.com",
+        "port": "587",
+        "from": "noreply@example.com",
+        "to": "ops@example.com",
+        "subject": "MISSING: daily statement file",
+        "body": "No statement-*.pdf arrived within 30m of the 09:00 UTC schedule."
+      },
+      "conditions": {
+        "entries": {}
+      },
+      "dependencies": ["trigger_01watch01example00000001"]
+    },
+    "action_01watch01example00000002": {
+      "id": "action_01watch01example00000002",
+      "name": "Action: file",
+      "description": "Action: stamp the arrival",
+      "action_type": "action",
+      "action_name": "file",
+      "arguments": {
+        "action": "create",
+        "file": "/tmp/nitejaguar-filewatch-{{ $input.event }}.txt"
+      },
+      "conditions": {
+        "entries": {}
+      },
+      "dependencies": ["trigger_01watch01example00000001"]
+    }
+  }
+}

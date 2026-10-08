@@ -23,6 +23,7 @@ import (
 	"github.com/mcmx/nitejaguar/internal/actions/execaction"
 	"github.com/mcmx/nitejaguar/internal/actions/fileaction"
 	"github.com/mcmx/nitejaguar/internal/actions/filechange"
+	"github.com/mcmx/nitejaguar/internal/actions/filewatch"
 	"github.com/mcmx/nitejaguar/internal/actions/httpcall"
 	"github.com/mcmx/nitejaguar/internal/actions/pagerduty"
 	"github.com/mcmx/nitejaguar/internal/actions/set"
@@ -528,6 +529,8 @@ func newClientTrigger(events chan common.ResultData, args common.ActionArgs) (co
 	switch args.ActionName {
 	case "filechange":
 		return filechange.New(events, args)
+	case "filewatch":
+		return filewatch.New(events, args)
 	case "cron":
 		return cron.New(events, args)
 	case "webhook":

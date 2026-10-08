@@ -511,6 +511,22 @@ func TestNewClientTriggerDispatch(t *testing.T) {
 		}
 	}()
 
+	filewatchTrigger, err := newClientTrigger(events, common.ActionArgs{
+		ActionType: "trigger", ActionName: "filewatch",
+		Args: map[string]string{"path": "/tmp", "expect_within": "30m"},
+	})
+	if err != nil {
+		t.Fatalf("newClientTrigger(filewatch) error: %v", err)
+	}
+	defer func() {
+		if err := filewatchTrigger.Stop(); err != nil {
+			t.Errorf("filewatch trigger Stop error: %v", err)
+		}
+	}()
+	if filewatchTrigger.GetArgs().ActionName != "filewatch" || filewatchTrigger.GetArgs().ActionType != "trigger" {
+		t.Errorf("filewatch trigger args = %+v", filewatchTrigger.GetArgs())
+	}
+
 	if _, err := newClientTrigger(events, common.ActionArgs{ActionType: "trigger", ActionName: "nope"}); err == nil {
 		t.Errorf("newClientTrigger(nope) succeeded, want unknown trigger error")
 	}
