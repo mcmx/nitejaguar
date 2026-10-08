@@ -9,6 +9,7 @@ import (
 	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/actions/cron"
 	"github.com/mcmx/nitejaguar/internal/actions/filechange"
+	"github.com/mcmx/nitejaguar/internal/actions/filewatch"
 	"github.com/mcmx/nitejaguar/internal/actions/webhook"
 
 	"go.jetify.com/typeid"
@@ -16,6 +17,7 @@ import (
 
 var triggerRegistry = []nodeRegistration{
 	{filechange.CatalogEntry(), filechange.New},
+	{filewatch.CatalogEntry(), filewatch.New},
 	{cron.CatalogEntry(), cron.New},
 	{webhook.CatalogEntry(), webhook.New},
 }
