@@ -36,6 +36,12 @@ type Service interface {
 	// It returns an error if the connection cannot be closed.
 	Close() error
 
+	// Backup & failover (see docs/ha-failover.md): DatabaseFilePath
+	// reports the on-disk DB file ("" for in-memory); Backup snapshots
+	// it with VACUUM INTO while the server keeps running.
+	DatabaseFilePath() string
+	Backup(dest string) error
+
 	// SaveWorkflow saves a workflow definition to the database
 	SaveWorkflow(workflowId string, jsonDef string, tenantID string) error
 
@@ -147,6 +153,7 @@ type Service interface {
 type service struct {
 	db     *dsql.DB
 	client *ent.Client
+	path   string
 }
 
 type HealthResponse struct {
@@ -193,6 +200,7 @@ func New() (Service, error) {
 	dbInstance = &service{
 		client: client,
 		db:     db,
+		path:   dbFilePath(dburl),
 	}
 	if err := client.Schema.Create(context.Background()); err != nil {
 		return nil, fmt.Errorf("failed creating schema resources: %w", err)
