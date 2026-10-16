@@ -11,6 +11,7 @@ Welcome to the official documentation for **Nitejaguar**, a lightweight and powe
 - [Client Mode](./client-mode.md) — Running remote clients/runners, task polling, and local execution.
 - [Workflows](./workflows.md) — Workflow JSON schemas, triggers, actions, conditions, dependencies, import (`nitejaguar-server -i`, `nitejaguar workflow import`), and clone (`nitejaguar-server -c`, `nitejaguar workflow clone`) operations.
 - [Development Guide](./development.md) — Building, codegen (`templ` & `ent`), testing (`make test`), and linting (`make lint`).
+- [HA & Failover](./ha-failover.md) — Active/passive topology, live backup (`nitejaguar-server backup -o`), restore, RPO/RTO, and no-active/active limits.
 - [Credentials](./credentials.md) — Credential storage (encrypted at rest), scopes & resolution (`user > group > tenant`), just-in-time fetch, and `credential_ref` workflow usage.
 - [Providers](./providers.md) — Provider collections, the shared-credential-type rule, and the registry.
  - [RBAC & Auth](./rbac.md) — Users, roles (`admin > operator > viewer`), login sessions, gated management endpoints, website login, and the audit trail.

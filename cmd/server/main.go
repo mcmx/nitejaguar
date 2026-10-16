@@ -13,6 +13,7 @@ import (
 	"os"
 
 	"github.com/mcmx/nitejaguar/cmd/api"
+	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -21,6 +22,7 @@ var (
 	enableActions  bool
 	importWorkflow string
 	cloneWorkflow  string
+	backupOutput   string
 )
 
 func runServer(_ *cobra.Command, _ []string) {
@@ -64,6 +66,38 @@ func main() {
 		Run:   runServer,
 	}
 	rootCmd.AddCommand(serverCmd)
+
+	// `nitejaguar-server backup -o snapshot.db` snapshots the live
+	// database (VACUUM INTO) without stopping the server. Restore is a
+	// stopped-server file copy — see docs/ha-failover.md.
+	backupCmd := &cobra.Command{
+		Use:   "backup",
+		Short: "Snapshot the database file while the server keeps running",
+		Run: func(_ *cobra.Command, _ []string) {
+			if backupOutput == "" {
+				fmt.Fprintln(os.Stderr, "backup needs --output/-o <file>")
+				os.Exit(1)
+			}
+			db, err := database.New()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "open database:", err)
+				os.Exit(1)
+			}
+			defer func() { _ = db.Close() }()
+			if err := db.Backup(backupOutput); err != nil {
+				fmt.Fprintln(os.Stderr, "backup:", err)
+				os.Exit(1)
+			}
+			n, err := database.VerifyBackup(backupOutput)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "verify:", err)
+				os.Exit(1)
+			}
+			fmt.Printf("backup wrote %s (%d workflows)\n", backupOutput, n)
+		},
+	}
+	backupCmd.Flags().StringVarP(&backupOutput, "output", "o", "", "Destination snapshot file")
+	rootCmd.AddCommand(backupCmd)
 
 	rootCmd.PersistentFlags().BoolVarP(&enableActions, "enable-actions", "e", false, "Enable server action")
 	rootCmd.PersistentFlags().StringVarP(&importWorkflow, "import", "i", "", "Imports a workflow into the database")
