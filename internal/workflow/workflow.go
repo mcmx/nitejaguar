@@ -110,6 +110,14 @@ func (wm *workflowManager) Run(ctx context.Context) {
 			if n.MergeInput {
 				result.Payload = wm.applyMergeInput(result, n)
 			}
+			// Intermediate retry failure: persist it so every attempt is
+			// observable, but do not route — the retry decorator is about
+			// to run (or has given up on) the next attempt.
+			if result.Retrying {
+				wm.saveResult(result)
+				wm.rememberResult(result)
+				continue
+			}
 			decision := n.EvaluateRouting([]any{}, result)
 			result.ConditionResults = decision.Results
 			result.Nexts = decision.Nexts
@@ -210,6 +218,59 @@ type Node struct {
 	// assignments; applied by the framework (workflow manager, client
 	// runner), never by action implementations.
 	MergeInput bool `json:"merge_input,omitempty"`
+	// RetryMax is the number of retries after the first attempt (0 = no
+	// retries, so total attempts = 1 + RetryMax). RetryBackoff and
+	// RetryBackoffMax are Go duration strings ("1s", "500ms") for the
+	// exponential backoff between attempts (defaults 1s / 30s). Timeout
+	// is the per-attempt deadline (empty = none). All four are honoured
+	// by the framework (workflow manager, client runner), never by action
+	// implementations, and never apply to trigger nodes.
+	RetryMax        int    `json:"retry_max,omitempty"`
+	RetryBackoff    string `json:"retry_backoff,omitempty"`
+	RetryBackoffMax string `json:"retry_backoff_max,omitempty"`
+	Timeout         string `json:"timeout,omitempty"`
+}
+
+// PolicyFromNode validates a node's retry/deadline fields and converts the
+// duration strings to a common.RetryPolicy. Invalid values fail workflow
+// load ("Cannot create new action") rather than surfacing at run time.
+func PolicyFromNode(n Node) (common.RetryPolicy, error) {
+	var p common.RetryPolicy
+	if n.RetryMax < 0 {
+		return p, fmt.Errorf("node %s: retry_max must be >= 0, got %d", n.Id, n.RetryMax)
+	}
+	p.Max = n.RetryMax
+	if n.RetryBackoff != "" {
+		d, err := time.ParseDuration(n.RetryBackoff)
+		if err != nil {
+			return p, fmt.Errorf("node %s: invalid retry_backoff %q: %w", n.Id, n.RetryBackoff, err)
+		}
+		if d <= 0 {
+			return p, fmt.Errorf("node %s: retry_backoff must be > 0, got %q", n.Id, n.RetryBackoff)
+		}
+		p.Backoff = d
+	}
+	if n.RetryBackoffMax != "" {
+		d, err := time.ParseDuration(n.RetryBackoffMax)
+		if err != nil {
+			return p, fmt.Errorf("node %s: invalid retry_backoff_max %q: %w", n.Id, n.RetryBackoffMax, err)
+		}
+		if d <= 0 {
+			return p, fmt.Errorf("node %s: retry_backoff_max must be > 0, got %q", n.Id, n.RetryBackoffMax)
+		}
+		p.BackoffMax = d
+	}
+	if n.Timeout != "" {
+		d, err := time.ParseDuration(n.Timeout)
+		if err != nil {
+			return p, fmt.Errorf("node %s: invalid timeout %q: %w", n.Id, n.Timeout, err)
+		}
+		if d <= 0 {
+			return p, fmt.Errorf("node %s: timeout must be > 0, got %q", n.Id, n.Timeout)
+		}
+		p.Timeout = d
+	}
+	return p, nil
 }
 
 // AssignedTo reports whether a node is assigned to the given client.
@@ -342,12 +403,18 @@ func (wm *workflowManager) AddWorkflow(data Workflow) error {
 		if !wm.enableActions {
 			continue
 		}
+		policy, perr := PolicyFromNode(n)
+		if perr != nil {
+			log.Printf("Cannot create new action: %s", perr)
+			continue
+		}
 		cArgs := common.ActionArgs{
 			Id:         n.Id,
 			Name:       n.Name,
 			ActionType: n.ActionType,
 			ActionName: n.ActionName,
 			Args:       n.Arguments,
+			Retry:      policy,
 		}
 		action, id, err := wm.ActionManager.AddAction(cArgs)
 		if err != nil {
@@ -607,6 +674,13 @@ func (wm *workflowManager) IngestResult(result common.ResultData) (common.Result
 	// missing (e.g. after a restart).
 	if node.MergeInput {
 		result.Payload = wm.applyMergeInput(result, node)
+	}
+	// Intermediate retry failure: persist for observability but do not
+	// route; the next attempt is still in flight and will own its routing.
+	if result.Retrying {
+		wm.saveResult(result)
+		wm.rememberResult(result)
+		return result, []string{}, nil
 	}
 	decision := node.EvaluateRouting([]any{}, result)
 	result.ConditionResults = decision.Results

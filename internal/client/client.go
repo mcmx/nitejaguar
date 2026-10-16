@@ -483,7 +483,14 @@ func (r *runner) buildManagedWorkflow(w Workflow) *managedWorkflow {
 		}
 		switch n.ActionType {
 		case "action":
-			a, err := newClientAction(r.events, common.ActionArgs{Id: n.Id, Name: n.Name, ActionType: n.ActionType, ActionName: n.ActionName, Args: n.Arguments})
+			args := common.ActionArgs{Id: n.Id, Name: n.Name, ActionType: n.ActionType, ActionName: n.ActionName, Args: n.Arguments}
+			policy, perr := workflow.PolicyFromNode(n)
+			if perr != nil {
+				r.log.Error("invalid retry policy on client action", "action_id", id, "error", perr)
+				continue
+			}
+			args.Retry = policy
+			a, err := buildClientAction(newClientAction, r.events, args)
 			if err == nil {
 				mw.actions[id] = a
 			} else {
@@ -538,6 +545,17 @@ func newClientTrigger(events chan common.ResultData, args common.ActionArgs) (co
 	default:
 		return nil, fmt.Errorf("unknown trigger action_name: %q", args.ActionName)
 	}
+}
+
+// buildClientAction constructs a client action, wrapping it in the engine
+// retry decorator when the node carries a retry/deadline policy. build is
+// the per-attempt constructor (newClientAction) so the inner action is
+// rebuilt fresh on every attempt; without a policy behavior is unchanged.
+func buildClientAction(build common.ActionBuilder, events chan common.ResultData, args common.ActionArgs) (common.Action, error) {
+	if args.Retry.Enabled() {
+		return common.NewRetryAction(build, events, args)
+	}
+	return build(events, args)
 }
 
 // newClientAction dispatches action construction by action_name so remote

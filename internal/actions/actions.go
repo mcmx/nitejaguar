@@ -110,7 +110,16 @@ func (am *ActionManager) AddAction(data common.ActionArgs) (common.Action, strin
 	if build == nil {
 		return nil, "", fmt.Errorf("unknown action_name: %q", data.ActionName)
 	}
-	action, err := build(am.events, data)
+	// A node policy turns the action into a retry/deadline decorator that
+	// rebuilds the inner action per attempt. Without a policy the action
+	// is built and emits directly, unchanged.
+	var action common.Action
+	var err error
+	if data.Retry.Enabled() {
+		action, err = common.NewRetryAction(build, am.events, data)
+	} else {
+		action, err = build(am.events, data)
+	}
 	if err != nil {
 		return nil, "", err
 	}
