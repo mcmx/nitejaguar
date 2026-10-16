@@ -1,0 +1,74 @@
+{
+  "id": "workflow_retry_example",
+  "name": "Example Workflow: retry and deadline a flaky node",
+  "nodes": {
+    "trigger_01retryexample0000001": {
+      "id": "trigger_01retryexample0000001",
+      "name": "Trigger: filechange",
+      "description": "Trigger: on new files in /tmp",
+      "action_type": "trigger",
+      "action_name": "filechange",
+      "arguments": {
+        "path": "/tmp",
+        "event_type": "create"
+      },
+      "conditions": {
+        "entries": {
+          "entry1": {
+            "condition": {
+              "leftOperand": true,
+              "operator": "",
+              "rightOperand": null
+            },
+            "nexts": ["action_01retryexample0000001"]
+          }
+        }
+      },
+      "dependencies": null
+    },
+    "action_01retryexample0000001": {
+      "id": "action_01retryexample0000001",
+      "name": "Action: upload",
+      "description": "Action: upload the file (retried on failure, bounded per attempt)",
+      "action_type": "action",
+      "action_name": "http",
+      "arguments": {
+        "method": "POST",
+        "url": "https://example.invalid/upload",
+        "body": "{\"file\":\"$input.file\"}"
+      },
+      "retry_max": 3,
+      "retry_backoff": "1s",
+      "retry_backoff_max": "30s",
+      "timeout": "10s",
+      "conditions": {
+        "entries": {
+          "on_error": {
+            "condition": {
+              "leftOperand": "$result.type",
+              "operator": "==",
+              "rightOperand": "error"
+            },
+            "nexts": ["action_01retryexample0000002"]
+          }
+        }
+      },
+      "dependencies": ["trigger_01retryexample0000001"]
+    },
+    "action_01retryexample0000002": {
+      "id": "action_01retryexample0000002",
+      "name": "Alert: slack",
+      "description": "Alert: notify #alerts when the upload gives up",
+      "action_type": "action",
+      "action_name": "slack",
+      "credential_ref": "slack-alerts-webhook",
+      "arguments": {
+        "message": "Upload failed for $input.file after retries: $input.result"
+      },
+      "conditions": {
+        "entries": {}
+      },
+      "dependencies": ["action_01retryexample0000001"]
+    }
+  }
+}

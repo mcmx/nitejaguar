@@ -98,7 +98,8 @@ The designer is a node-graph canvas, not a form list:
   **Advanced: raw JSON** fallback for extra keys, `field.*` dynamics
   and `$input` templates, with format + validation and reset to
   defaults, client targeting combo, `credential_ref`, `merge_input`
-  for actions, duplicate/delete) plus
+  and the **Retries & deadline** fields (`retry_max`, `retry_backoff`,
+  `retry_backoff_max`, `timeout`) for actions, duplicate/delete) plus
   a **routing conditions editor**
   a **routing conditions editor**: every `conditions.entries` entry is
   listed with its id, left operand, operator (`always`, `==`, `!=`,
@@ -220,6 +221,18 @@ at `./results/<result_id>.json`. The `/results` page reads the DB first
 (files cover legacy rows), and `POST /api/results` returns
 `{workflow_id, execution_id, nexts, condition_results,
 condition_error}` so callers see the routing decision immediately.
+
+## Retries & deadlines
+
+Action nodes may declare an engine-level retry policy and a per-attempt
+deadline via four node fields — `retry_max`, `retry_backoff`,
+`retry_backoff_max`, and `timeout`. A failing node is re-run (with
+exponential backoff) up to `retry_max` extra times; each attempt is
+persisted (with a 1-based `attempt`) but only the final one routes, so
+existing `$result.type == error` alerting still fires exactly once after
+the node gives up. `timeout` bounds each attempt and is terminal. See
+[Retries & deadlines](./retries-and-deadlines.md) for the field table,
+semantics, and limits.
 
 ## Credential references
 

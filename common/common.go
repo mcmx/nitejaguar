@@ -11,6 +11,25 @@ import (
 	"time"
 )
 
+// RetryPolicy is the engine-level retry/deadline policy for a node. It is
+// applied by the framework (workflow manager, client runner) via the retry
+// decorator, never by action implementations.
+type RetryPolicy struct {
+	// Max is the number of retries after the first attempt, so total
+	// attempts = 1 + Max. Zero disables retrying.
+	Max int
+	// Backoff is the base delay between attempts; it doubles each retry
+	// and is capped by BackoffMax. Zero means the 1s default.
+	Backoff time.Duration
+	// BackoffMax caps the exponential delay. Zero means the 30s default.
+	BackoffMax time.Duration
+	// Timeout bounds each attempt. Zero means no deadline.
+	Timeout time.Duration
+}
+
+// Enabled reports whether the policy does anything at all.
+func (p RetryPolicy) Enabled() bool { return p.Max > 0 || p.Timeout > 0 }
+
 // ActionArgs holds the arguments for an action
 type ActionArgs struct {
 	Id         string
@@ -18,6 +37,9 @@ type ActionArgs struct {
 	ActionType string
 	ActionName string
 	Args       any
+	// Retry is the engine-level retry/deadline policy. Action
+	// implementations must ignore it; the retry decorator reads it.
+	Retry RetryPolicy
 }
 
 // Action interface for actions
@@ -52,6 +74,15 @@ type ResultData struct {
 	// any. Routing continues with the remaining entries; the error is
 	// kept here (and logged) instead of failing the execution.
 	ConditionError string `json:"condition_error,omitempty"`
+	// Attempt is the 1-based attempt number this result came from when a
+	// node has a retry policy. Zero on the common (no-policy) path.
+	Attempt int `json:"attempt,omitempty"`
+	// Retrying marks an intermediate failure that will be retried: the
+	// engine persists it for observability but must NOT route on it. The
+	// final attempt (success, exhausted retries, or timeout) leaves it
+	// false so routing proceeds normally. The zero value preserves the
+	// pre-retry behavior for every existing result.
+	Retrying bool `json:"retrying,omitempty"`
 }
 
 // MergePayloads deep-merges an upstream $input payload into an action's

@@ -10,6 +10,7 @@ Welcome to the official documentation for **Nitejaguar**, a lightweight and powe
 - [Server Mode](./server-mode.md) — Running the server orchestrator, Huma OpenAPI documentation, and Echo web dashboard.
 - [Client Mode](./client-mode.md) — Running remote clients/runners, task polling, and local execution.
 - [Workflows](./workflows.md) — Workflow JSON schemas, triggers, actions, conditions, dependencies, import (`nitejaguar-server -i`, `nitejaguar workflow import`), and clone (`nitejaguar-server -c`, `nitejaguar workflow clone`) operations.
+- [Retries & Deadlines](./retries-and-deadlines.md) — Per-node retry policy (`retry_max`, exponential backoff) and per-attempt `timeout`, attempt persistence, and limits.
 - [Development Guide](./development.md) — Building, codegen (`templ` & `ent`), testing (`make test`), and linting (`make lint`).
 - [HA & Failover](./ha-failover.md) — Active/passive topology, live backup (`nitejaguar-server backup -o`), restore, RPO/RTO, and no-active/active limits.
 - [Credentials](./credentials.md) — Credential storage (encrypted at rest), scopes & resolution (`user > group > tenant`), just-in-time fetch, and `credential_ref` workflow usage.
