@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/mcmx/nitejaguar/cmd/web"
+	"github.com/mcmx/nitejaguar/cmd/web/modules"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/workflow"
 )
@@ -102,6 +103,106 @@ func TestDesignerEditShowsRequestedWorkflow(t *testing.T) {
 		if !strings.Contains(rec.Body.String(), "Edit Workflow") {
 			t.Errorf("GET %s: missing edit-mode title", target)
 		}
+	}
+}
+
+// TestDesignerLifecycleToolbar guards the lifecycle controls that moved
+// from the removed /workflows/:id view page into the designer: the
+// enable/disable toggle, clone, delete, the workflow-filtered executions
+// link, and the enabled/disabled badge. They render only while editing an
+// existing workflow, and the mutating forms only for operator+.
+func TestDesignerLifecycleToolbar(t *testing.T) {
+	render := func(data *web.DesignerPageData) string {
+		t.Helper()
+		var buf bytes.Buffer
+		if err := web.DesignerPage(data).Render(context.Background(), &buf); err != nil {
+			t.Fatalf("render designer: %v", err)
+		}
+		return buf.String()
+	}
+	operator := &modules.NavUser{ID: "user_1", Username: "op", TenantID: "default", Role: "operator", LoggedIn: true}
+	viewer := &modules.NavUser{ID: "user_2", Username: "view", TenantID: "default", Role: "viewer", LoggedIn: true}
+
+	// Editing an existing, enabled workflow as an operator: full toolbar.
+	body := render(&web.DesignerPageData{EditWorkflowID: "workflow_lifecycle1test0001", Enabled: true, CurrentUser: operator, InitJSON: "{}"})
+	for _, want := range []string{
+		"/results?workflow=workflow_lifecycle1test0001",
+		"View executions",
+		"/workflows/workflow_lifecycle1test0001/enabled",
+		"Disable workflow",
+		`name="enabled" value="false"`,
+		"/workflows/workflow_lifecycle1test0001/clone",
+		"Clone workflow",
+		"/workflows/workflow_lifecycle1test0001/delete",
+		"Delete workflow",
+		"bg-green-500/15",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("editing operator view missing %q", want)
+		}
+	}
+
+	// Disabled workflow: enable form posts enabled=true + muted badge.
+	body = render(&web.DesignerPageData{EditWorkflowID: "workflow_lifecycle1test0001", Enabled: false, CurrentUser: operator, InitJSON: "{}"})
+	for _, want := range []string{"Enable workflow", `name="enabled" value="true"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("disabled workflow view missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Disable workflow") {
+		t.Errorf("disabled workflow offers Disable")
+	}
+
+	// Viewer: no mutating forms, but the executions link stays.
+	body = render(&web.DesignerPageData{EditWorkflowID: "workflow_lifecycle1test0001", Enabled: true, CurrentUser: viewer, InitJSON: "{}"})
+	if !strings.Contains(body, "/results?workflow=workflow_lifecycle1test0001") {
+		t.Errorf("viewer executions link missing")
+	}
+	for _, unwanted := range []string{"/enabled", "Clone workflow", "Delete workflow"} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("viewer must not see %q", unwanted)
+		}
+	}
+
+	// New workflow (no id yet): no lifecycle toolbar at all.
+	body = render(&web.DesignerPageData{CurrentUser: operator, InitJSON: "{}"})
+	if strings.Contains(body, "View executions") || strings.Contains(body, "/clone") {
+		t.Errorf("new-workflow designer must not render lifecycle controls")
+	}
+}
+
+// TestWorkflowViewPageRemoved guards the removal of the read-only view
+// page: /workflows/:id is gone (404) — the designer is the only per-workflow
+// page. The POST lifecycle subroutes (/enabled, /clone, /delete) stay.
+func TestWorkflowViewPageRemoved(t *testing.T) {
+	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
+	wm := workflow.NewWorkflowManager(false, db)
+	if _, err := wm.ImportWorkflowJSON(assignmentFlowWorkflow); err != nil {
+		t.Fatalf("seed workflow: %v", err)
+	}
+	s := &Server{db: db, wm: wm}
+	h := s.RegisterRoutes()
+
+	// Anonymous page requests get redirected to /login before routing, so
+	// assert the 404 through a signed-in session.
+	admin, err := db.CreateUser("default", fmt.Sprintf("viewpage-gone-%d", testAdminSeq.Add(1)), "password-12345", "admin", nil)
+	if err != nil {
+		t.Fatalf("create admin: %v", err)
+	}
+	_, sessionPlain, err := db.CreateSession(admin.ID, 0)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/workflows/workflow_01kassignmentsync1test0001", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: sessionPlain})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("GET /workflows/:id status = %v, want 404 (view page removed)", rec.Code)
 	}
 }
 
