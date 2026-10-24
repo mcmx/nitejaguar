@@ -629,5 +629,5 @@ func (s *Server) cloneWorkflowWeb(c echo.Context) error {
 	}
 	_ = s.db.LogAudit("workflow.clone", tenantID, actor, newID, "cloned from "+id+" via web")
 	log.Printf("workflow cloned via web: id=%s from=%s tenant=%s actor=%s", newID, id, tenantID, actor)
-	return c.Redirect(http.StatusSeeOther, "/workflows/"+newID)
+	return c.Redirect(http.StatusSeeOther, "/designer/"+newID)
 }

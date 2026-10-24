@@ -85,7 +85,6 @@ func (s *Server) RegisterRoutes() http.Handler {
 	e.GET("/logout", s.logoutWeb)
 
 	e.GET("/", s.workflowsPage)
-	e.GET("/workflows/:id", s.workflowPage)
 	e.GET("/designer", s.designerPage)
 	e.GET("/designer/:id", s.designerEditPage)
 	e.POST("/designer/save", s.designerSaveWorkflow)
@@ -1273,28 +1272,8 @@ func (s *Server) workflowsPage(c echo.Context) error {
 	return nil
 }
 
-func (s *Server) workflowPage(c echo.Context) error {
-	row, err := s.db.GetWorkflow(c.Param("id"))
-	data := &web.WorkflowDetailData{CurrentUser: s.navUser(c), Workflow: row}
-	if user, open := s.webCurrentUser(c); !open && user != nil && !database.IsSuperUser(user) && err == nil &&
-		workflowTenant(row.TenantID, row.JSONDefinition) != user.TenantID {
-		row = nil
-		err = fmt.Errorf("not found")
-		data.Workflow = nil
-	}
-	if err != nil {
-		data.Error = "Workflow not found"
-	} else if err := json.Unmarshal([]byte(row.JSONDefinition), &data.Definition); err != nil {
-		data.Error = "Workflow definition is invalid"
-	} else {
-		data.WebhookInfo = s.webhookNodeInfo(workflowTenant(row.TenantID, row.JSONDefinition), data.Definition)
-	}
-	templ.Handler(web.WorkflowDetailPage(data)).ServeHTTP(c.Response(), c.Request())
-	return nil
-}
-
 func (s *Server) resultsPage(c echo.Context) error {
-	data := &web.ResultsPageData{CurrentUser: s.navUser(c)}
+	data := &web.ResultsPageData{CurrentUser: s.navUser(c), WorkflowFilter: c.QueryParam("workflow")}
 	user, open := s.webCurrentUser(c)
 	// Tenant isolation: non-superusers only see their own tenant's results.
 	tenant := ""
@@ -1305,7 +1284,7 @@ func (s *Server) resultsPage(c echo.Context) error {
 	// Primary store: persisted results in the DB (include the recorded
 	// condition evaluation and routing decision).
 	if s.db != nil {
-		if rows, err := s.db.ListResults("", "", 0); err != nil {
+		if rows, err := s.db.ListResults(data.WorkflowFilter, "", 0); err != nil {
 			log.Printf("results page: failed to list results from DB: %s", err)
 		} else {
 			for _, row := range rows {
@@ -1340,6 +1319,9 @@ func (s *Server) resultsPage(c echo.Context) error {
 		var result common.ResultData
 		if json.Unmarshal(contents, &result) == nil {
 			if result.ResultID != "" && seen[result.ResultID] {
+				continue
+			}
+			if data.WorkflowFilter != "" && result.WorkflowID != data.WorkflowFilter {
 				continue
 			}
 			if tenant != "" && normalizeTenantID(result.TenantID) != normalizeTenantID(tenant) {
@@ -1414,7 +1396,7 @@ func (s *Server) setWorkflowEnabled(c echo.Context) error {
 		actor = user.ID
 	}
 	_ = s.db.LogAudit("workflow.enable", tenantID, actor, c.Param("id"), fmt.Sprintf("enabled=%t via web", enabled))
-	return c.Redirect(http.StatusSeeOther, "/workflows/"+c.Param("id"))
+	return c.Redirect(http.StatusSeeOther, "/designer/"+c.Param("id"))
 }
 
 func (s *Server) TriggerWebHandler(c echo.Context) error {
@@ -1696,6 +1678,7 @@ func (s *Server) renderDesigner(c echo.Context, workflowID string) error {
 			} else {
 				data.Init = web.DesignerInitFromWorkflow(def)
 				data.EditWorkflowID = workflowID
+				data.Enabled = row.Enabled
 			}
 		}
 	}
@@ -1759,7 +1742,7 @@ func (s *Server) designerSaveWorkflow(c echo.Context) error {
 	}
 	_ = s.db.LogAudit("workflow.import", tenantID, actor, wf.Id, "name="+wf.Name+" via designer")
 	if wf.Id != "" {
-		return c.Redirect(http.StatusSeeOther, "/workflows/"+wf.Id)
+		return c.Redirect(http.StatusSeeOther, "/designer/"+wf.Id)
 	}
 	return c.Redirect(http.StatusSeeOther, "/")
 }

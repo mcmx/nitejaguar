@@ -62,13 +62,17 @@ The `action_name` field uses one concise, lowercase, category-free identifier fo
 The app shell uses a left sidebar (Overview / Fleet / Admin / Help)
 with a top bar showing the current section and tenant. The workflow
 list (`/`) is headed by a **＋ Create** button that opens a blank
-designer (`/designer`), and each card shows **View**, **Edit**
-(designer), **Clone**, and **Delete** (confirm-guarded); the detail
-page (`/workflows/:id`) adds enable/disable plus the same clone/delete
-actions. Clone lands on the new workflow; delete returns to the list
+designer (`/designer`), and each card shows **Open** (designer),
+**Clone**, and **Delete** (confirm-guarded). The designer is the only
+per-workflow page: while editing an existing workflow its toolbar
+shows the enabled/disabled badge, **View executions** (a link to
+`/results?workflow=<id>`), and — for operator+ — enable/disable,
+**Clone workflow**, and **Delete workflow** (confirm-guarded). The
+former detail page (`/workflows/:id`) is gone and returns 404. Clone
+lands on the new workflow in the designer; delete returns to the list
 with a confirmation notice. Mutating buttons require operator+ and
 are hidden otherwise. The designer itself is not a sidebar entry —
-it is only reachable from **＋ Create** (new) and **Edit** (existing).
+it is only reachable from **＋ Create** (new) and **Open** (existing).
 
 ### Visual graph designer (`/designer`)
 
@@ -135,10 +139,10 @@ The designer is a node-graph canvas, not a form list:
   button; closing uses the ✕ button in the top-right corner.
 - Webhook triggers show their endpoint plus a listener check: when the
   resolved owner client (per-node client, else workflow default)
-  runs no webhook listener, the inspector and the workflow detail page
-  warn that deliveries to that client's endpoint will fail (the server
-  endpoint always fires). Broadcast triggers report how many clients
-  run a listener.
+  runs no webhook listener, the inspector warns that deliveries to
+  that client's endpoint will fail (the server endpoint always fires).
+  Broadcast triggers report how many registered clients run a
+  listener.
 
 ## Client targeting & distributed execution
 
@@ -218,7 +222,9 @@ Every node result is dual-written: one row in the `workflow_results` DB
 table (queryable via `SaveResult`/`GetResult`/`ListResults`, filterable
 by workflow/execution, idempotent per `result_id`) and one JSON mirror
 at `./results/<result_id>.json`. The `/results` page reads the DB first
-(files cover legacy rows), and `POST /api/results` returns
+(files cover legacy rows) and accepts a `?workflow=<id>` filter (used
+by the designer's **View executions** link), and `POST /api/results`
+returns
 `{workflow_id, execution_id, nexts, condition_results,
 condition_error}` so callers see the routing decision immediately.
 

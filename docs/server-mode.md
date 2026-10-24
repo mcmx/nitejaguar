@@ -152,7 +152,7 @@ is ignored).
   routing continues with the healthy entries). `POST /api/results`
   returns `{workflow_id, execution_id, nexts, condition_results,
   condition_error}`; the `/results` page shows the routing block above
-  each payload. See [Workflows](./workflows.md).
+  each payload (filter it with `?workflow=<id>`). See [Workflows](./workflows.md).
 - **Client-to-client transfer**: `transfer` sessions (`transfer_` ids)
   with chunked relay (`POST/GET /api/transfers/{id}/chunks`) and WebRTC
   signaling (`POST/GET /api/transfers/{id}/signal`); receivers poll
