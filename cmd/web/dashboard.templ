@@ -735,6 +735,24 @@ templ DesignerPage(data *DesignerPageData) {
 						layers[d].forEach(function (n, i) { n.x = 60 + Number(d) * 320; n.y = 60 + i * 250; });
 					});
 				},
+				// fitView zooms and pans so every node fits the visible
+				// canvas (#nj-canvas), measured in CSS pixels.
+				fitView() {
+					var el = document.getElementById('nj-canvas');
+					var vw = el ? el.clientWidth : 1200, vh = el ? el.clientHeight : 720;
+					if (!this.nodes.length || !vw || !vh) { this.zoom = 1; this.panX = 0; this.panY = 0; return; }
+					var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+					this.nodes.forEach(function (n) {
+						minX = Math.min(minX, n.x || 0); minY = Math.min(minY, n.y || 0);
+						maxX = Math.max(maxX, (n.x || 0) + 248); maxY = Math.max(maxY, (n.y || 0) + 170);
+					});
+					var pad = 48;
+					var w = (maxX - minX) + pad * 2, h = (maxY - minY) + pad * 2;
+					var z = Math.min(vw / w, vh / h, 1.2);
+					this.zoom = Math.max(0.4, Math.round(z * 10) / 10);
+					this.panX = Math.round((vw - w * this.zoom) / 2 - (minX - pad) * this.zoom);
+					this.panY = Math.round((vh - h * this.zoom) / 2 - (minY - pad) * this.zoom);
+				},
 				openPicker(parentId) { this.pickerFor = parentId || null; this.pickerOpen = true; this.pickerQuery = ''; },
 				closePicker() { this.pickerOpen = false; this.pickerFor = null; this.pickerQuery = ''; },
 				pickerParent() { return this.pickerFor ? this.nodeById(this.pickerFor) : null; },
@@ -1038,59 +1056,69 @@ templ DesignerPage(data *DesignerPageData) {
 		}
 		</script>
 		<div x-data="designerGraph()" x-init="init()" @keydown.escape.window="connectFrom = null; closePicker()" class="relative mx-auto w-full max-w-[1400px] px-1 pb-10">
-			<a href="/" title="Close designer" aria-label="Close designer" class="absolute right-1 top-1 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-lg font-bold text-muted-foreground shadow-sm hover:border-red-500 hover:text-red-500">✕</a>
-			if data.EditWorkflowID != "" {
-				@pageTitle("Edit Workflow")
-			} else {
-				@pageTitle("Workflow Designer")
-			}
-			<p class="mb-4 text-sm text-muted-foreground">Draw the graph, pick actions per node, then save — the canvas is translated to workflow JSON automatically. Drag cards to arrange, click the <span class="font-mono">→+ </span> arrow on a card edge to append an action, click the green dot then another card to connect. Edit per-entry routing conditions in the inspector; a child can be moved between entries there.</p>
-			if data.EditWorkflowID != "" {
-				<!-- lifecycle toolbar: outside the save form on purpose (no nested forms) -->
-				<div class="mb-4 flex flex-wrap items-center gap-2 text-sm">
+			<!-- sticky designer bar: name, mode, counts, save, lifecycle menu -->
+			<div class="nj-subbar -mx-1 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-1 py-2 backdrop-blur">
+				<a href="/" title="Back to workflows" class="flex shrink-0 items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-sm text-muted-foreground hover:border-red-500 hover:text-foreground">← Workflows</a>
+				if data.EditWorkflowID != "" {
+					<h1 class="sr-only">Edit Workflow</h1>
+				} else {
+					<h1 class="sr-only">Workflow Designer</h1>
+				}
+				<input type="text" x-model="name" placeholder="Workflow name" aria-label="Workflow name" class="min-w-0 flex-1 rounded-xl border border-transparent bg-transparent px-2 py-1.5 text-lg font-bold tracking-tight hover:border-border focus:border-red-500 focus:outline-none"/>
+				if data.EditWorkflowID != "" {
 					if data.Enabled {
 						<span class="rounded-full bg-green-500/15 px-2 py-1 text-xs text-green-600">enabled</span>
 					} else {
 						<span class="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">disabled</span>
 					}
-					<a href={ templ.URL("/results?workflow=" + data.EditWorkflowID) } class="rounded-xl border border-border bg-card px-3 py-2 text-sm hover:border-red-500">View executions</a>
-					if data.CurrentUser != nil && data.CurrentUser.IsOperator() {
-						<form method="post" action={ templ.URL("/workflows/" + data.EditWorkflowID + "/enabled") } class="m-0">
-							<input type="hidden" name="enabled" value={ fmt.Sprintf("%t", !data.Enabled) }/>
-							if data.Enabled {
-								<button type="submit" class="rounded-xl border border-border bg-card px-3 py-2 text-sm hover:border-red-500">Disable workflow</button>
-							} else {
-								<button type="submit" class="rounded-xl border border-border bg-card px-3 py-2 text-sm hover:border-red-500">Enable workflow</button>
-							}
-						</form>
-						<form method="post" action={ templ.URL("/workflows/" + data.EditWorkflowID + "/clone") } class="m-0"><button type="submit" class="rounded-xl border border-border bg-card px-3 py-2 text-sm hover:border-red-500">Clone workflow</button></form>
-						<form method="post" action={ templ.URL("/workflows/" + data.EditWorkflowID + "/delete") } class="m-0" onsubmit="return confirm('Delete this workflow? This cannot be undone.');"><button type="submit" class="rounded-xl border border-border bg-card px-3 py-2 text-sm hover:border-red-500">Delete workflow</button></form>
+				}
+				<span class="hidden items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground md:flex"><span><span x-text="nodes.filter(function(n){return n.action_type==='trigger'}).length"></span> triggers</span><span>·</span><span><span x-text="nodes.filter(function(n){return n.action_type==='action'}).length"></span> actions</span><span>·</span><span><span x-text="edgeCount()"></span> edges</span></span>
+				<button type="button" @click="openPicker(null)" class="shrink-0 rounded-xl border border-border bg-card px-3 py-2 text-sm hover:border-red-500">＋ Add node</button>
+				<button type="submit" form="nj-save-form" class="shrink-0 rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600">
+					if data.EditWorkflowID != "" {
+						Save Changes
+					} else {
+						Save Workflow
 					}
-				</div>
-			}
-			if data.Error != "" {
-				<p class="mb-4 rounded-xl border border-red-500/50 p-4 text-red-500">{ data.Error }</p>
-			}
-			<p x-show="formError" x-text="formError" class="mb-4 hidden rounded-xl border border-red-500/50 p-4 text-red-500" :class="formError ? '' : 'hidden'" style="display:none" x-bind:style="formError ? 'display:block' : 'display:none'"></p>
-			<div x-show="connectFrom" class="mb-4 flex items-center justify-between gap-3 rounded-xl border border-amber-500/50 bg-amber-500/10 px-4 py-2.5 text-sm" style="display:none" x-bind:style="connectFrom ? 'display:flex' : 'display:none'">
-				<span>Connecting from <code class="font-mono font-semibold" x-text="connectFrom"></code> — click any other card to draw the edge.</span>
-				<button type="button" @click="connectFrom = null" class="rounded-lg border border-border px-2.5 py-1 text-xs hover:border-red-500">Cancel (Esc)</button>
+				</button>
+				if data.EditWorkflowID != "" {
+					<!-- lifecycle menu: these forms must stay outside the save form (no nested forms) -->
+					<details class="relative shrink-0" @click.outside="$el.open = false">
+						<summary class="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-xl border border-border bg-card text-sm text-muted-foreground hover:border-red-500 hover:text-foreground" title="Workflow actions">⋯</summary>
+						<div class="absolute right-0 z-30 mt-1 flex w-60 flex-col gap-1 rounded-xl border border-border bg-card p-2 text-sm shadow-lg">
+							<a href={ templ.URL("/results?workflow=" + data.EditWorkflowID) } class="rounded-lg px-2 py-1.5 hover:bg-muted">View executions</a>
+							if data.CurrentUser != nil && data.CurrentUser.IsOperator() {
+								<form method="post" action={ templ.URL("/workflows/" + data.EditWorkflowID + "/enabled") } class="m-0">
+									<input type="hidden" name="enabled" value={ fmt.Sprintf("%t", !data.Enabled) }/>
+									if data.Enabled {
+										<button type="submit" class="w-full rounded-lg px-2 py-1.5 text-left hover:bg-muted">Disable workflow</button>
+									} else {
+										<button type="submit" class="w-full rounded-lg px-2 py-1.5 text-left hover:bg-muted">Enable workflow</button>
+									}
+								</form>
+								<form method="post" action={ templ.URL("/workflows/" + data.EditWorkflowID + "/clone") } class="m-0"><button type="submit" class="w-full rounded-lg px-2 py-1.5 text-left hover:bg-muted">Clone workflow</button></form>
+								<form method="post" action={ templ.URL("/workflows/" + data.EditWorkflowID + "/delete") } class="m-0" onsubmit="return confirm('Delete this workflow? This cannot be undone.');"><button type="submit" class="w-full rounded-lg px-2 py-1.5 text-left text-red-600 hover:bg-red-500/10">Delete workflow</button></form>
+							}
+						</div>
+					</details>
+				}
 			</div>
-			<form method="post" action="/designer/save" @submit="if (!validateAll()) { $event.preventDefault(); window.scrollTo({top: 0, behavior: 'smooth'}); }" class="space-y-4">
-				<input type="hidden" name="workflow_json" :value="getJSON()"/>
-				<!-- workflow meta -->
-				<div class="grid gap-3 rounded-2xl border border-border bg-card p-4 md:grid-cols-5">
-					<div class="md:col-span-2">
-						<label class="mb-1 block text-xs font-medium">Workflow name</label>
-						<input type="text" x-model="name" class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"/>
-					</div>
+			<!-- workflow settings: collapsed so the canvas keeps the viewport -->
+			<details class="mt-3 rounded-2xl border border-border bg-card">
+				<summary class="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground">
+					<span aria-hidden="true">⚙</span>
+					<span class="font-medium">Workflow settings</span>
+					<span class="truncate font-mono text-[11px]" x-text="workflowId"></span>
+				</summary>
+				<div class="grid gap-3 border-t border-border p-4 md:grid-cols-4">
 					<div>
 						<label class="mb-1 block text-xs font-medium">Workflow ID</label>
 						<input type="text" x-model="workflowId" class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs"/>
 					</div>
 					<div>
-						<label class="mb-1 block text-xs font-medium">Tenant ID</label>
+						<label class="mb-1 block text-xs font-medium">Tenant ID <span class="font-normal text-muted-foreground">(superusers only)</span></label>
 						<input type="text" x-model="tenantId" class="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs"/>
+						<p class="mt-1 text-[11px] text-muted-foreground">Everyone else always saves into their own tenant.</p>
 					</div>
 					<div>
 						<label class="mb-1 block text-xs font-medium">Default client <span class="font-normal text-muted-foreground">(optional)</span></label>
@@ -1105,29 +1133,33 @@ templ DesignerPage(data *DesignerPageData) {
 							}
 						</datalist>
 					</div>
-					<div class="md:col-span-3">
+					<div>
 						<label class="mb-1 block text-xs font-medium">Default client tags <span class="font-normal text-muted-foreground">(comma separated)</span></label>
 						<input type="text" x-model="defaultClientTags" placeholder="gpu, tenant-a" class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"/>
 					</div>
-					<div class="flex items-end gap-2 md:col-span-2">
-						<div class="flex gap-2 rounded-lg bg-muted px-3 py-2 font-mono text-xs text-muted-foreground"><span><span x-text="nodes.filter(function(n){return n.action_type==='trigger'}).length"></span> triggers</span><span>·</span><span><span x-text="nodes.filter(function(n){return n.action_type==='action'}).length"></span> actions</span><span>·</span><span><span x-text="edgeCount()"></span> edges</span></div>
-						if data.EditWorkflowID != "" {
-							<button type="submit" class="flex-1 rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600">Save Changes</button>
-						} else {
-							<button type="submit" class="flex-1 rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600">Save Workflow</button>
-						}
-					</div>
 				</div>
-				<!-- toolbar -->
-				<div class="flex flex-wrap items-center gap-2">
-					<button type="button" @click="openPicker(null)" class="rounded-xl border border-border bg-card px-3 py-2 text-sm hover:border-red-500">＋ Add node</button>
-					<button type="button" @click="autoLayout()" class="rounded-xl border border-border bg-card px-3 py-2 text-sm hover:border-red-500">🧭 Auto-layout</button>
-					<div class="flex items-center gap-1 rounded-xl border border-border bg-card px-2 py-1.5 text-sm">
-						<button type="button" @click="zoom = Math.max(0.4, Math.round((zoom - 0.1) * 10) / 10)" class="rounded-lg px-2 hover:bg-muted">−</button>
-						<span class="w-12 text-center font-mono text-xs" x-text="Math.round(zoom * 100) + '%'"></span>
-						<button type="button" @click="zoom = Math.min(1.5, Math.round((zoom + 0.1) * 10) / 10)" class="rounded-lg px-2 hover:bg-muted">＋</button>
-					</div>
-					<button type="button" @click="showJson = !showJson" class="rounded-xl border border-border bg-card px-3 py-2 text-sm hover:border-red-500"><span x-text="showJson ? 'Hide JSON' : 'Show JSON'"></span></button>
+			</details>
+			<details class="mt-2 text-xs text-muted-foreground">
+				<summary class="cursor-pointer select-none hover:text-foreground">How the canvas works</summary>
+				<p class="mt-1 rounded-xl border border-border bg-card px-3 py-2">Drag cards to arrange. Click <span class="font-mono">→+</span> on a card to append an action. Click the green dot, then another card, to connect. Routing conditions are edited per entry in the inspector, where a child can be moved between entries.</p>
+			</details>
+			if data.Error != "" {
+				<p class="mt-2 rounded-xl border border-red-500/50 bg-card p-4 text-sm text-red-500">{ data.Error }</p>
+			}
+			<!-- transient notices: pinned bottom-center so they never push the canvas down -->
+			<div class="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex flex-col items-center gap-2 px-4">
+				<p x-show="formError" x-text="formError" class="pointer-events-auto max-w-xl rounded-xl border border-red-500/50 bg-card px-4 py-2.5 text-sm text-red-500 shadow-lg" style="display:none"></p>
+				<div x-show="connectFrom" class="pointer-events-auto flex max-w-xl items-center justify-between gap-3 rounded-xl border border-amber-500/50 bg-card px-4 py-2.5 text-sm shadow-lg" style="display:none">
+					<span>Connecting from <code class="font-mono font-semibold" x-text="connectFrom"></code> — click any other card to draw the edge.</span>
+					<button type="button" @click="connectFrom = null" class="rounded-lg border border-border px-2.5 py-1 text-xs hover:border-red-500">Cancel (Esc)</button>
+				</div>
+			</div>
+			<form id="nj-save-form" method="post" action="/designer/save" @submit="if (!validateAll()) { $event.preventDefault(); }" class="mt-3 space-y-3">
+				<input type="hidden" name="workflow_json" :value="getJSON()"/>
+				<!-- canvas toolbar -->
+				<div class="flex flex-wrap items-center gap-2 text-sm">
+					<button type="button" @click="autoLayout()" class="rounded-xl border border-border bg-card px-3 py-2 hover:border-red-500">🧭 Auto-layout</button>
+					<button type="button" @click="showJson = !showJson" class="rounded-xl border border-border bg-card px-3 py-2 hover:border-red-500"><span x-text="showJson ? 'Hide JSON' : 'Show JSON'"></span></button>
 					if data.EditWorkflowID != "" {
 						<span class="text-xs text-muted-foreground">Editing <code class="font-mono">{ data.EditWorkflowID }</code> · <a href="/designer" class="text-red-500 hover:underline">new workflow</a></span>
 					} else if len(data.Workflows) > 0 {
@@ -1144,7 +1176,7 @@ templ DesignerPage(data *DesignerPageData) {
 				<!-- canvas + inspector -->
 				<div class="grid gap-4 xl:grid-cols-[1fr_340px]">
 					<div>
-						<div class="nj-canvas h-[720px] w-full cursor-grab border border-border shadow-sm active:cursor-grabbing" @click.self="selectedId = null" @pointerdown="startPan($event)">
+						<div id="nj-canvas" class="nj-canvas h-[calc(100vh_-_15rem)] min-h-[440px] w-full cursor-grab border border-border shadow-sm active:cursor-grabbing" @click.self="selectedId = null" @pointerdown="startPan($event)">
 							<div id="nj-canvas-inner" class="nj-canvas-inner" :style="'transform: translate(' + panX + 'px,' + panY + 'px) scale(' + zoom + '); width: ' + canvasW() + 'px; height: ' + canvasH() + 'px;'">
 								<svg :width="canvasW()" :height="canvasH()" class="absolute inset-0 h-full w-full">
 									<defs>
@@ -1191,9 +1223,9 @@ templ DesignerPage(data *DesignerPageData) {
 								</template>
 							</div>
 							<div class="absolute bottom-3 left-3 flex flex-col gap-1 rounded-xl border border-border bg-card/90 p-1 text-sm backdrop-blur">
-								<button type="button" @click="zoom = Math.min(1.5, Math.round((zoom + 0.1) * 10) / 10)" class="rounded-lg px-2.5 py-1 hover:bg-muted">＋</button>
-								<button type="button" @click="zoom = Math.max(0.4, Math.round((zoom - 0.1) * 10) / 10)" class="rounded-lg px-2.5 py-1 hover:bg-muted">−</button>
-								<button type="button" @click="zoom = 1" class="rounded-lg px-2.5 py-1 hover:bg-muted" title="Reset zoom">⛶</button>
+								<button type="button" @click="zoom = Math.min(1.5, Math.round((zoom + 0.1) * 10) / 10)" class="rounded-lg px-2.5 py-1 hover:bg-muted" title="Zoom in">＋</button>
+								<button type="button" @click="zoom = Math.max(0.4, Math.round((zoom - 0.1) * 10) / 10)" class="rounded-lg px-2.5 py-1 hover:bg-muted" title="Zoom out">−</button>
+								<button type="button" @click="fitView()" class="rounded-lg px-2.5 py-1 hover:bg-muted" title="Fit to view"><span class="text-xs" x-text="Math.round(zoom * 100) + '%'"></span></button>
 							</div>
 						</div>
 						<div x-show="showJson" class="mt-3 rounded-2xl border border-border bg-card p-4" style="display:none" x-bind:style="showJson ? 'display:block' : 'display:none'">
@@ -1205,7 +1237,7 @@ templ DesignerPage(data *DesignerPageData) {
 						</div>
 					</div>
 					<!-- inspector -->
-					<aside class="h-fit rounded-2xl border border-border bg-card p-4 xl:sticky xl:top-16">
+					<aside class="h-fit rounded-2xl border border-border bg-card p-4 xl:sticky xl:top-[112px]">
 						<template x-if="selected()">
 							<div class="space-y-3" :key="selectedId">
 								<div class="flex items-center justify-between">

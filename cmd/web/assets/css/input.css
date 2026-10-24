@@ -120,6 +120,14 @@
   .nj-content { padding: 2rem 2rem 4rem; }
 }
 
+/* sticky sub-header for the designer: pins under the app topbar
+   (py-2.5 + h-8 avatar + 1px border = 53px) so Save stays reachable */
+.nj-subbar {
+  position: sticky;
+  top: 53px;
+  z-index: 30;
+}
+
 /* ---- workflow graph canvas ---- */
 .nj-canvas {
   position: relative;

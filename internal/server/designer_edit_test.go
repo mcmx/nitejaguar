@@ -296,7 +296,7 @@ func TestDesignerGraphClientLogic(t *testing.T) {
 		"nj-default-client-list",
 		"cannot have parents",
 		"Type and action are fixed after creation",
-		"h-[720px]",
+		"h-[calc(100vh_-_15rem)]",
 		"designerTypeidSuffix",
 		"abcdefghjkmnpqrstvwxyz",
 		"webhookPath",
