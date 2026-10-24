@@ -64,12 +64,12 @@ with a top bar showing the current section and tenant. The workflow
 list (`/`) is headed by a **＋ Create** button that opens a blank
 designer (`/designer`), and each card shows **Open** (designer),
 **Clone**, and **Delete** (confirm-guarded). The designer is the only
-per-workflow page: while editing an existing workflow its toolbar
-shows the enabled/disabled badge, **View executions** (a link to
-`/results?workflow=<id>`), and — for operator+ — enable/disable,
-**Clone workflow**, and **Delete workflow** (confirm-guarded). The
-former detail page (`/workflows/:id`) is gone and returns 404. Clone
-lands on the new workflow in the designer; delete returns to the list
+per-workflow page: while editing an existing workflow the sticky
+header bar shows the enabled/disabled badge and a **⋯** menu with
+**View executions** (a link to `/results?workflow=<id>`) and — for
+operator+ — enable/disable, **Clone workflow**, and **Delete
+workflow** (confirm-guarded). The former detail page
+(`/workflows/:id`) is gone and returns 404. Clone lands on the new workflow in the designer; delete returns to the list
 with a confirmation notice. Mutating buttons require operator+ and
 are hidden otherwise. The designer itself is not a sidebar entry —
 it is only reachable from **＋ Create** (new) and **Open** (existing).
@@ -78,6 +78,15 @@ it is only reachable from **＋ Create** (new) and **Open** (existing).
 
 The designer is a node-graph canvas, not a form list:
 
+- Layout keeps the graph in the viewport: a sticky header bar holds
+  the back link, the inline-editable workflow name, the node counts,
+  **＋ Add node** and **Save** (plus the **⋯** lifecycle menu when
+  editing); workflow-level metadata (id, tenant, default client,
+  default client tags) sits behind the collapsed **Workflow settings**
+  row, and the canvas fills the remaining viewport height. The canvas
+  zoom control (＋ / − / live percentage) doubles as **fit to view**.
+  Validation errors and the connect hint appear as fixed bottom
+  notices instead of pushing the canvas down.
 - Each workflow node is a draggable card showing its icon, name,
   `action_type`/`action_name`, an argument summary, and its id.
 - Every card has a **→+ arrow on its right edge**: it opens the
@@ -86,7 +95,7 @@ The designer is a node-graph canvas, not a form list:
   default, first condition entry — move it between entries in the
   inspector). The picker opened from a card lists **actions only**:
   triggers are root nodes and can never follow another node. The
-  toolbar **＋ Add node** button adds a root card (triggers and
+  header **＋ Add node** button adds a root card (triggers and
   actions), so workflows with multiple triggers are built by adding
   each trigger as a root.
 - Click a card's **green output dot**, then click another card, to draw
