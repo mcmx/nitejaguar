@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -91,6 +93,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	e.GET("/results", s.resultsPage)
 	e.GET("/clients", s.clientsPage)
 	e.GET("/credentials", s.credentialsPage)
+	e.GET("/calendars", s.businessCalendarsPage)
 	e.GET("/audit", s.auditPage)
 	e.GET("/users", s.usersPage)
 	e.GET("/tenants", s.tenantsPage)
@@ -106,6 +109,9 @@ func (s *Server) RegisterRoutes() http.Handler {
 	e.POST("/enrollment/tokens/:id/revoke", s.revokeEnrollmentTokenWeb)
 	e.POST("/credentials", s.createCredentialWeb)
 	e.POST("/credentials/:id/delete", s.deleteCredentialWeb)
+	e.POST("/calendars", s.createBusinessCalendarWeb)
+	e.POST("/calendars/:id/update", s.updateBusinessCalendarWeb)
+	e.POST("/calendars/:id/delete", s.deleteBusinessCalendarWeb)
 	e.POST("/users", s.createUserWeb)
 	e.POST("/users/:id/revoke", s.revokeUserWeb)
 	e.POST("/profile/password", s.changePasswordWeb)
@@ -246,6 +252,36 @@ func addApiRoutes(api huma.API, s *Server) {
 		Path:        "/credentials/{id}",
 		Summary:     "Delete a stored credential (operator+)",
 	}, s.DeleteCredential)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "create-business-calendar",
+		Method:      http.MethodPost,
+		Path:        "/calendars",
+		Summary:     "Create a tenant-scoped business calendar (operator+)",
+	}, s.CreateBusinessCalendar)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "list-business-calendars",
+		Method:      http.MethodGet,
+		Path:        "/calendars",
+		Summary:     "List business calendars (viewer+; tenant filtered)",
+	}, s.ListBusinessCalendars)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "get-business-calendar",
+		Method:      http.MethodGet,
+		Path:        "/calendars/{id}",
+		Summary:     "Get business calendar metadata (viewer+)",
+	}, s.GetBusinessCalendar)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "update-business-calendar",
+		Method:      http.MethodPut,
+		Path:        "/calendars/{id}",
+		Summary:     "Update a business calendar (operator+)",
+	}, s.UpdateBusinessCalendar)
+	huma.Register(apiGrp, huma.Operation{
+		OperationID: "delete-business-calendar",
+		Method:      http.MethodDelete,
+		Path:        "/calendars/{id}",
+		Summary:     "Delete a business calendar (operator+)",
+	}, s.DeleteBusinessCalendar)
 	huma.Register(apiGrp, huma.Operation{
 		OperationID: "fetch-credential",
 		Method:      http.MethodGet,
@@ -591,6 +627,13 @@ func (s *Server) GetAssignments(_ context.Context, input *AssignmentsInput) (*As
 		filtered := make(map[string]workflow.Node, len(def.Nodes))
 		for id, n := range def.Nodes {
 			if def.NodeAssignedTo(n, client.ID, client.Tags) {
+				if n.ActionType == "trigger" && n.ActionName == "cron" {
+					args, err := workflow.ResolveBusinessCalendarArgs(n.Arguments, normalizeTenantID(workflowTenant(row.TenantID, row.JSONDefinition)), s.db)
+					if err != nil {
+						return nil, huma.Error500InternalServerError("failed to resolve cron business calendar")
+					}
+					n.Arguments = args
+				}
 				filtered[id] = n
 			}
 		}
@@ -598,10 +641,11 @@ func (s *Server) GetAssignments(_ context.Context, input *AssignmentsInput) (*As
 			continue
 		}
 		def.Nodes = filtered
+		revision := assignmentRevision(row.Revision, filtered)
 		workflows = append(workflows, WorkflowDefinition{
 			ID:                def.Id,
 			Name:              def.Name,
-			Revision:          row.Revision,
+			Revision:          revision,
 			DefaultClient:     def.DefaultClient,
 			DefaultClientTags: def.DefaultClientTags,
 			Nodes:             def.Nodes,
@@ -821,6 +865,35 @@ func (s *Server) CreateEnrollmentToken(_ context.Context, input *CreateEnrollmen
 	out.Body.CreatedAt = tok.CreatedAt
 	out.Body.Token = plaintext
 	return out, nil
+}
+
+func assignmentRevision(base string, nodes map[string]workflow.Node) string {
+	type calendarSnapshot struct {
+		NodeID     string `json:"node_id"`
+		Calendar   string `json:"calendar"`
+		Weekdays   string `json:"weekdays"`
+		Exclusions string `json:"exclusions"`
+	}
+
+	var snapshots []calendarSnapshot
+	for id, node := range nodes {
+		if node.ActionType != "trigger" || node.ActionName != "cron" || node.Arguments["calendar"] == "" {
+			continue
+		}
+		snapshots = append(snapshots, calendarSnapshot{
+			NodeID:     id,
+			Calendar:   node.Arguments["calendar"],
+			Weekdays:   node.Arguments["calendar_weekdays"],
+			Exclusions: node.Arguments["calendar_dates"],
+		})
+	}
+	if len(snapshots) == 0 {
+		return base
+	}
+	sort.Slice(snapshots, func(i, j int) bool { return snapshots[i].NodeID < snapshots[j].NodeID })
+	encoded, _ := json.Marshal(snapshots)
+	hash := sha256.Sum256(append(append([]byte(nil), base...), encoded...))
+	return base + ":" + hex.EncodeToString(hash[:])
 }
 
 func (s *Server) ListEnrollmentTokens(_ context.Context, input *ListEnrollmentTokensInput) (*ListEnrollmentTokensOutput, error) {

@@ -59,6 +59,29 @@ var (
 		Columns:    AuthSessionsColumns,
 		PrimaryKey: []*schema.Column{AuthSessionsColumns[0]},
 	}
+	// BusinessCalendarsColumns holds the columns for the "business_calendars" table.
+	BusinessCalendarsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "tenant_id", Type: field.TypeString, Default: "default"},
+		{Name: "name", Type: field.TypeString},
+		{Name: "weekdays_json", Type: field.TypeString, Default: "[]"},
+		{Name: "excluded_dates_json", Type: field.TypeString, Default: "[]"},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// BusinessCalendarsTable holds the schema information for the "business_calendars" table.
+	BusinessCalendarsTable = &schema.Table{
+		Name:       "business_calendars",
+		Columns:    BusinessCalendarsColumns,
+		PrimaryKey: []*schema.Column{BusinessCalendarsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "businesscalendar_tenant_id_name",
+				Unique:  true,
+				Columns: []*schema.Column{BusinessCalendarsColumns[1], BusinessCalendarsColumns[2]},
+			},
+		},
+	}
 	// CredentialsColumns holds the columns for the "credentials" table.
 	CredentialsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
@@ -290,6 +313,7 @@ var (
 		AppUsersTable,
 		AuditLogsTable,
 		AuthSessionsTable,
+		BusinessCalendarsTable,
 		CredentialsTable,
 		EnrollmentTokensTable,
 		NodeAssignmentsTable,

@@ -45,6 +45,18 @@ func (f AuthSessionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AuthSessionMutation", m)
 }
 
+// The BusinessCalendarFunc type is an adapter to allow the use of ordinary
+// function as BusinessCalendar mutator.
+type BusinessCalendarFunc func(context.Context, *ent.BusinessCalendarMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f BusinessCalendarFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.BusinessCalendarMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.BusinessCalendarMutation", m)
+}
+
 // The CredentialFunc type is an adapter to allow the use of ordinary
 // function as Credential mutator.
 type CredentialFunc func(context.Context, *ent.CredentialMutation) (ent.Value, error)

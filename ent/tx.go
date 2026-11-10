@@ -18,6 +18,8 @@ type Tx struct {
 	AuditLog *AuditLogClient
 	// AuthSession is the client for interacting with the AuthSession builders.
 	AuthSession *AuthSessionClient
+	// BusinessCalendar is the client for interacting with the BusinessCalendar builders.
+	BusinessCalendar *BusinessCalendarClient
 	// Credential is the client for interacting with the Credential builders.
 	Credential *CredentialClient
 	// EnrollmentToken is the client for interacting with the EnrollmentToken builders.
@@ -172,6 +174,7 @@ func (tx *Tx) init() {
 	tx.AppUser = NewAppUserClient(tx.config)
 	tx.AuditLog = NewAuditLogClient(tx.config)
 	tx.AuthSession = NewAuthSessionClient(tx.config)
+	tx.BusinessCalendar = NewBusinessCalendarClient(tx.config)
 	tx.Credential = NewCredentialClient(tx.config)
 	tx.EnrollmentToken = NewEnrollmentTokenClient(tx.config)
 	tx.NodeAssignment = NewNodeAssignmentClient(tx.config)

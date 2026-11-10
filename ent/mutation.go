@@ -14,6 +14,7 @@ import (
 	"github.com/mcmx/nitejaguar/ent/appuser"
 	"github.com/mcmx/nitejaguar/ent/auditlog"
 	"github.com/mcmx/nitejaguar/ent/authsession"
+	"github.com/mcmx/nitejaguar/ent/businesscalendar"
 	"github.com/mcmx/nitejaguar/ent/credential"
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
 	"github.com/mcmx/nitejaguar/ent/nodeassignment"
@@ -36,19 +37,20 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeAppUser         = "AppUser"
-	TypeAuditLog        = "AuditLog"
-	TypeAuthSession     = "AuthSession"
-	TypeCredential      = "Credential"
-	TypeEnrollmentToken = "EnrollmentToken"
-	TypeNodeAssignment  = "NodeAssignment"
-	TypeRemoteClient    = "RemoteClient"
-	TypeTenant          = "Tenant"
-	TypeTransferChunk   = "TransferChunk"
-	TypeTransferSession = "TransferSession"
-	TypeTransferSignal  = "TransferSignal"
-	TypeWorkflow        = "Workflow"
-	TypeWorkflowResult  = "WorkflowResult"
+	TypeAppUser          = "AppUser"
+	TypeAuditLog         = "AuditLog"
+	TypeAuthSession      = "AuthSession"
+	TypeBusinessCalendar = "BusinessCalendar"
+	TypeCredential       = "Credential"
+	TypeEnrollmentToken  = "EnrollmentToken"
+	TypeNodeAssignment   = "NodeAssignment"
+	TypeRemoteClient     = "RemoteClient"
+	TypeTenant           = "Tenant"
+	TypeTransferChunk    = "TransferChunk"
+	TypeTransferSession  = "TransferSession"
+	TypeTransferSignal   = "TransferSignal"
+	TypeWorkflow         = "Workflow"
+	TypeWorkflowResult   = "WorkflowResult"
 )
 
 // AppUserMutation represents an operation that mutates the AppUser nodes in the graph.
@@ -2078,6 +2080,608 @@ func (m *AuthSessionMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *AuthSessionMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown AuthSession edge %s", name)
+}
+
+// BusinessCalendarMutation represents an operation that mutates the BusinessCalendar nodes in the graph.
+type BusinessCalendarMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *string
+	tenant_id           *string
+	name                *string
+	weekdays_json       *string
+	excluded_dates_json *string
+	created_at          *time.Time
+	updated_at          *time.Time
+	clearedFields       map[string]struct{}
+	done                bool
+	oldValue            func(context.Context) (*BusinessCalendar, error)
+	predicates          []predicate.BusinessCalendar
+}
+
+var _ ent.Mutation = (*BusinessCalendarMutation)(nil)
+
+// businesscalendarOption allows management of the mutation configuration using functional options.
+type businesscalendarOption func(*BusinessCalendarMutation)
+
+// newBusinessCalendarMutation creates new mutation for the BusinessCalendar entity.
+func newBusinessCalendarMutation(c config, op Op, opts ...businesscalendarOption) *BusinessCalendarMutation {
+	m := &BusinessCalendarMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeBusinessCalendar,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withBusinessCalendarID sets the ID field of the mutation.
+func withBusinessCalendarID(id string) businesscalendarOption {
+	return func(m *BusinessCalendarMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *BusinessCalendar
+		)
+		m.oldValue = func(ctx context.Context) (*BusinessCalendar, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().BusinessCalendar.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withBusinessCalendar sets the old BusinessCalendar of the mutation.
+func withBusinessCalendar(node *BusinessCalendar) businesscalendarOption {
+	return func(m *BusinessCalendarMutation) {
+		m.oldValue = func(context.Context) (*BusinessCalendar, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m BusinessCalendarMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m BusinessCalendarMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of BusinessCalendar entities.
+func (m *BusinessCalendarMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *BusinessCalendarMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *BusinessCalendarMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().BusinessCalendar.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetTenantID sets the "tenant_id" field.
+func (m *BusinessCalendarMutation) SetTenantID(s string) {
+	m.tenant_id = &s
+}
+
+// TenantID returns the value of the "tenant_id" field in the mutation.
+func (m *BusinessCalendarMutation) TenantID() (r string, exists bool) {
+	v := m.tenant_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTenantID returns the old "tenant_id" field's value of the BusinessCalendar entity.
+// If the BusinessCalendar object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BusinessCalendarMutation) OldTenantID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTenantID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTenantID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTenantID: %w", err)
+	}
+	return oldValue.TenantID, nil
+}
+
+// ResetTenantID resets all changes to the "tenant_id" field.
+func (m *BusinessCalendarMutation) ResetTenantID() {
+	m.tenant_id = nil
+}
+
+// SetName sets the "name" field.
+func (m *BusinessCalendarMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *BusinessCalendarMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the BusinessCalendar entity.
+// If the BusinessCalendar object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BusinessCalendarMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *BusinessCalendarMutation) ResetName() {
+	m.name = nil
+}
+
+// SetWeekdaysJSON sets the "weekdays_json" field.
+func (m *BusinessCalendarMutation) SetWeekdaysJSON(s string) {
+	m.weekdays_json = &s
+}
+
+// WeekdaysJSON returns the value of the "weekdays_json" field in the mutation.
+func (m *BusinessCalendarMutation) WeekdaysJSON() (r string, exists bool) {
+	v := m.weekdays_json
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWeekdaysJSON returns the old "weekdays_json" field's value of the BusinessCalendar entity.
+// If the BusinessCalendar object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BusinessCalendarMutation) OldWeekdaysJSON(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWeekdaysJSON is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWeekdaysJSON requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWeekdaysJSON: %w", err)
+	}
+	return oldValue.WeekdaysJSON, nil
+}
+
+// ResetWeekdaysJSON resets all changes to the "weekdays_json" field.
+func (m *BusinessCalendarMutation) ResetWeekdaysJSON() {
+	m.weekdays_json = nil
+}
+
+// SetExcludedDatesJSON sets the "excluded_dates_json" field.
+func (m *BusinessCalendarMutation) SetExcludedDatesJSON(s string) {
+	m.excluded_dates_json = &s
+}
+
+// ExcludedDatesJSON returns the value of the "excluded_dates_json" field in the mutation.
+func (m *BusinessCalendarMutation) ExcludedDatesJSON() (r string, exists bool) {
+	v := m.excluded_dates_json
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExcludedDatesJSON returns the old "excluded_dates_json" field's value of the BusinessCalendar entity.
+// If the BusinessCalendar object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BusinessCalendarMutation) OldExcludedDatesJSON(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExcludedDatesJSON is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExcludedDatesJSON requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExcludedDatesJSON: %w", err)
+	}
+	return oldValue.ExcludedDatesJSON, nil
+}
+
+// ResetExcludedDatesJSON resets all changes to the "excluded_dates_json" field.
+func (m *BusinessCalendarMutation) ResetExcludedDatesJSON() {
+	m.excluded_dates_json = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *BusinessCalendarMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *BusinessCalendarMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the BusinessCalendar entity.
+// If the BusinessCalendar object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BusinessCalendarMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *BusinessCalendarMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *BusinessCalendarMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *BusinessCalendarMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the BusinessCalendar entity.
+// If the BusinessCalendar object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BusinessCalendarMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *BusinessCalendarMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the BusinessCalendarMutation builder.
+func (m *BusinessCalendarMutation) Where(ps ...predicate.BusinessCalendar) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the BusinessCalendarMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *BusinessCalendarMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.BusinessCalendar, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *BusinessCalendarMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *BusinessCalendarMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (BusinessCalendar).
+func (m *BusinessCalendarMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *BusinessCalendarMutation) Fields() []string {
+	fields := make([]string, 0, 6)
+	if m.tenant_id != nil {
+		fields = append(fields, businesscalendar.FieldTenantID)
+	}
+	if m.name != nil {
+		fields = append(fields, businesscalendar.FieldName)
+	}
+	if m.weekdays_json != nil {
+		fields = append(fields, businesscalendar.FieldWeekdaysJSON)
+	}
+	if m.excluded_dates_json != nil {
+		fields = append(fields, businesscalendar.FieldExcludedDatesJSON)
+	}
+	if m.created_at != nil {
+		fields = append(fields, businesscalendar.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, businesscalendar.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *BusinessCalendarMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case businesscalendar.FieldTenantID:
+		return m.TenantID()
+	case businesscalendar.FieldName:
+		return m.Name()
+	case businesscalendar.FieldWeekdaysJSON:
+		return m.WeekdaysJSON()
+	case businesscalendar.FieldExcludedDatesJSON:
+		return m.ExcludedDatesJSON()
+	case businesscalendar.FieldCreatedAt:
+		return m.CreatedAt()
+	case businesscalendar.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *BusinessCalendarMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case businesscalendar.FieldTenantID:
+		return m.OldTenantID(ctx)
+	case businesscalendar.FieldName:
+		return m.OldName(ctx)
+	case businesscalendar.FieldWeekdaysJSON:
+		return m.OldWeekdaysJSON(ctx)
+	case businesscalendar.FieldExcludedDatesJSON:
+		return m.OldExcludedDatesJSON(ctx)
+	case businesscalendar.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case businesscalendar.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown BusinessCalendar field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *BusinessCalendarMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case businesscalendar.FieldTenantID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTenantID(v)
+		return nil
+	case businesscalendar.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case businesscalendar.FieldWeekdaysJSON:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWeekdaysJSON(v)
+		return nil
+	case businesscalendar.FieldExcludedDatesJSON:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExcludedDatesJSON(v)
+		return nil
+	case businesscalendar.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case businesscalendar.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown BusinessCalendar field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *BusinessCalendarMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *BusinessCalendarMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *BusinessCalendarMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown BusinessCalendar numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *BusinessCalendarMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *BusinessCalendarMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *BusinessCalendarMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown BusinessCalendar nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *BusinessCalendarMutation) ResetField(name string) error {
+	switch name {
+	case businesscalendar.FieldTenantID:
+		m.ResetTenantID()
+		return nil
+	case businesscalendar.FieldName:
+		m.ResetName()
+		return nil
+	case businesscalendar.FieldWeekdaysJSON:
+		m.ResetWeekdaysJSON()
+		return nil
+	case businesscalendar.FieldExcludedDatesJSON:
+		m.ResetExcludedDatesJSON()
+		return nil
+	case businesscalendar.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case businesscalendar.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown BusinessCalendar field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *BusinessCalendarMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *BusinessCalendarMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *BusinessCalendarMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *BusinessCalendarMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *BusinessCalendarMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *BusinessCalendarMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *BusinessCalendarMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown BusinessCalendar unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *BusinessCalendarMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown BusinessCalendar edge %s", name)
 }
 
 // CredentialMutation represents an operation that mutates the Credential nodes in the graph.

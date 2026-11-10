@@ -100,6 +100,7 @@ func TestNewRejectsInvalidDefinitions(t *testing.T) {
 		"zero interval":       map[string]string{"interval": "0s"},
 		"bad timezone":        map[string]string{"timezone": "Mars/Olympus"},
 		"bad run_on_start":    map[string]string{"run_on_start": "maybe"},
+		"bad calendar":        map[string]string{"calendar": "not-a-calendar"},
 	}
 	for name, args := range cases {
 		events := make(chan common.ResultData, 1)
@@ -113,6 +114,54 @@ func TestNewAcceptsIntervalOverCron(t *testing.T) {
 	trigger, _ := newTestTrigger(t, map[string]string{"cron": "0 0 * * *", "interval": "90s"})
 	if trigger.scheduleDesc != "90s" {
 		t.Errorf("schedule = %q, want interval %q to win", trigger.scheduleDesc, "90s")
+	}
+}
+
+func TestNewAcceptsBusinessCalendar(t *testing.T) {
+	trigger, _ := newTestTrigger(t, map[string]string{
+		"calendar": "us-holidays", "calendar_dates": `["2026-01-01"]`,
+		"calendar_weekdays": `[]`, "cron": "0 9 * * *", "timezone": "UTC",
+	})
+	if trigger.calendar == nil {
+		t.Fatal("calendar = nil, want parsed calendar")
+	}
+	if trigger.calendarName != "us-holidays" {
+		t.Fatalf("calendarName = %q, want us-holidays", trigger.calendarName)
+	}
+}
+
+func TestCalendarSkipsHolidayDatesAndWeekdays(t *testing.T) {
+	trigger, _ := newTestTrigger(t, map[string]string{
+		"calendar": "test-holidays", "calendar_dates": `["2026-01-01"]`,
+		"calendar_weekdays": `[]`, "cron": "0 9 * * *", "timezone": "UTC",
+	})
+	next := trigger.schedule.Next(time.Date(2025, time.December, 31, 9, 30, 0, 0, time.UTC))
+	want := time.Date(2026, time.January, 2, 9, 0, 0, 0, time.UTC)
+	if !next.Equal(want) {
+		t.Fatalf("holiday schedule next = %v, want %v", next, want)
+	}
+
+	weekdaysOnly, _ := newTestTrigger(t, map[string]string{
+		"calendar": "weekdays", "calendar_dates": `[]`,
+		"calendar_weekdays": `["Mon","Tue","Wed","Thu","Fri"]`,
+		"cron":              "0 9 * * *", "timezone": "UTC",
+	})
+	next = weekdaysOnly.schedule.Next(time.Date(2026, time.January, 3, 0, 0, 0, 0, time.UTC))
+	want = time.Date(2026, time.January, 5, 9, 0, 0, 0, time.UTC)
+	if !next.Equal(want) {
+		t.Fatalf("weekdays-only next = %v, want %v", next, want)
+	}
+}
+
+func TestCalendarResultReportsDecision(t *testing.T) {
+	trigger, events := newTestTrigger(t, map[string]string{
+		"calendar": "weekday-calendar", "calendar_dates": `[]`,
+		"calendar_weekdays": `["Mon","Tue","Wed","Thu","Fri"]`,
+	})
+	trigger.sendResult("exec", time.Date(2026, time.January, 5, 9, 0, 0, 0, time.UTC))
+	payload := payloadOf(t, receive(t, events, time.Second))
+	if payload["calendar"] != "weekday-calendar" || payload["calendar_allowed"] != true {
+		t.Errorf("calendar decision = %v/%v, want weekday-calendar/true", payload["calendar"], payload["calendar_allowed"])
 	}
 }
 
@@ -133,7 +182,7 @@ func TestNewTimezoneOverridesScheduleLocation(t *testing.T) {
 	// A fixed zone makes the assertion independent of the host timezone.
 	loc := time.FixedZone("UTC-4", -4*3600)
 	args := map[string]string{"cron": "0 9 * * *"}
-	schedule, desc, err := buildSchedule(args, true, loc)
+	schedule, desc, err := buildSchedule(args, true, loc, nil)
 	if err != nil {
 		t.Fatalf("buildSchedule: %v", err)
 	}

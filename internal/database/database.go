@@ -103,6 +103,14 @@ type Service interface {
 	ResolveCredential(tenantID, ref, userID string, groupIDs []string) (*ent.Credential, error)
 	DecryptCredentialSecret(row *ent.Credential) (string, error)
 
+	// Business calendars are tenant-scoped reusable cron trigger rules.
+	CreateBusinessCalendar(tenantID, name string, weekdays, excludedDates []string) (*ent.BusinessCalendar, error)
+	ListBusinessCalendars(tenantID string) ([]*ent.BusinessCalendar, error)
+	GetBusinessCalendar(id string) (*ent.BusinessCalendar, error)
+	UpdateBusinessCalendar(id, name string, weekdays, excludedDates []string) (*ent.BusinessCalendar, error)
+	DeleteBusinessCalendar(id string) error
+	LookupBusinessCalendar(tenantID, name string) (*common.BusinessCalendarDefinition, error)
+
 	// Client-to-client transfer (roadmap slice 6): relay sessions +
 	// WebRTC signaling. Control plane goes through the server; the relay
 	// is the guaranteed path with P2P first.

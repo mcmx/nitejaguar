@@ -204,7 +204,7 @@ func TestNavbarGating(t *testing.T) {
 	if !strings.Contains(out, "/login") {
 		t.Fatalf("anonymous navbar missing Login link: %s", out)
 	}
-	for _, hidden := range []string{"Workflows", "Designer", "/designer", "Clients", "Credentials", "Audit", "Users", "/logout"} {
+	for _, hidden := range []string{"Workflows", "Designer", "/designer", "Clients", "Credentials", "Calendars", "Audit", "Users", "/logout"} {
 		if strings.Contains(out, hidden) {
 			t.Fatalf("anonymous navbar leaks %q: %s", hidden, out)
 		}
@@ -215,7 +215,7 @@ func TestNavbarGating(t *testing.T) {
 		t.Fatalf("render signed-in navbar: %v", err)
 	}
 	sout := signed.String()
-	for _, want := range []string{"Workflows", "Clients", "Credentials", "Audit", "Users", "alice", "/logout", "/profile"} {
+	for _, want := range []string{"Workflows", "Clients", "Credentials", "Calendars", "Audit", "Users", "alice", "/logout", "/profile"} {
 		if !strings.Contains(sout, want) {
 			t.Fatalf("signed-in navbar missing %q: %s", want, sout)
 		}

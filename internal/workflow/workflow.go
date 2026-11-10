@@ -438,6 +438,14 @@ func (wm *workflowManager) AddWorkflow(data Workflow) error {
 			ActionName: n.ActionName,
 			Args:       n.Arguments,
 		}
+		if n.ActionName == "cron" && wm.db != nil {
+			args, err := ResolveBusinessCalendarArgs(n.Arguments, data.TenantID, wm.db)
+			if err != nil {
+				log.Printf("Cannot resolve cron calendar for trigger %s: %v", n.Id, err)
+				continue
+			}
+			cArgs.Args = args
+		}
 		nt, id, err := wm.TriggerManager.AddTrigger(cArgs)
 		if err != nil {
 			log.Printf("Cannot create new trigger: %s", err)

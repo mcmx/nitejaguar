@@ -24,6 +24,7 @@ type isoSetup struct {
 	workflowA, triggerA   string
 	actionA               string
 	credentialAID         string
+	calendarAID           string
 	clientAID, clientATok string
 	clientBID, clientBTok string
 	userAID               string
@@ -83,6 +84,19 @@ func seedIsolation(t *testing.T, db database.Service, api humatest.TestAPI) *iso
 	}
 	decodeBody(t, strings.NewReader(resp.Body.String()), &cred)
 	s.credentialAID = cred.ID
+
+	resp = api.Post("/api/calendars", superAuth, map[string]any{
+		"tenant_id": s.tenantA, "name": "iso-calendar",
+		"weekdays": []string{"Mon", "Tue"}, "excluded_dates": []string{"2026-12-25"},
+	})
+	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+		t.Fatalf("seed business calendar status = %v, body = %s", resp.Code, resp.Body.String())
+	}
+	var calendar struct {
+		ID string `json:"id"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &calendar)
+	s.calendarAID = calendar.ID
 
 	// Tenant A user (created by tenant A's own admin).
 	resp = api.Post("/api/users", s.adminA, map[string]any{
@@ -144,6 +158,8 @@ func TestAnonymousReadsDenied(t *testing.T) {
 		{"clients", func() *httptest.ResponseRecorder { return api.Get("/api/clients") }},
 		{"credentials", func() *httptest.ResponseRecorder { return api.Get("/api/credentials") }},
 		{"credential", func() *httptest.ResponseRecorder { return api.Get("/api/credentials/" + seed.credentialAID) }},
+		{"calendars", func() *httptest.ResponseRecorder { return api.Get("/api/calendars") }},
+		{"calendar", func() *httptest.ResponseRecorder { return api.Get("/api/calendars/" + seed.calendarAID) }},
 		{"users", func() *httptest.ResponseRecorder { return api.Get("/api/users") }},
 		{"audit", func() *httptest.ResponseRecorder { return api.Get("/api/audit") }},
 		{"tenants", func() *httptest.ResponseRecorder { return api.Get("/api/tenants") }},
@@ -172,6 +188,7 @@ func TestCrossTenantReadsDenied(t *testing.T) {
 	for _, target := range []string{
 		"/api/workflows/" + seed.workflowA,
 		"/api/credentials/" + seed.credentialAID,
+		"/api/calendars/" + seed.calendarAID,
 	} {
 		if resp := api.Get(target, seed.operatorB); resp.Code != http.StatusNotFound {
 			t.Errorf("cross-tenant GET %s status = %v, want 404", target, resp.Code)
@@ -199,6 +216,13 @@ func TestCrossTenantReadsDenied(t *testing.T) {
 	resp = api.Get("/api/credentials", seed.operatorB)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("B credentials status = %v", resp.Code)
+	}
+	resp = api.Get("/api/calendars", seed.operatorB)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("B calendars status = %v", resp.Code)
+	}
+	if strings.Contains(resp.Body.String(), seed.calendarAID) || strings.Contains(resp.Body.String(), "iso-calendar") {
+		t.Errorf("tenant B calendar list leaks tenant A calendar: %s", resp.Body.String())
 	}
 	if strings.Contains(resp.Body.String(), seed.credentialAID) || strings.Contains(resp.Body.String(), "top-secret-A") {
 		t.Errorf("tenant B credential list leaks tenant A credential: %s", resp.Body.String())
@@ -251,6 +275,22 @@ func TestCrossTenantWritesDenied(t *testing.T) {
 	})
 	if resp.Code != http.StatusForbidden {
 		t.Errorf("workflow hijack status = %v, want 403 (body %s)", resp.Code, resp.Body.String())
+	}
+	resp = api.Post("/api/calendars", seed.operatorB, map[string]any{
+		"tenant_id": seed.tenantA, "name": "calendar-hijack",
+	})
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("cross-tenant calendar create status = %v, want 403 (body %s)", resp.Code, resp.Body.String())
+	}
+	resp = api.Do(http.MethodPut, "/api/calendars/"+seed.calendarAID, seed.operatorB, map[string]any{
+		"name": "calendar-hijack",
+	})
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("cross-tenant calendar update status = %v, want 403 (body %s)", resp.Code, resp.Body.String())
+	}
+	resp = api.Do(http.MethodDelete, "/api/calendars/"+seed.calendarAID, seed.operatorB)
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("cross-tenant calendar delete status = %v, want 403 (body %s)", resp.Code, resp.Body.String())
 	}
 	if row, err := db.GetWorkflow(seed.workflowA); err != nil {
 		t.Errorf("victim workflow missing after hijack attempt: %v", err)
@@ -394,6 +434,31 @@ func TestWebCrossTenantDenials(t *testing.T) {
 	}
 	if row, err := db.GetWorkflow(seed.workflowA); err != nil || !row.Enabled {
 		t.Errorf("victim workflow toggled via web cross-tenant call (err=%v)", err)
+	}
+
+	// Calendar update and delete across tenants are refused by the web UI.
+	calendar, err := db.GetBusinessCalendar(seed.calendarAID)
+	if err != nil {
+		t.Fatalf("get seeded calendar: %v", err)
+	}
+	c4, _ := sessionCookieContext(t, db, s, http.MethodPost, "/", webSession(t, db, seed.operatorB))
+	c4.SetParamNames("id")
+	c4.SetParamValues(seed.calendarAID)
+	if err := s.updateBusinessCalendarWeb(c4); err == nil {
+		t.Errorf("cross-tenant web calendar update succeeded, want 403")
+	} else if he, ok := err.(*echo.HTTPError); !ok || he.Code != http.StatusForbidden {
+		t.Errorf("cross-tenant web calendar update err = %v, want 403", err)
+	}
+	c5, _ := sessionCookieContext(t, db, s, http.MethodPost, "/", webSession(t, db, seed.operatorB))
+	c5.SetParamNames("id")
+	c5.SetParamValues(seed.calendarAID)
+	if err := s.deleteBusinessCalendarWeb(c5); err == nil {
+		t.Errorf("cross-tenant web calendar delete succeeded, want 403")
+	} else if he, ok := err.(*echo.HTTPError); !ok || he.Code != http.StatusForbidden {
+		t.Errorf("cross-tenant web calendar delete err = %v, want 403", err)
+	}
+	if current, err := db.GetBusinessCalendar(calendar.ID); err != nil || current.Name != "iso-calendar" {
+		t.Errorf("calendar changed after cross-tenant web writes (err=%v, row=%+v)", err, current)
 	}
 
 	// Trigger stop requires operator+: viewers are refused.

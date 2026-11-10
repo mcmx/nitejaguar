@@ -14,6 +14,7 @@ Welcome to the official documentation for **Nitejaguar**, a lightweight and powe
 - [Development Guide](./development.md) — Building, codegen (`templ` & `ent`), testing (`make test`), and linting (`make lint`).
 - [HA & Failover](./ha-failover.md) — Active/passive topology, live backup (`nitejaguar-server backup -o`), restore, RPO/RTO, and no-active/active limits.
 - [Credentials](./credentials.md) — Credential storage (encrypted at rest), scopes & resolution (`user > group > tenant`), just-in-time fetch, and `credential_ref` workflow usage.
+- [Business Calendars](./business-calendars.md) — Tenant-scoped calendar CRUD, weekday/date rules, and cron trigger references.
 - [Providers](./providers.md) — Provider collections, the shared-credential-type rule, and the registry.
  - [RBAC & Auth](./rbac.md) — Users, roles (`admin > operator > viewer`), login sessions, gated management endpoints, website login, and the audit trail.
  - [Tenants & Superusers](./tenants.md) — Tenant registry, superusers (default-tenant admins), provisioning (name + admin email → tenant admin user), suspension, and tenant isolation rules.

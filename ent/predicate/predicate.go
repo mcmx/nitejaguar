@@ -15,6 +15,9 @@ type AuditLog func(*sql.Selector)
 // AuthSession is the predicate function for authsession builders.
 type AuthSession func(*sql.Selector)
 
+// BusinessCalendar is the predicate function for businesscalendar builders.
+type BusinessCalendar func(*sql.Selector)
+
 // Credential is the predicate function for credential builders.
 type Credential func(*sql.Selector)
 

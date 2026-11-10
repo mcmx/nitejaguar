@@ -8,6 +8,7 @@ import (
 	"github.com/mcmx/nitejaguar/ent/appuser"
 	"github.com/mcmx/nitejaguar/ent/auditlog"
 	"github.com/mcmx/nitejaguar/ent/authsession"
+	"github.com/mcmx/nitejaguar/ent/businesscalendar"
 	"github.com/mcmx/nitejaguar/ent/credential"
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
 	"github.com/mcmx/nitejaguar/ent/nodeassignment"
@@ -121,6 +122,38 @@ func init() {
 	authsessionDescID := authsessionFields[0].Descriptor()
 	// authsession.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	authsession.IDValidator = authsessionDescID.Validators[0].(func(string) error)
+	businesscalendarFields := schema.BusinessCalendar{}.Fields()
+	_ = businesscalendarFields
+	// businesscalendarDescTenantID is the schema descriptor for tenant_id field.
+	businesscalendarDescTenantID := businesscalendarFields[1].Descriptor()
+	// businesscalendar.DefaultTenantID holds the default value on creation for the tenant_id field.
+	businesscalendar.DefaultTenantID = businesscalendarDescTenantID.Default.(string)
+	// businesscalendarDescName is the schema descriptor for name field.
+	businesscalendarDescName := businesscalendarFields[2].Descriptor()
+	// businesscalendar.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	businesscalendar.NameValidator = businesscalendarDescName.Validators[0].(func(string) error)
+	// businesscalendarDescWeekdaysJSON is the schema descriptor for weekdays_json field.
+	businesscalendarDescWeekdaysJSON := businesscalendarFields[3].Descriptor()
+	// businesscalendar.DefaultWeekdaysJSON holds the default value on creation for the weekdays_json field.
+	businesscalendar.DefaultWeekdaysJSON = businesscalendarDescWeekdaysJSON.Default.(string)
+	// businesscalendarDescExcludedDatesJSON is the schema descriptor for excluded_dates_json field.
+	businesscalendarDescExcludedDatesJSON := businesscalendarFields[4].Descriptor()
+	// businesscalendar.DefaultExcludedDatesJSON holds the default value on creation for the excluded_dates_json field.
+	businesscalendar.DefaultExcludedDatesJSON = businesscalendarDescExcludedDatesJSON.Default.(string)
+	// businesscalendarDescCreatedAt is the schema descriptor for created_at field.
+	businesscalendarDescCreatedAt := businesscalendarFields[5].Descriptor()
+	// businesscalendar.DefaultCreatedAt holds the default value on creation for the created_at field.
+	businesscalendar.DefaultCreatedAt = businesscalendarDescCreatedAt.Default.(func() time.Time)
+	// businesscalendarDescUpdatedAt is the schema descriptor for updated_at field.
+	businesscalendarDescUpdatedAt := businesscalendarFields[6].Descriptor()
+	// businesscalendar.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	businesscalendar.DefaultUpdatedAt = businesscalendarDescUpdatedAt.Default.(func() time.Time)
+	// businesscalendar.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	businesscalendar.UpdateDefaultUpdatedAt = businesscalendarDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// businesscalendarDescID is the schema descriptor for id field.
+	businesscalendarDescID := businesscalendarFields[0].Descriptor()
+	// businesscalendar.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	businesscalendar.IDValidator = businesscalendarDescID.Validators[0].(func(string) error)
 	credentialFields := schema.Credential{}.Fields()
 	_ = credentialFields
 	// credentialDescTenantID is the schema descriptor for tenant_id field.
