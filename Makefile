@@ -11,7 +11,7 @@ TEMPL_VERSION := v0.3.1020
 GOLANGCI_VERSION := v2.13.2
 # Pinned for the same reason as TEMPL_VERSION: an unpinned `latest` binary
 # can generate different CSS from identical sources on different machines.
-TAILWIND_VERSION := v4.1.6
+TAILWIND_VERSION := v4.3.5
 
 templ-install:
 	@if ! command -v templ > /dev/null; then \
