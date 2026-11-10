@@ -102,6 +102,7 @@ type Service interface {
 	DeleteCredential(id string) error
 	ResolveCredential(tenantID, ref, userID string, groupIDs []string) (*ent.Credential, error)
 	DecryptCredentialSecret(row *ent.Credential) (string, error)
+	RewrapCredentialSecrets(ctx context.Context, force bool) (int, error)
 
 	// Business calendars are tenant-scoped reusable cron trigger rules.
 	CreateBusinessCalendar(tenantID, name string, weekdays, excludedDates []string) (*ent.BusinessCalendar, error)
@@ -159,9 +160,10 @@ type Service interface {
 }
 
 type service struct {
-	db     *dsql.DB
-	client *ent.Client
-	path   string
+	db               *dsql.DB
+	client           *ent.Client
+	path             string
+	credentialCipher credentialCipher
 }
 
 type HealthResponse struct {
@@ -185,7 +187,12 @@ var (
 func New() (Service, error) {
 	// Reuse Connection
 	dburl = os.Getenv("DB_URL")
+	credentialCipher, err := newCredentialCipherFromEnv(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("invalid credentials encryption configuration: %w", err)
+	}
 	if dbInstance != nil {
+		dbInstance.credentialCipher = credentialCipher
 		return dbInstance, nil
 	}
 	if dburl == "" {
@@ -206,9 +213,10 @@ func New() (Service, error) {
 	client := ent.NewClient(ent.Driver(drv))
 
 	dbInstance = &service{
-		client: client,
-		db:     db,
-		path:   dbFilePath(dburl),
+		client:           client,
+		db:               db,
+		path:             dbFilePath(dburl),
+		credentialCipher: credentialCipher,
 	}
 	if err := client.Schema.Create(context.Background()); err != nil {
 		return nil, fmt.Errorf("failed creating schema resources: %w", err)
