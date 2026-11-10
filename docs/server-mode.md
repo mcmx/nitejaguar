@@ -8,7 +8,10 @@ Server configuration relies on environment variables (loaded via `godotenv` from
 
 - `PORT` — HTTP server port (defaults to `8080`).
 - `DB_URL` — Local Turso database path (e.g., `./test.db`). Legacy sqlite-style values (`file:./test.db?_fk=1&cache=shared`) are still accepted and normalized. If unset, falls back to an in-memory Turso database. Existing SQLite files open as-is (same file format) — no export needed.
-- `CREDENTIALS_KEY` — AES-256 key for credential secrets at rest (64-char hex, base64 32-byte key, or any passphrase hashed with SHA-256). If unset, an ephemeral process-local key is generated (stored secrets do not survive restarts).
+- `CREDENTIALS_BACKEND` — Selects the credential secret backend. Supported values: `local` (default), `vault`, and `aws-kms`. Selecting an external backend is fail-closed: the server requires the matching provider configuration and will not silently fall back to the local `CREDENTIALS_KEY` key.
+- `CREDENTIALS_KEY` — AES-256 key for credential secrets at rest when the local backend is active (64-char hex, base64 32-byte key, or any passphrase hashed with SHA-256). If unset, an ephemeral process-local key is generated (stored secrets do not survive restarts).
+- `VAULT_ADDR` and `VAULT_TOKEN`/`VAULT_TOKEN_FILE` — Required when `CREDENTIALS_BACKEND=vault`; the key ID may be set with `VAULT_TRANSIT_KEY` or `CREDENTIALS_VAULT_KEY`.
+- `AWS_REGION` and `AWS_KMS_KEY_ID`/`AWS_KMS_KEY_ARN` — Required when `CREDENTIALS_BACKEND=aws-kms`.
 - `ADMIN_PASSWORD` — Pins the bootstrap `admin` password (min 8 chars). If unset, a random one is generated and printed once to stdout on first run.
 
 ## Starting the Server

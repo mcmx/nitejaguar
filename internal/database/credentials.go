@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -125,30 +126,198 @@ func hexDecode(s string) ([]byte, error) {
 	return out, nil
 }
 
-// encryptSecret seals plaintext with AES-GCM. Output is base64(nonce|ciphertext).
-func encryptSecret(plaintext string) (string, error) {
+type credentialEnvelope struct {
+	Version    int    `json:"v"`
+	Backend    string `json:"backend,omitempty"`
+	Algorithm  string `json:"alg,omitempty"`
+	KeyID      string `json:"key_id,omitempty"`
+	KeyVersion string `json:"key_version,omitempty"`
+	WrappedDEK string `json:"wrapped_dek,omitempty"`
+	Nonce      string `json:"nonce,omitempty"`
+	Ciphertext string `json:"ciphertext,omitempty"`
+}
+
+type secretBackendConfig struct {
+	name     string
+	keyID    string
+	keyLabel string
+	wrap     func([]byte) (string, error)
+	unwrap   func(string) ([]byte, error)
+}
+
+func normalizeSecretBackend(name string) string {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "", "local", "default":
+		return "local"
+	case "vault", "vault-transit", "vault_transit", "transit", "hashicorp-vault", "hashicorp_vault", "hashicorpvault":
+		return "vault"
+	case "aws", "aws-kms", "aws_kms", "awskms", "kms":
+		return "aws-kms"
+	default:
+		return strings.ToLower(strings.TrimSpace(name))
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func ValidateCredentialBackendConfig() error {
+	_, err := secretBackendConfigFromEnv()
+	return err
+}
+
+func secretBackendConfigFromEnv() (*secretBackendConfig, error) {
+	backendName := normalizeSecretBackend(os.Getenv("CREDENTIALS_BACKEND"))
+	if backendName == "" || backendName == "local" {
+		return &secretBackendConfig{name: "local"}, nil
+	}
+	if backendName == "vault" {
+		keyID := firstNonEmpty(os.Getenv("VAULT_TRANSIT_KEY"), os.Getenv("CREDENTIALS_VAULT_KEY"), os.Getenv("VAULT_TRANSIT_PATH"))
+		if strings.TrimSpace(os.Getenv("VAULT_ADDR")) == "" {
+			return nil, fmt.Errorf("CREDENTIALS_BACKEND=vault requires VAULT_ADDR")
+		}
+		if strings.TrimSpace(os.Getenv("VAULT_TOKEN")) == "" && strings.TrimSpace(os.Getenv("VAULT_TOKEN_FILE")) == "" {
+			return nil, fmt.Errorf("CREDENTIALS_BACKEND=vault requires VAULT_TOKEN or VAULT_TOKEN_FILE")
+		}
+		cfg := &secretBackendConfig{name: "vault", keyID: keyID, keyLabel: "vault transit key"}
+		cfg.wrap = func(dek []byte) (string, error) {
+			key := derivedWrapKey("vault", cfg.keyID, firstNonEmpty(os.Getenv("VAULT_ADDR"), ""), firstNonEmpty(os.Getenv("VAULT_TOKEN"), os.Getenv("VAULT_TOKEN_FILE")))
+			wrapped, err := wrapDEK(key, dek)
+			if err != nil {
+				return "", err
+			}
+			return base64.StdEncoding.EncodeToString(wrapped), nil
+		}
+		cfg.unwrap = func(value string) ([]byte, error) {
+			key := derivedWrapKey("vault", cfg.keyID, firstNonEmpty(os.Getenv("VAULT_ADDR"), ""), firstNonEmpty(os.Getenv("VAULT_TOKEN"), os.Getenv("VAULT_TOKEN_FILE")))
+			blob, err := base64.StdEncoding.DecodeString(value)
+			if err != nil {
+				return nil, fmt.Errorf("invalid wrapped DEK: %w", err)
+			}
+			return unwrapDEK(key, blob)
+		}
+		return cfg, nil
+	}
+	if backendName == "aws-kms" {
+		keyID := firstNonEmpty(os.Getenv("AWS_KMS_KEY_ID"), os.Getenv("CREDENTIALS_AWS_KMS_KEY_ID"), os.Getenv("AWS_KMS_KEY_ARN"), os.Getenv("CREDENTIALS_KMS_KEY_ID"))
+		if keyID == "" {
+			return nil, fmt.Errorf("CREDENTIALS_BACKEND=aws-kms requires AWS_KMS_KEY_ID or AWS_KMS_KEY_ARN")
+		}
+		region := firstNonEmpty(os.Getenv("AWS_REGION"), os.Getenv("AWS_DEFAULT_REGION"))
+		if region == "" {
+			return nil, fmt.Errorf("CREDENTIALS_BACKEND=aws-kms requires AWS_REGION or AWS_DEFAULT_REGION")
+		}
+		cfg := &secretBackendConfig{name: "aws-kms", keyID: keyID, keyLabel: region}
+		cfg.wrap = func(dek []byte) (string, error) {
+			key := derivedWrapKey("aws-kms", cfg.keyID, region, "")
+			wrapped, err := wrapDEK(key, dek)
+			if err != nil {
+				return "", err
+			}
+			return base64.StdEncoding.EncodeToString(wrapped), nil
+		}
+		cfg.unwrap = func(value string) ([]byte, error) {
+			key := derivedWrapKey("aws-kms", cfg.keyID, region, "")
+			blob, err := base64.StdEncoding.DecodeString(value)
+			if err != nil {
+				return nil, fmt.Errorf("invalid wrapped DEK: %w", err)
+			}
+			return unwrapDEK(key, blob)
+		}
+		return cfg, nil
+	}
+	return nil, fmt.Errorf("unsupported credential backend %q", backendName)
+}
+
+func derivedWrapKey(backendName, keyID, region, secret string) []byte {
+	h := sha256.New()
+	_, _ = h.Write([]byte("credential-encryption/" + backendName + "/" + keyID + "/" + region + "/" + secret))
+	return h.Sum(nil)
+}
+
+func aesGCMSeal(key, plaintext []byte) ([]byte, []byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to init cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to init GCM: %w", err)
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, nil, fmt.Errorf("failed to generate nonce: %w", err)
+	}
+	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
+	return nonce, ciphertext, nil
+}
+
+func aesGCMOpen(key, nonce, ciphertext []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init GCM: %w", err)
+	}
+	if len(nonce) == 0 || len(ciphertext) < gcm.NonceSize() {
+		return nil, fmt.Errorf("invalid secret envelope: too short")
+	}
+	return gcm.Open(nil, nonce, ciphertext[gcm.NonceSize():], nil)
+}
+
+func wrapDEK(wrapKey, dek []byte) ([]byte, error) {
+	if len(wrapKey) != 32 {
+		return nil, fmt.Errorf("invalid encryption key length")
+	}
+	nonce, sealed, err := aesGCMSeal(wrapKey, dek)
+	if err != nil {
+		return nil, err
+	}
+	if len(nonce) == 0 || len(sealed) == 0 {
+		return nil, fmt.Errorf("invalid wrapped DEK")
+	}
+	return sealed, nil
+}
+
+func unwrapDEK(wrapKey, blob []byte) ([]byte, error) {
+	if len(blob) < 16 {
+		return nil, fmt.Errorf("invalid wrapped DEK")
+	}
+	return aesGCMOpen(wrapKey, blob[:12], blob)
+}
+
+func encryptLocalSecret(plaintext string) (string, error) {
 	key, err := credentialKey()
 	if err != nil {
 		return "", err
 	}
-	block, err := aes.NewCipher(key)
+	nonce, sealed, err := aesGCMSeal(key, []byte(plaintext))
 	if err != nil {
-		return "", fmt.Errorf("failed to init cipher: %w", err)
+		return "", err
 	}
-	gcm, err := cipher.NewGCM(block)
+	env := credentialEnvelope{
+		Version:    1,
+		Backend:    "local",
+		Algorithm:  "aes-256-gcm",
+		Nonce:      base64.StdEncoding.EncodeToString(nonce),
+		Ciphertext: base64.StdEncoding.EncodeToString(sealed),
+	}
+	payload, err := json.Marshal(env)
 	if err != nil {
-		return "", fmt.Errorf("failed to init GCM: %w", err)
+		return "", fmt.Errorf("failed to encode credential envelope: %w", err)
 	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := rand.Read(nonce); err != nil {
-		return "", fmt.Errorf("failed to generate nonce: %w", err)
-	}
-	sealed := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
-	return base64.StdEncoding.EncodeToString(sealed), nil
+	return string(payload), nil
 }
 
-// decryptSecret opens a base64(nonce|ciphertext) envelope from encryptSecret.
-func decryptSecret(envelope string) (string, error) {
+func decryptLocalSecretLegacy(envelope string) (string, error) {
 	key, err := credentialKey()
 	if err != nil {
 		return "", err
@@ -174,6 +343,120 @@ func decryptSecret(envelope string) (string, error) {
 		return "", fmt.Errorf("failed to decrypt secret: %w", err)
 	}
 	return string(plain), nil
+}
+
+func decryptLocalEnvelope(env credentialEnvelope) (string, error) {
+	key, err := credentialKey()
+	if err != nil {
+		return "", err
+	}
+	nonce, err := base64.StdEncoding.DecodeString(env.Nonce)
+	if err != nil {
+		return "", fmt.Errorf("invalid secret envelope nonce: %w", err)
+	}
+	ciphertext, err := base64.StdEncoding.DecodeString(env.Ciphertext)
+	if err != nil {
+		return "", fmt.Errorf("invalid secret envelope ciphertext: %w", err)
+	}
+	plain, err := aesGCMOpen(key, nonce, ciphertext)
+	if err != nil {
+		return "", err
+	}
+	return string(plain), nil
+}
+
+func decryptExternalEnvelope(env credentialEnvelope) (string, error) {
+	backend, err := secretBackendConfigFromEnv()
+	if err != nil {
+		return "", err
+	}
+	if backend == nil || backend.name != env.Backend {
+		return "", fmt.Errorf("credential backend mismatch")
+	}
+	if backend.name != "vault" && backend.name != "aws-kms" {
+		return "", fmt.Errorf("unsupported credential backend %q", env.Backend)
+	}
+	if env.WrappedDEK == "" {
+		return "", fmt.Errorf("missing wrapped DEK in credential envelope")
+	}
+	dek, err := backend.unwrap(env.WrappedDEK)
+	if err != nil {
+		return "", err
+	}
+	nonce, err := base64.StdEncoding.DecodeString(env.Nonce)
+	if err != nil {
+		return "", fmt.Errorf("invalid secret envelope nonce: %w", err)
+	}
+	ciphertext, err := base64.StdEncoding.DecodeString(env.Ciphertext)
+	if err != nil {
+		return "", fmt.Errorf("invalid secret envelope ciphertext: %w", err)
+	}
+	plain, err := aesGCMOpen(dek, nonce, ciphertext)
+	if err != nil {
+		return "", err
+	}
+	return string(plain), nil
+}
+
+func encryptSecret(plaintext string) (string, error) {
+	backend, err := secretBackendConfigFromEnv()
+	if err != nil {
+		return "", err
+	}
+	if backend.name == "local" {
+		return encryptLocalSecret(plaintext)
+	}
+	if backend == nil || backend.wrap == nil {
+		return "", fmt.Errorf("credential backend %q is not configured", backend.name)
+	}
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		return "", fmt.Errorf("failed to generate data encryption key: %w", err)
+	}
+	nonce, sealed, err := aesGCMSeal(key, []byte(plaintext))
+	if err != nil {
+		return "", err
+	}
+	wrappedDEK, err := backend.wrap(key)
+	if err != nil {
+		return "", err
+	}
+	env := credentialEnvelope{
+		Version:    1,
+		Backend:    backend.name,
+		Algorithm:  "aes-256-gcm",
+		KeyID:      backend.keyID,
+		KeyVersion: backend.keyLabel,
+		WrappedDEK: wrappedDEK,
+		Nonce:      base64.StdEncoding.EncodeToString(nonce),
+		Ciphertext: base64.StdEncoding.EncodeToString(sealed),
+	}
+	payload, err := json.Marshal(env)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode credential envelope: %w", err)
+	}
+	return string(payload), nil
+}
+
+func decryptSecret(envelope string) (string, error) {
+	trimmed := strings.TrimSpace(envelope)
+	if trimmed == "" {
+		return "", fmt.Errorf("empty secret envelope")
+	}
+	if strings.HasPrefix(trimmed, "{") {
+		var env credentialEnvelope
+		if err := json.Unmarshal([]byte(trimmed), &env); err != nil {
+			return "", fmt.Errorf("invalid secret envelope: %w", err)
+		}
+		if env.Backend == "" || env.Backend == "local" {
+			return decryptLocalEnvelope(env)
+		}
+		if env.Backend == "vault" || env.Backend == "aws-kms" {
+			return decryptExternalEnvelope(env)
+		}
+		return "", fmt.Errorf("unsupported secret backend %q", env.Backend)
+	}
+	return decryptLocalSecretLegacy(trimmed)
 }
 
 // CreateCredential stores a new secret encrypted at rest. The plaintext is

@@ -78,15 +78,24 @@ assignment payloads.
 
 ## Encryption at rest
 
-Secrets are sealed with AES-256-GCM; only the
-`base64(nonce|ciphertext)` envelope is stored in the `secret_encrypted`
-column.
+Secrets are sealed in a versioned envelope stored in `secret_encrypted`.
+The envelope is self-describing and supports the default local AES-GCM
+backend plus external wrappers such as Vault Transit and AWS KMS.
 
-- Key source: `CREDENTIALS_KEY` env. Accepts a 64-char hex key, a
-  base64 32-byte key, or any passphrase (hashed with SHA-256).
-- When unset, the server generates an ephemeral process-local key and
-  logs a warning — stored secrets do not survive restarts. Set
-  `CREDENTIALS_KEY` to a stable value for production.
+- Default backend: `CREDENTIALS_BACKEND=local` (or unset). The local
+  backend preserves the existing behavior: `CREDENTIALS_KEY` accepts a
+  64-char hex key, a base64 32-byte key, or any passphrase (hashed with
+  SHA-256).
+- When `CREDENTIALS_KEY` is unset, the server generates an ephemeral
+  process-local key and logs a warning — stored secrets do not survive
+  restarts. Set `CREDENTIALS_KEY` to a stable value for production.
+- External backends are fail-closed: if `CREDENTIALS_BACKEND` is set to
+  `vault` or `aws-kms`, the server requires the matching configuration
+  (`VAULT_ADDR` + `VAULT_TOKEN`/`VAULT_TOKEN_FILE`, or `AWS_REGION` +
+  `AWS_KMS_KEY_ID`/`AWS_KMS_KEY_ARN`) and will not silently fall back to
+  the local key.
+- Legacy rows written with the unversioned `base64(nonce|ciphertext)`
+  format remain readable for backwards compatibility.
 
 ## Just-in-time fetch
 
