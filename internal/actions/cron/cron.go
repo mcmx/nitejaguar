@@ -25,6 +25,7 @@
 package cron
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -45,12 +46,34 @@ var parser = cron.NewParser(
 	cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 )
 
+type calendarRule struct {
+	allowedWeekdays map[time.Weekday]bool
+	excludedDates   map[string]struct{}
+}
+
+func (c *calendarRule) Allow(t time.Time) bool {
+	if c == nil {
+		return true
+	}
+	if len(c.allowedWeekdays) > 0 {
+		if !c.allowedWeekdays[t.Weekday()] {
+			return false
+		}
+	}
+	if _, blocked := c.excludedDates[dateKey(t)]; blocked {
+		return false
+	}
+	return true
+}
+
 type cronTrigger struct {
 	data   common.ActionArgs
 	events chan common.ResultData
 
 	schedule     cron.Schedule
 	scheduleDesc string
+	calendar     *calendarRule
+	calendarName string
 
 	loc    *time.Location
 	tzName string
@@ -81,7 +104,12 @@ func New(events chan common.ResultData, data common.ActionArgs) (common.Action, 
 		loc, tzName = l, tzRaw
 	}
 
-	schedule, desc, err := buildSchedule(args, tzRaw != "", loc)
+	calendar, err := buildCalendar(args)
+	if err != nil {
+		return nil, err
+	}
+
+	schedule, desc, err := buildSchedule(args, tzRaw != "", loc, calendar)
 	if err != nil {
 		return nil, err
 	}
@@ -96,6 +124,8 @@ func New(events chan common.ResultData, data common.ActionArgs) (common.Action, 
 		events:       events,
 		schedule:     schedule,
 		scheduleDesc: desc,
+		calendar:     calendar,
+		calendarName: strings.TrimSpace(args["calendar"]),
 		loc:          loc,
 		tzName:       tzName,
 		format:       strings.TrimSpace(args["format"]),
@@ -157,29 +187,60 @@ func (t *cronTrigger) now() time.Time {
 }
 
 func (t *cronTrigger) sendResult(executionId string, now time.Time) {
+	payload := map[string]any{
+		"type":         "success",
+		"trigger":      "cron",
+		"datetime":     common.FormatTimestamp(now, t.format),
+		"timestamp":    now.Unix(),
+		"timestamp_ms": now.UnixMilli(),
+		"format":       common.EffectiveTimestampFormat(t.format),
+		"timezone":     t.tzName,
+		"schedule":     t.scheduleDesc,
+	}
+	if t.calendar != nil && t.calendarName != "" {
+		payload["calendar"] = t.calendarName
+		payload["calendar_allowed"] = true
+	}
 	t.events <- common.ResultData{
 		ExecutionID: executionId,
 		ActionID:    t.data.Id,
 		ActionType:  t.data.ActionType,
 		ActionName:  t.data.ActionName,
 		CreatedAt:   now,
-		Payload: map[string]any{
-			"type":         "success",
-			"trigger":      "cron",
-			"datetime":     common.FormatTimestamp(now, t.format),
-			"timestamp":    now.Unix(),
-			"timestamp_ms": now.UnixMilli(),
-			"format":       common.EffectiveTimestampFormat(t.format),
-			"timezone":     t.tzName,
-			"schedule":     t.scheduleDesc,
-		},
+		Payload:     payload,
+	}
+}
+
+type calendarSchedule struct {
+	base     cron.Schedule
+	calendar *calendarRule
+}
+
+func (s *calendarSchedule) Next(t time.Time) time.Time {
+	if s == nil || s.base == nil || s.calendar == nil {
+		if s == nil || s.base == nil {
+			return time.Time{}
+		}
+		return s.base.Next(t)
+	}
+	for {
+		next := s.base.Next(t)
+		if next.IsZero() {
+			return time.Time{}
+		}
+		if s.calendar.Allow(next) {
+			return next
+		}
+		t = time.Date(next.Year(), next.Month(), next.Day()+1, 0, 0, 0, 0, next.Location()).Add(-time.Nanosecond)
 	}
 }
 
 // buildSchedule resolves `interval` (which wins when set) or the `cron`
 // expression into a schedule. tzExplicit forces the schedule to match fields
 // in loc, overriding any TZ=/CRON_TZ= prefix in the expression.
-func buildSchedule(args map[string]string, tzExplicit bool, loc *time.Location) (cron.Schedule, string, error) {
+func buildSchedule(args map[string]string, tzExplicit bool, loc *time.Location, calendar *calendarRule) (cron.Schedule, string, error) {
+	var schedule cron.Schedule
+	var desc string
 	if raw := strings.TrimSpace(args["interval"]); raw != "" {
 		delay, err := time.ParseDuration(raw)
 		if err != nil {
@@ -188,23 +249,90 @@ func buildSchedule(args map[string]string, tzExplicit bool, loc *time.Location) 
 		if delay <= 0 {
 			return nil, "", fmt.Errorf("interval must be greater than zero, got %q", raw)
 		}
-		return cron.Every(delay), raw, nil
-	}
-
-	expr := strings.TrimSpace(args["cron"])
-	if expr == "" {
-		expr = defaultSpec
-	}
-	schedule, err := parser.Parse(expr)
-	if err != nil {
-		return nil, "", fmt.Errorf("invalid cron expression %q: %w", expr, err)
-	}
-	if tzExplicit {
-		if spec, ok := schedule.(*cron.SpecSchedule); ok {
-			spec.Location = loc
+		schedule = cron.Every(delay)
+		desc = raw
+	} else {
+		expr := strings.TrimSpace(args["cron"])
+		if expr == "" {
+			expr = defaultSpec
+		}
+		parsed, err := parser.Parse(expr)
+		if err != nil {
+			return nil, "", fmt.Errorf("invalid cron expression %q: %w", expr, err)
+		}
+		schedule = parsed
+		desc = expr
+		if tzExplicit {
+			if spec, ok := schedule.(*cron.SpecSchedule); ok {
+				spec.Location = loc
+			}
 		}
 	}
-	return schedule, expr, nil
+	if calendar != nil {
+		schedule = &calendarSchedule{base: schedule, calendar: calendar}
+	}
+	return schedule, desc, nil
+}
+
+func buildCalendar(args map[string]string) (*calendarRule, error) {
+	name := strings.TrimSpace(args["calendar"])
+	if name == "" {
+		return nil, nil
+	}
+	out := &calendarRule{
+		allowedWeekdays: map[time.Weekday]bool{},
+		excludedDates:   map[string]struct{}{},
+	}
+	if args["calendar_weekdays"] == "" || args["calendar_dates"] == "" {
+		return nil, fmt.Errorf("business calendar %q has not been resolved", name)
+	}
+	var weekdays, dates []string
+	if err := json.Unmarshal([]byte(args["calendar_weekdays"]), &weekdays); err != nil {
+		return nil, fmt.Errorf("invalid resolved calendar weekdays: %w", err)
+	}
+	if err := json.Unmarshal([]byte(args["calendar_dates"]), &dates); err != nil {
+		return nil, fmt.Errorf("invalid resolved calendar dates: %w", err)
+	}
+	for _, weekday := range weekdays {
+		day, ok := parseWeekdayToken(weekday)
+		if !ok {
+			return nil, fmt.Errorf("invalid calendar weekday %q", weekday)
+		}
+		out.allowedWeekdays[day] = true
+	}
+	for _, rawDate := range dates {
+		date, err := time.Parse("2006-01-02", rawDate)
+		if err != nil || date.Format("2006-01-02") != rawDate {
+			return nil, fmt.Errorf("invalid calendar date %q", rawDate)
+		}
+		out.excludedDates[dateKey(date)] = struct{}{}
+	}
+	return out, nil
+}
+
+func parseWeekdayToken(raw string) (time.Weekday, bool) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "mon", "monday":
+		return time.Monday, true
+	case "tue", "tues", "tuesday":
+		return time.Tuesday, true
+	case "wed", "weds", "wednesday":
+		return time.Wednesday, true
+	case "thu", "thur", "thurs", "thursday":
+		return time.Thursday, true
+	case "fri", "friday":
+		return time.Friday, true
+	case "sat", "saturday":
+		return time.Saturday, true
+	case "sun", "sunday":
+		return time.Sunday, true
+	default:
+		return 0, false
+	}
+}
+
+func dateKey(t time.Time) string {
+	return t.Format("2006-01-02")
 }
 
 // argsToMap normalizes node args, treating a nil Args as "no arguments" (the

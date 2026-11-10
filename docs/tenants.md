@@ -1,7 +1,7 @@
 # Tenants & Superusers
 
-Multi-tenant isolation: every user, workflow, credential, client, result,
-transfer, enrollment token, and audit row belongs to exactly one tenant
+Multi-tenant isolation: every user, workflow, credential, business calendar,
+client, result, transfer, enrollment token, and audit row belongs to exactly one tenant
 (`tenant_id`). The `tenants` table is the registry of those boundaries.
 
 ## Superusers
@@ -13,7 +13,7 @@ Admins of the `default` tenant are **superusers**. The bootstrap admin
   delete) and perform **cross-tenant** operations.
 - Tenant-local admins (`admin` in any other tenant) manage everything
   **inside their own tenant** — users, passwords, tokens, clients,
-  credentials, workflows — but get `403` outside it.
+  credentials, business calendars, workflows — but get `403` outside it.
 - Operators and viewers are always scoped to their own tenant
   (a missing `tenant_id` defaults to the caller's tenant).
 
@@ -79,7 +79,7 @@ Every read and write is tenant-bound (verified by
 `TestAnonymousReadsDenied`, `TestCrossTenantReadsDenied`,
 `TestCrossTenantWritesDenied`, `TestWebCrossTenantDenials`):
 
-- Management reads (`workflows`, `clients`, `credentials`, `users`,
+- Management reads (`workflows`, `clients`, `credentials`, `business calendars`, `users`,
   `audit`, `tenants`, results/clients/users web pages) require a
   session (viewer+); superusers see all, everyone else sees only their
   own tenant. Foreign single objects return `404`, never `403`, so one

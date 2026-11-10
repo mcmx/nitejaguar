@@ -6,6 +6,7 @@ The `cron` trigger is the cronjob analogue: it fires on a schedule — a standar
 - **Cron Schedules**: standard 5-field expressions (`minute hour day-of-month month day-of-week`), an optional leading seconds field, and descriptors (`@every 30s`, `@hourly`, `@daily`, `@midnight`, `@weekly`).
 - **Fixed Intervals**: Go durations (`30s`, `5m`, `1h30m`) when a crontab is more ceremony than needed.
 - **Timezone Awareness**: an IANA timezone drives both cron field matching (so `0 9 * * *` means 9am *there*) and the emitted timestamp; defaults to local time.
+- **Business Calendars**: the `calendar` argument references a reusable tenant calendar managed from the Calendars page. Calendars allow selected weekdays and can exclude specific dates.
 - **Flexible Formatting**: ISO-8601 (`RFC3339`) by default, custom Go time layouts, or Unix epoch timestamps (`unix` / `unix_ms`) — the same specs as the [`datetime` action](./datetime-action.md).
 - **Start-up Fire**: optional `run_on_start` emits one result immediately when the trigger starts, before waiting for the first scheduled fire.
 
@@ -16,6 +17,7 @@ The `cron` trigger is the cronjob analogue: it fires on a schedule — a standar
 | `cron` | string | `* * * * *` | 5-field cron expression (`m h dom mon dow`), optionally 6 fields with a leading seconds field, or a descriptor such as `@every 30s` / `@daily`. Ignored when `interval` is set |
 | `interval` | string | `""` | Fixed Go duration (`30s`, `5m`, `1h30m`); takes precedence over `cron`. Durations below `1s` round up to `1s` |
 | `timezone` | string | local time | IANA timezone name (e.g., `Europe/Madrid`, `UTC`). Matches cron fields and renders the payload; an explicit value wins over a `TZ=`/`CRON_TZ=` prefix inside `cron` |
+| `calendar` | string | `""` | Optional name of a reusable calendar managed from the Calendars page. The calendar's allowed weekdays and excluded dates filter schedule fires. |
 | `format` | string | `RFC3339` | Go time layout for `datetime`, or `unix` / `unix_ms` |
 | `run_on_start` | boolean | `false` | Emit one result as soon as the trigger starts, before the first scheduled fire (`true`/`1`/`yes`/`on`) |
 
@@ -43,6 +45,7 @@ Every fire emits `now()` (rendered in the trigger's timezone):
 | `format` | the effective format spec (empty → `RFC3339`) |
 | `timezone` | the timezone the payload was rendered in |
 | `schedule` | the resolved schedule (`cron` expression or `interval` value) |
+| `calendar` | the configured calendar name when the trigger was filtered by a calendar rule |
 
 The shape mirrors the `datetime` action, so downstream nodes can read `$input.datetime` / `$input.timestamp` from either source interchangeably.
 
@@ -82,6 +85,22 @@ Add a `cron` node to a workflow JSON definition:
   "dependencies": []
 }
 ```
+
+Create a calendar named `us-business-days` from the Calendars page, selecting Monday through Friday as allowed weekdays and adding dates such as `2026-12-25` to its excluded dates. Reference it from a Cron trigger:
+
+```json
+{
+  "action_type": "trigger",
+  "action_name": "cron",
+  "arguments": {
+    "cron": "0 9 * * *",
+    "timezone": "UTC",
+    "calendar": "us-business-days"
+  }
+}
+```
+
+The API also supports calendar CRUD under `/api/calendars`. Calendar changes are used when their workflows are next loaded or clients next poll assignments.
 
 Or drive it with an interval instead of a crontab:
 

@@ -15,6 +15,7 @@ import (
 	"github.com/mcmx/nitejaguar/ent/appuser"
 	"github.com/mcmx/nitejaguar/ent/auditlog"
 	"github.com/mcmx/nitejaguar/ent/authsession"
+	"github.com/mcmx/nitejaguar/ent/businesscalendar"
 	"github.com/mcmx/nitejaguar/ent/credential"
 	"github.com/mcmx/nitejaguar/ent/enrollmenttoken"
 	"github.com/mcmx/nitejaguar/ent/nodeassignment"
@@ -85,19 +86,20 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			appuser.Table:         appuser.ValidColumn,
-			auditlog.Table:        auditlog.ValidColumn,
-			authsession.Table:     authsession.ValidColumn,
-			credential.Table:      credential.ValidColumn,
-			enrollmenttoken.Table: enrollmenttoken.ValidColumn,
-			nodeassignment.Table:  nodeassignment.ValidColumn,
-			remoteclient.Table:    remoteclient.ValidColumn,
-			tenant.Table:          tenant.ValidColumn,
-			transferchunk.Table:   transferchunk.ValidColumn,
-			transfersession.Table: transfersession.ValidColumn,
-			transfersignal.Table:  transfersignal.ValidColumn,
-			workflow.Table:        workflow.ValidColumn,
-			workflowresult.Table:  workflowresult.ValidColumn,
+			appuser.Table:          appuser.ValidColumn,
+			auditlog.Table:         auditlog.ValidColumn,
+			authsession.Table:      authsession.ValidColumn,
+			businesscalendar.Table: businesscalendar.ValidColumn,
+			credential.Table:       credential.ValidColumn,
+			enrollmenttoken.Table:  enrollmenttoken.ValidColumn,
+			nodeassignment.Table:   nodeassignment.ValidColumn,
+			remoteclient.Table:     remoteclient.ValidColumn,
+			tenant.Table:           tenant.ValidColumn,
+			transferchunk.Table:    transferchunk.ValidColumn,
+			transfersession.Table:  transfersession.ValidColumn,
+			transfersignal.Table:   transfersignal.ValidColumn,
+			workflow.Table:         workflow.ValidColumn,
+			workflowresult.Table:   workflowresult.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

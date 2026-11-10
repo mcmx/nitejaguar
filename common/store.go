@@ -46,3 +46,17 @@ type ClientTargetLookup interface {
 	// when the id is unknown or the store cannot answer.
 	ClientTags(clientID string) (tags []string, ok bool)
 }
+
+// BusinessCalendarDefinition is the runtime-safe projection used to resolve
+// a cron trigger's calendar reference. It contains rules only, never DB data.
+type BusinessCalendarDefinition struct {
+	Name          string
+	Weekdays      []string
+	ExcludedDates []string
+}
+
+// BusinessCalendarLookup is an optional WorkflowStore capability for resolving
+// calendar references when workflows are loaded.
+type BusinessCalendarLookup interface {
+	LookupBusinessCalendar(tenantID, name string) (*BusinessCalendarDefinition, error)
+}

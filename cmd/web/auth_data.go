@@ -86,6 +86,23 @@ type CredentialsPageData struct {
 	Success string
 }
 
+type BusinessCalendarView struct {
+	ID            string
+	TenantID      string
+	Name          string
+	Weekdays      []string
+	ExcludedDates []string
+	CreatedAt     string
+	UpdatedAt     string
+}
+
+type BusinessCalendarsPageData struct {
+	CurrentUser *modules.NavUser
+	Calendars   []BusinessCalendarView
+	Error       string
+	Success     string
+}
+
 type ProfilePageData struct {
 	CurrentUser *modules.NavUser
 	User        UserView

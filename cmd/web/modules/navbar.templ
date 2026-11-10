@@ -52,6 +52,7 @@ templ Sidebar(user *NavUser) {
 				@sideSection("Fleet")
 				@sideLink("/clients", "Clients", "Runners & enrollment", "⛁")
 				@sideLink("/credentials", "Credentials", "Secrets registry", "🔑")
+				@sideLink("/calendars", "Calendars", "Business-day rules", "📅")
 				@sideSection("Admin")
 				@sideLink("/audit", "Audit", "Who did what", "📜")
 				@sideLink("/users", "Users", "Roles & access", "👥")
@@ -136,7 +137,7 @@ templ Topbar(user *NavUser) {
 	</header>
 	<script nonce={ templ.GetNonce(ctx) }>
 		(function () {
-			var titles = { "/": "Workflows", "/designer": "Designer", "/results": "Executions", "/clients": "Clients", "/credentials": "Credentials", "/audit": "Audit", "/users": "Users", "/tenants": "Tenants", "/profile": "Profile", "/docs": "Docs", "/login": "Login" };
+			var titles = { "/": "Workflows", "/designer": "Designer", "/results": "Executions", "/clients": "Clients", "/credentials": "Credentials", "/calendars": "Calendars", "/audit": "Audit", "/users": "Users", "/tenants": "Tenants", "/profile": "Profile", "/docs": "Docs", "/login": "Login" };
 			var path = window.location.pathname || "/";
 			var key = titles[path] ? path : Object.keys(titles).filter(function (k) { return k !== "/" && path.indexOf(k + "/") === 0; })[0];
 			var el = document.getElementById("nj-crumb");

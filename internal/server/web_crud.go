@@ -127,6 +127,146 @@ func (s *Server) credentialsPage(c echo.Context) error {
 	return nil
 }
 
+func (s *Server) businessCalendarsPageData(c echo.Context) *web.BusinessCalendarsPageData {
+	user, open := s.webCurrentUser(c)
+	data := &web.BusinessCalendarsPageData{CurrentUser: s.navUser(c)}
+	tenantID := ""
+	if !open && user != nil && !database.IsSuperUser(user) {
+		tenantID = user.TenantID
+	}
+	rows, err := s.db.ListBusinessCalendars(tenantID)
+	if err != nil {
+		data.Error = "Unable to load business calendars"
+		return data
+	}
+	for _, row := range rows {
+		rules, err := database.BusinessCalendarRules(row)
+		if err != nil {
+			data.Error = "Unable to load business calendar rules"
+			return data
+		}
+		data.Calendars = append(data.Calendars, web.BusinessCalendarView{
+			ID: row.ID, TenantID: row.TenantID, Name: row.Name,
+			Weekdays: rules.Weekdays, ExcludedDates: rules.ExcludedDates,
+			CreatedAt: row.CreatedAt.Format(time.RFC3339),
+			UpdatedAt: row.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+	return data
+}
+
+func (s *Server) businessCalendarsPage(c echo.Context) error {
+	templ.Handler(web.BusinessCalendarsPage(s.businessCalendarsPageData(c))).ServeHTTP(c.Response(), c.Request())
+	return nil
+}
+
+func calendarFormValues(c echo.Context) (string, []string, []string, error) {
+	if err := c.Request().ParseForm(); err != nil {
+		return "", nil, nil, fmt.Errorf("invalid form")
+	}
+	var dates []string
+	for _, part := range strings.FieldsFunc(c.FormValue("excluded_dates"), func(r rune) bool {
+		return r == ',' || r == ';' || r == '\n' || r == '\r'
+	}) {
+		if value := strings.TrimSpace(part); value != "" {
+			dates = append(dates, value)
+		}
+	}
+	return strings.TrimSpace(c.FormValue("name")), c.Request().Form["weekdays"], dates, nil
+}
+
+func (s *Server) createBusinessCalendarWeb(c echo.Context) error {
+	caller, actor, err := s.webActor(c, database.RoleOperator)
+	if err != nil {
+		if he, ok := err.(*echo.HTTPError); ok && he.Code == http.StatusUnauthorized {
+			return c.Redirect(http.StatusSeeOther, "/login")
+		}
+		return err
+	}
+	name, weekdays, dates, err := calendarFormValues(c)
+	data := s.businessCalendarsPageData(c)
+	if err != nil {
+		data.Error = err.Error()
+		templ.Handler(web.BusinessCalendarsPage(data)).ServeHTTP(c.Response(), c.Request())
+		return nil
+	}
+	tenantID := database.DefaultTenantSlug
+	if caller != nil {
+		tenantID = caller.TenantID
+	}
+	row, err := s.db.CreateBusinessCalendar(tenantID, name, weekdays, dates)
+	if err != nil {
+		data.Error = "Failed to create calendar: " + err.Error()
+		templ.Handler(web.BusinessCalendarsPage(data)).ServeHTTP(c.Response(), c.Request())
+		return nil
+	}
+	_ = s.db.LogAudit("calendar.create", row.TenantID, actor, row.ID, "name="+row.Name+" via web")
+	data = s.businessCalendarsPageData(c)
+	data.Success = "Calendar created."
+	templ.Handler(web.BusinessCalendarsPage(data)).ServeHTTP(c.Response(), c.Request())
+	return nil
+}
+
+func (s *Server) updateBusinessCalendarWeb(c echo.Context) error {
+	caller, actor, err := s.webActor(c, database.RoleOperator)
+	if err != nil {
+		if he, ok := err.(*echo.HTTPError); ok && he.Code == http.StatusUnauthorized {
+			return c.Redirect(http.StatusSeeOther, "/login")
+		}
+		return err
+	}
+	id := c.Param("id")
+	row, err := s.db.GetBusinessCalendar(id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "business calendar not found")
+	}
+	if caller != nil && !database.CanCrossTenant(caller) && normalizeTenantID(row.TenantID) != normalizeTenantID(caller.TenantID) {
+		return echo.NewHTTPError(http.StatusForbidden, "cross-tenant operation requires a superuser")
+	}
+	name, weekdays, dates, err := calendarFormValues(c)
+	if err != nil {
+		return err
+	}
+	updated, err := s.db.UpdateBusinessCalendar(id, name, weekdays, dates)
+	if err != nil {
+		data := s.businessCalendarsPageData(c)
+		data.Error = "Failed to update calendar: " + err.Error()
+		templ.Handler(web.BusinessCalendarsPage(data)).ServeHTTP(c.Response(), c.Request())
+		return nil
+	}
+	_ = s.db.LogAudit("calendar.update", updated.TenantID, actor, updated.ID, "name="+updated.Name+" via web")
+	data := s.businessCalendarsPageData(c)
+	data.Success = "Calendar updated."
+	templ.Handler(web.BusinessCalendarsPage(data)).ServeHTTP(c.Response(), c.Request())
+	return nil
+}
+
+func (s *Server) deleteBusinessCalendarWeb(c echo.Context) error {
+	caller, actor, err := s.webActor(c, database.RoleOperator)
+	if err != nil {
+		if he, ok := err.(*echo.HTTPError); ok && he.Code == http.StatusUnauthorized {
+			return c.Redirect(http.StatusSeeOther, "/login")
+		}
+		return err
+	}
+	id := c.Param("id")
+	row, err := s.db.GetBusinessCalendar(id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "business calendar not found")
+	}
+	if caller != nil && !database.CanCrossTenant(caller) && normalizeTenantID(row.TenantID) != normalizeTenantID(caller.TenantID) {
+		return echo.NewHTTPError(http.StatusForbidden, "cross-tenant operation requires a superuser")
+	}
+	if err := s.db.DeleteBusinessCalendar(id); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete business calendar")
+	}
+	_ = s.db.LogAudit("calendar.delete", row.TenantID, actor, row.ID, "name="+row.Name+" via web")
+	data := s.businessCalendarsPageData(c)
+	data.Success = "Calendar deleted."
+	templ.Handler(web.BusinessCalendarsPage(data)).ServeHTTP(c.Response(), c.Request())
+	return nil
+}
+
 // createCredentialWeb stores a credential from the /credentials form.
 // Requires operator+; the credential lands in the caller's tenant
 // (admins use the API for cross-tenant work).

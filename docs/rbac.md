@@ -17,11 +17,12 @@ own tenant only**.
 
 | Capability | viewer | operator | tenant admin | superuser |
 |---|---|---|---|---|
-| Read workflows, clients, results, credential metadata | ✅ (own tenant) | ✅ (own tenant) | ✅ (own tenant) | ✅ (all) |
+| Read workflows, clients, results, credential and calendar metadata | ✅ (own tenant) | ✅ (own tenant) | ✅ (own tenant) | ✅ (all) |
 | Read audit trail | ✅ (own tenant) | ✅ (own tenant) | ✅ (own tenant) | ✅ (all) |
 | Mint / list / revoke enrollment tokens | ❌ | ✅ (own tenant) | ✅ (own tenant) | ✅ (any tenant) |
 | Revoke clients | ❌ | ✅ (own tenant) | ✅ (own tenant) | ✅ (any tenant) |
 | Create / delete credentials | ❌ | ✅ (own tenant) | ✅ (own tenant) | ✅ (any tenant) |
+| Create / update / delete business calendars | ❌ | ✅ (own tenant) | ✅ (own tenant) | ✅ (any tenant) |
 | Import / clone / enable workflows | ❌ | ✅ | ✅ (own tenant) | ✅ |
 | Delete workflows | ❌ | ✅ (own tenant) | ✅ (own tenant) | ✅ (any tenant) |
 | Change own password | ✅ | ✅ | ✅ | ✅ |
@@ -90,8 +91,11 @@ same token.
   all; others see their own tenant only).
 - `GET /api/workflows`, `GET /api/workflows/{id}`, `GET /api/events`,
   `GET /api/clients`, `GET /api/credentials`,
-  `GET /api/credentials/{id}` — viewer+ (superusers see all; others
+  `GET /api/credentials/{id}`, `GET /api/calendars`,
+  `GET /api/calendars/{id}` — viewer+ (superusers see all; others
   see their own tenant only; foreign single objects are `404`).
+- `POST /api/calendars`, `PUT /api/calendars/{id}`, and
+  `DELETE /api/calendars/{id}` — operator+; each change is audited.
 - `POST /api/tenants/{id}/suspend|/activate`, `DELETE
   /api/tenants/{id}` — superuser only.
 - `GET /api/users` — operator+: non-admins see their own tenant only.
@@ -144,6 +148,9 @@ curl -s localhost:8080/api/enrollment/tokens -H "$AUTH" \
   own tenant). Navbar: **Tenants**. Superusers get a create-tenant
   form (name + admin email) plus suspend/activate buttons; generated
   admin passwords are shown once.
+- `GET /calendars` — reusable calendar registry (viewer+; other tenants'
+  calendars are hidden). Operators can create, edit, and delete calendars;
+  weekday allowlists and excluded dates are used by Cron triggers.
 - `GET /profile` — your own profile plus a change-password form
   (current + new + confirm). Navbar shows your username linking here.
 - `POST /profile/password` — form password change; wrong current
@@ -151,7 +158,7 @@ curl -s localhost:8080/api/enrollment/tokens -H "$AUTH" \
 
 The navbar hides every app link for anonymous visitors — only
 **Login** (plus the theme switcher) is shown. Once logged in, the menu
-shows Workflows, Clients, Credentials, Results, Audit, Users,
+shows Workflows, Clients, Credentials, Calendars, Results, Audit, Users,
 your username (→ `/profile`), and Logout. The visual designer is no
 longer a menu entry: it is reached from the **＋ Create** button on
 the Workflows page (new workflow) and the **Open** link on each
