@@ -45,4 +45,5 @@ log/
 tailwindcss
 
 *.db
+*.db-wal
 client_state.json
