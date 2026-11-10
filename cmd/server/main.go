@@ -23,6 +23,7 @@ var (
 	importWorkflow string
 	cloneWorkflow  string
 	backupOutput   string
+	forceRewrap    bool
 )
 
 func runServer(_ *cobra.Command, _ []string) {
@@ -98,6 +99,27 @@ func main() {
 	}
 	backupCmd.Flags().StringVarP(&backupOutput, "output", "o", "", "Destination snapshot file")
 	rootCmd.AddCommand(backupCmd)
+
+	rewrapCmd := &cobra.Command{
+		Use:   "rewrap-credentials",
+		Short: "Re-encrypt stored credentials with the configured backend",
+		Long:  "Rewraps local credential secrets using CREDENTIALS_BACKEND. Keep the old CREDENTIALS_KEY until the command completes and the migrated credentials have been verified.",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			db, err := database.New()
+			if err != nil {
+				return fmt.Errorf("open database: %w", err)
+			}
+			defer func() { _ = db.Close() }()
+			count, err := db.RewrapCredentialSecrets(cmd.Context(), forceRewrap)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("rewrapped %d credential(s)\n", count)
+			return nil
+		},
+	}
+	rewrapCmd.Flags().BoolVar(&forceRewrap, "force", false, "Rewrap credentials already using the configured backend and key reference")
+	rootCmd.AddCommand(rewrapCmd)
 
 	rootCmd.PersistentFlags().BoolVarP(&enableActions, "enable-actions", "e", false, "Enable server action")
 	rootCmd.PersistentFlags().StringVarP(&importWorkflow, "import", "i", "", "Imports a workflow into the database")

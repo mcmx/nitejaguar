@@ -78,15 +78,78 @@ assignment payloads.
 
 ## Encryption at rest
 
-Secrets are sealed with AES-256-GCM; only the
-`base64(nonce|ciphertext)` envelope is stored in the `secret_encrypted`
-column.
+Secrets are sealed in a versioned envelope stored in `secret_encrypted`.
+The server uses one configured backend for all tenants; tenants cannot
+select a backend or provider key. External backends wrap a fresh random
+AES-256 data-encryption key (DEK), while the secret itself is encrypted
+locally and never sent to Vault or KMS. Tenant and credential IDs are
+authenticated as encryption context and as AES-GCM additional data.
 
-- Key source: `CREDENTIALS_KEY` env. Accepts a 64-char hex key, a
-  base64 32-byte key, or any passphrase (hashed with SHA-256).
-- When unset, the server generates an ephemeral process-local key and
-  logs a warning — stored secrets do not survive restarts. Set
-  `CREDENTIALS_KEY` to a stable value for production.
+- Default backend: `CREDENTIALS_BACKEND=local` (or unset). The local
+  backend writes a versioned AES-256-GCM envelope. `CREDENTIALS_KEY` accepts a
+  64-char hex key, a base64 32-byte key, or any passphrase (hashed with
+  SHA-256).
+- When `CREDENTIALS_KEY` is unset, the server generates an ephemeral
+  process-local key and logs a warning — stored secrets do not survive
+  restarts. Set `CREDENTIALS_KEY` to a stable value for production.
+- `CREDENTIALS_BACKEND=vault` uses Vault Transit. Configure
+  `VAULT_ADDR`, `VAULT_TRANSIT_KEY`, and either `VAULT_TOKEN` or
+  `VAULT_TOKEN_FILE`; optionally set `VAULT_TRANSIT_MOUNT` (default
+  `transit`) and `VAULT_NAMESPACE`. The Transit key must be configured
+  with `derived=true`, because the tenant/credential context is supplied
+  to each wrap/unwrap operation. Use HTTPS in production. The Vault
+  policy needs `update` on
+  `<mount>/encrypt/<key>` and `<mount>/decrypt/<key>`. Vault token
+  renewal and authentication are managed outside this application; a
+  token file is read when the server starts.
+- `CREDENTIALS_BACKEND=aws-kms` uses AWS KMS. Set `AWS_REGION` (or
+  `AWS_DEFAULT_REGION`) and `AWS_KMS_KEY_ID` or `AWS_KMS_KEY_ARN`.
+  Authentication uses the standard AWS SDK credential provider chain
+  (environment credentials, shared config/profile, web identity, or
+  workload/instance role); do not put AWS credentials in workflow or
+  credential records. The runtime identity needs `kms:Encrypt` and
+  `kms:Decrypt` on the configured key. Encryption context contains the
+  tenant and credential IDs.
+- External configuration is validated before serving requests. Provider
+  operations fail closed; an outage prevents credential creation/fetch
+  but does not prevent metadata-only list/get/delete operations. There
+  is never a local-key fallback.
+- Legacy rows written with the unversioned `base64(nonce|ciphertext)`
+  format remain readable with the local backend. The first
+  versioned-local envelope format is also readable for compatibility.
+
+### Migration, rotation, and recovery
+
+To move existing local credentials to an external backend:
+
+1. Back up the database and record the working `CREDENTIALS_KEY`.
+2. Configure and test provider access, then stop the server. Keep
+   `CREDENTIALS_KEY` set to the old value while selecting the external
+   backend; local envelopes still need the old key during migration.
+3. Run `nitejaguar-server rewrap-credentials` against the same database.
+   The command updates each row independently, skips rows already using
+   the configured backend/key, and can be rerun after interruption. Use
+   `--force` to rewrite all rows, for example after rotating a Vault
+   Transit key version.
+4. Start the server and verify JIT fetch and server-local workflow
+   execution before removing the old key or old provider access.
+
+Vault Transit ciphertext records the key version. Rotate the Transit key
+using Vault's key-rotation operation; Vault retains old versions for
+decryption. After verifying the new version is active, run
+`rewrap-credentials --force` to wrap existing DEKs with the new version
+before retiring old key versions. AWS KMS automatic key-material rotation
+keeps old ciphertext decryptable by the same key; if changing KMS keys,
+configure the new key and use the rewrap command while the old key remains
+available for decrypt.
+
+Database backups contain encrypted envelopes, not plaintext. A restore
+requires the original local key or access to the exact Vault/KMS key and
+its historical decryption versions. Keep key material, Vault key versions,
+provider permissions, and AWS role access in the provider's recovery
+system; a database backup alone cannot recover secrets if those are lost.
+During a Vault/KMS outage, credential create/fetch and rewrap fail with a
+sanitized error and no fallback; metadata-only operations continue.
 
 ## Just-in-time fetch
 

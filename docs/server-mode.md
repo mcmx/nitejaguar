@@ -8,7 +8,10 @@ Server configuration relies on environment variables (loaded via `godotenv` from
 
 - `PORT` — HTTP server port (defaults to `8080`).
 - `DB_URL` — Local Turso database path (e.g., `./test.db`). Legacy sqlite-style values (`file:./test.db?_fk=1&cache=shared`) are still accepted and normalized. If unset, falls back to an in-memory Turso database. Existing SQLite files open as-is (same file format) — no export needed.
-- `CREDENTIALS_KEY` — AES-256 key for credential secrets at rest (64-char hex, base64 32-byte key, or any passphrase hashed with SHA-256). If unset, an ephemeral process-local key is generated (stored secrets do not survive restarts).
+- `CREDENTIALS_BACKEND` — Selects the server-wide credential secret backend. Supported values: `local` (default), `vault`, and `aws-kms`. Tenant-specific backends are not supported. Selecting an external backend is fail-closed: required configuration is validated before serving requests and there is no local fallback.
+- `CREDENTIALS_KEY` — AES-256 key for credential secrets at rest when the local backend is active (64-char hex, base64 32-byte key, or any passphrase hashed with SHA-256). If unset, an ephemeral process-local key is generated (stored secrets do not survive restarts).
+- `VAULT_ADDR`, `VAULT_TRANSIT_KEY`, and `VAULT_TOKEN`/`VAULT_TOKEN_FILE` — Required when `CREDENTIALS_BACKEND=vault`; optional `VAULT_TRANSIT_MOUNT` defaults to `transit`, and `VAULT_NAMESPACE` selects a Vault namespace. The Transit key must have `derived=true`; the server identity needs `update` on its encrypt/decrypt endpoints.
+- `AWS_REGION` and `AWS_KMS_KEY_ID`/`AWS_KMS_KEY_ARN` — Required when `CREDENTIALS_BACKEND=aws-kms`. AWS auth uses the SDK's standard credential provider chain; the server role needs `kms:Encrypt` and `kms:Decrypt` on the key.
 - `ADMIN_PASSWORD` — Pins the bootstrap `admin` password (min 8 chars). If unset, a random one is generated and printed once to stdout on first run.
 
 ## Starting the Server
@@ -176,3 +179,9 @@ secret. See [Credentials](./credentials.md) for the full reference.
 - **Audit**: `credential.create`, `credential.delete`, and every
   `credential.fetch` are recorded; `GET /api/audit?limit=100` returns
   the trail.
+- **Backend migration**: stop the server, configure the destination
+  backend, retain the old `CREDENTIALS_KEY`, then run
+  `nitejaguar-server rewrap-credentials` against the same `DB_URL`.
+  The command is resumable; use `--force` to rewrap existing envelopes
+  after provider key rotation. See [Credentials](./credentials.md) for
+  backup, restore, permissions, and recovery requirements.

@@ -1,11 +1,18 @@
 package server
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/mcmx/nitejaguar/common"
 	"github.com/mcmx/nitejaguar/internal/database"
 	"github.com/mcmx/nitejaguar/internal/workflow"
 )
@@ -198,6 +205,162 @@ func TestCredentialsLifecycle(t *testing.T) {
 	if resp.Code != http.StatusNotFound {
 		t.Fatalf("fetch after delete status = %v, want 404", resp.Code)
 	}
+}
+
+func TestZZExternalCredentialBackendAPIAndWorkflow(t *testing.T) {
+	const secret = "vault-backed-api-secret"
+	wrapKey := []byte("vault-test-wrap-key-32-byte-long")
+	vault := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read Vault request: %v", err)
+			return
+		}
+		if strings.Contains(string(body), secret) {
+			t.Errorf("Vault received credential plaintext")
+		}
+		switch r.URL.Path {
+		case "/v1/transit/encrypt/credentials":
+			var request struct {
+				Plaintext string `json:"plaintext"`
+				Context   string `json:"context"`
+			}
+			if err := json.Unmarshal(body, &request); err != nil {
+				t.Errorf("decode Vault encrypt request: %v", err)
+				return
+			}
+			dek, err := base64.StdEncoding.DecodeString(request.Plaintext)
+			if err != nil || len(dek) != 32 {
+				t.Errorf("Vault encrypt received plaintext other than a DEK")
+				return
+			}
+			sealed, err := sealVaultTestKey(wrapKey, dek, []byte(request.Context))
+			if err != nil {
+				t.Errorf("seal DEK: %v", err)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]string{
+				"ciphertext": "vault:v1:" + base64.StdEncoding.EncodeToString(sealed),
+			}})
+		case "/v1/transit/decrypt/credentials":
+			var request struct {
+				Ciphertext string `json:"ciphertext"`
+				Context    string `json:"context"`
+			}
+			if err := json.Unmarshal(body, &request); err != nil {
+				t.Errorf("decode Vault decrypt request: %v", err)
+				return
+			}
+			sealed, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(request.Ciphertext, "vault:v1:"))
+			if err != nil {
+				http.Error(w, "bad encrypted key", http.StatusBadRequest)
+				return
+			}
+			dek, err := openVaultTestKey(wrapKey, sealed, []byte(request.Context))
+			if err != nil {
+				http.Error(w, "bad encryption context", http.StatusBadRequest)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]string{
+				"plaintext": base64.StdEncoding.EncodeToString(dek),
+			}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer vault.Close()
+
+	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
+	t.Setenv("CREDENTIALS_BACKEND", "vault")
+	t.Setenv("VAULT_ADDR", vault.URL)
+	t.Setenv("VAULT_TOKEN", "test-token")
+	t.Setenv("VAULT_TRANSIT_KEY", "credentials")
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("initialize database: %v", err)
+	}
+	wm := workflow.NewWorkflowManager(true, db)
+	server := &Server{db: db, wm: wm}
+	_, api := newTestAPI(t)
+	addApiRoutes(api, server)
+	adminAuth := ensureAdminToken(t, db)
+
+	resp := api.Post("/api/credentials", adminAuth, map[string]any{
+		"name": "vault-api-token", "type": "token", "secret": secret,
+	})
+	if resp.Code != http.StatusOK && resp.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, body = %s", resp.Code, resp.Body.String())
+	}
+	var created struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &created)
+	row, err := db.GetCredential(created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(row.SecretEncrypted, secret) || !strings.Contains(row.SecretEncrypted, "wrapped_dek") {
+		t.Fatalf("stored credential is not an encrypted DEK envelope")
+	}
+
+	joinToken := mintEnrollmentToken(t, db, "default", 0)
+	resp = api.Post("/api/clients/register", map[string]any{"name": "vault-worker", "enrollment_token": joinToken})
+	var registered struct {
+		Token string `json:"token"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &registered)
+	resp = api.Get("/api/credentials/"+created.Name+"/fetch", "Authorization: Bearer "+registered.Token)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("fetch status = %d, body = %s", resp.Code, resp.Body.String())
+	}
+	var fetched struct {
+		Secret string `json:"secret"`
+	}
+	decodeBody(t, strings.NewReader(resp.Body.String()), &fetched)
+	if fetched.Secret != secret {
+		t.Fatalf("fetched secret = %q, want original", fetched.Secret)
+	}
+
+	lookup, ok := db.(common.CredentialSecretLookup)
+	if !ok {
+		t.Fatal("database service does not provide workflow credential lookup")
+	}
+	workflowSecret, _, err := lookup.ResolveCredentialSecret("default", created.ID)
+	if err != nil || workflowSecret != secret {
+		t.Fatalf("workflow credential resolution = %q, %v; want original secret", workflowSecret, err)
+	}
+}
+
+func sealVaultTestKey(key, plaintext, aad []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, err
+	}
+	return gcm.Seal(nonce, nonce, plaintext, aad), nil
+}
+
+func openVaultTestKey(key, sealed, aad []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	if len(sealed) < gcm.NonceSize() {
+		return nil, io.ErrUnexpectedEOF
+	}
+	return gcm.Open(nil, sealed[:gcm.NonceSize()], sealed[gcm.NonceSize():], aad)
 }
 
 func TestCredentialScopeResolution(t *testing.T) {
