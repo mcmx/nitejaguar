@@ -1702,6 +1702,10 @@ func (s *Server) renderDesigner(c echo.Context, workflowID string) error {
 		workflowID = c.QueryParam("id")
 	}
 	user, open := s.webCurrentUser(c)
+	credentialTenantID := "default"
+	if user != nil {
+		credentialTenantID = normalizeTenantID(user.TenantID)
+	}
 	workflows, err := s.db.GetWorkflows(true, true)
 	if err == nil {
 		if !open && user != nil && !database.IsSuperUser(user) {
@@ -1750,9 +1754,20 @@ func (s *Server) renderDesigner(c echo.Context, workflowID string) error {
 				data.Error = "Workflow definition is invalid"
 			} else {
 				data.Init = web.DesignerInitFromWorkflow(def)
+				credentialTenantID = workflowTenant(row.TenantID, row.JSONDefinition)
 				data.EditWorkflowID = workflowID
 				data.Enabled = row.Enabled
 			}
+		}
+	}
+	credentials, err := s.db.ListCredentials(credentialTenantID)
+	if err != nil {
+		data.Error = "Unable to load credentials"
+	} else {
+		for _, credential := range credentials {
+			data.Init.Credentials = append(data.Init.Credentials, web.DesignerCredentialInit{
+				ID: credential.ID, Name: credential.Name, Type: credential.Type, Scope: credential.Scope,
+			})
 		}
 	}
 	// Registered clients ride along in the designer payload so the
