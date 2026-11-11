@@ -106,6 +106,60 @@ func TestDesignerEditShowsRequestedWorkflow(t *testing.T) {
 	}
 }
 
+func TestDesignerCredentialPickerIsTenantScoped(t *testing.T) {
+	t.Setenv("DB_URL", "file:ent.db?mode=memory&cache=shared&_fk=1")
+	t.Setenv("CREDENTIALS_KEY", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	db, err := database.New()
+	if err != nil {
+		t.Fatalf("failed initializing database: %v", err)
+	}
+	suffix := testAdminSeq.Add(1)
+	slug := fmt.Sprintf("designer-cred-%d", suffix)
+	_, tenantAdmin, _, err := db.CreateTenant("Designer credentials", slug, "", fmt.Sprintf("designer-cred-admin-%d", suffix), fmt.Sprintf("designer-cred-%d@example.test", suffix), "password-12345")
+	if err != nil {
+		t.Fatalf("create tenant: %v", err)
+	}
+	defaultCredential, err := db.CreateCredential("default", "designer-default-token", "token", "tenant", "", "default-secret", "")
+	if err != nil {
+		t.Fatalf("create default credential: %v", err)
+	}
+	tenantCredential, err := db.CreateCredential(slug, "designer-tenant-token", "token", "tenant", "", "tenant-secret", "")
+	if err != nil {
+		t.Fatalf("create tenant credential: %v", err)
+	}
+	_, sessionPlain, err := db.CreateSession(tenantAdmin.ID, 0)
+	if err != nil {
+		t.Fatalf("create tenant admin session: %v", err)
+	}
+	s := &Server{db: db, wm: workflow.NewWorkflowManager(false, db)}
+	h := s.RegisterRoutes()
+	req := httptest.NewRequest(http.MethodGet, "/designer", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: sessionPlain})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /designer status = %v, want 200 (body %s)", rec.Code, rec.Body.String())
+	}
+	init := extractDesignerInitial(t, rec.Body.String())
+	credentials, ok := init["credentials"].([]any)
+	if !ok || len(credentials) != 1 {
+		t.Fatalf("designer credentials = %v, want only the tenant credential", init["credentials"])
+	}
+	credential, ok := credentials[0].(map[string]any)
+	if !ok || credential["id"] != tenantCredential.ID {
+		t.Fatalf("designer credential = %v, want %q", credentials[0], tenantCredential.ID)
+	}
+	if strings.Contains(rec.Body.String(), defaultCredential.ID) {
+		t.Fatalf("designer exposed another tenant's credential id")
+	}
+	if strings.Contains(rec.Body.String(), "default-secret") || strings.Contains(rec.Body.String(), "tenant-secret") {
+		t.Fatalf("designer exposed credential secret material")
+	}
+	if !strings.Contains(rec.Body.String(), `<select x-model="selected().credential_ref"`) {
+		t.Fatalf("designer credential ref is not a select control")
+	}
+}
+
 // TestDesignerLifecycleToolbar guards the lifecycle controls that moved
 // from the removed /workflows/:id view page into the designer: the
 // enable/disable toggle, clone, delete, the workflow-filtered executions

@@ -229,10 +229,12 @@ An S3 node likewise lives in the AWS collection and references an
 
 - Import (`server -i`, `POST /api/workflows/import`) and clone
   (`server -c`, `POST /api/workflows/clone`) preserve `credential_ref`.
-- The designer edits `credential_ref` per node as a name-or-id text
-  field — no secret entry. Dangling references are allowed (the
-  credential may be created after the workflow); the executing client
-  fails closed at fetch time.
+- The designer selects `credential_ref` per node from credentials in the
+  workflow's tenant; the selected credential id is stored, and no secret
+  entry is exposed. Existing references that are not in the tenant's
+  current credential list remain visible until replaced. Imported workflows
+  may contain dangling references; the executing client fails closed at
+  fetch time.
 - Behavioral edge cases:
   - Name refs with no matching identity fall back to the tenant-scoped
     credential; if only group/user-scoped rows exist and the caller
